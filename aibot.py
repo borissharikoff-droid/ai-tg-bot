@@ -16,6 +16,8 @@ import os
 from datetime import datetime, timedelta
 import base64
 import subprocess
+import re
+import html
 
 # ==================== КОНФИГУРАЦИЯ ====================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -31,6 +33,14 @@ API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
+SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
+
+RESPONSE_STYLE_SYSTEM_PROMPT = (
+    "Ты — полезный ассистент. Отвечай максимально по делу, без воды и повторов. "
+    "Структурируй ответ: короткий вывод, затем 2-6 пунктов по сути. "
+    "Используй читаемый markdown: **жирный**, цитаты >, списки. "
+    "Если вопрос простой — дай короткий ответ в 1-3 предложениях."
+)
 
 
 def _get_deepseek_key() -> str:
@@ -111,6 +121,29 @@ def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items
             raise ValueError("JSON содержит слишком большой список")
         for item in value:
             validate_json_structure(item, depth + 1, max_depth, max_items)
+
+
+async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_mode: str = "HTML"):
+    """Отправить системное сообщение с GIF, если задан SYSTEM_GIF_URL."""
+    if SYSTEM_GIF_URL:
+        try:
+            await bot.send_animation(
+                chat_id=chat_id,
+                animation=SYSTEM_GIF_URL,
+                caption=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode
+            )
+            return
+        except Exception as e:
+            logging.warning(f"Не удалось отправить system GIF: {e}")
+
+    await bot.send_message(
+        chat_id=chat_id,
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode=parse_mode
+    )
 
 # ==================== МОДЕЛИ ====================
 AVAILABLE_MODELS = [
@@ -861,12 +894,12 @@ def get_main_keyboard():
     """Главная клавиатура"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🧬 Модели", callback_data="models_0"),
-            InlineKeyboardButton(text="🧠 Мышление", callback_data="thinking_menu")
+            InlineKeyboardButton(text="🧬 Модели AI", callback_data="models_0"),
+            InlineKeyboardButton(text="🧠 Стиль ответа", callback_data="thinking_menu")
         ],
         [
-            InlineKeyboardButton(text="⭐ Подписка", callback_data="subscription"),
-            InlineKeyboardButton(text="ℹ️ Инфо", callback_data="info")
+            InlineKeyboardButton(text="⭐ Подписка PRO", callback_data="subscription"),
+            InlineKeyboardButton(text="ℹ️ Помощь", callback_data="info")
         ]
     ])
 
@@ -915,11 +948,11 @@ def get_subscription_keyboard(user_id: int):
 
     if has_sub:
         # Если подписка активна - показываем кнопки продления
-        buttons.append([InlineKeyboardButton(text=f"⭐ Звездами ({price_stars} ⭐)", callback_data="extend_stars")])
-        buttons.append([InlineKeyboardButton(text=f"💎 CryptoBot ({price_usd} USD)", callback_data="extend_crypto")])
+        buttons.append([InlineKeyboardButton(text=f"⭐ Продлить звездами ({price_stars} ⭐)", callback_data="extend_stars")])
+        buttons.append([InlineKeyboardButton(text=f"💎 Продлить через CryptoBot ({price_usd} USD)", callback_data="extend_crypto")])
     else:
-        buttons.append([InlineKeyboardButton(text=f"⭐ Звездами ({price_stars} ⭐)", callback_data="buy_stars")])
-        buttons.append([InlineKeyboardButton(text=f"💎 CryptoBot ({price_usd} USD)", callback_data="buy_crypto")])
+        buttons.append([InlineKeyboardButton(text=f"⭐ Купить звездами ({price_stars} ⭐)", callback_data="buy_stars")])
+        buttons.append([InlineKeyboardButton(text=f"💎 Купить через CryptoBot ({price_usd} USD)", callback_data="buy_crypto")])
 
     buttons.append([InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")])
 
@@ -935,16 +968,16 @@ def get_cancel_keyboard(callback_data: str = "admin_menu"):
 def get_admin_keyboard():
     """Клавиатура админ-панели"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="💰 Изменить цену", callback_data="admin_price")],
-        [InlineKeyboardButton(text="🧬 Модели", callback_data="admin_models_0")],
-        [InlineKeyboardButton(text="✔️ Выдать подписку", callback_data="admin_grant")],
-        [InlineKeyboardButton(text="✖️ Отобрать подписку", callback_data="admin_revoke")],
-        [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users_0")],
-        [InlineKeyboardButton(text="📺 Подписка на канал", callback_data="admin_channels")],
-        [InlineKeyboardButton(text="🚫 Чёрный список", callback_data="admin_blacklist")],
-        [InlineKeyboardButton(text="🖼️ Медиа", callback_data="admin_media")]
+        [InlineKeyboardButton(text="📊 Аналитика", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="admin_price")],
+        [InlineKeyboardButton(text="🧬 Доступные модели", callback_data="admin_models_0")],
+        [InlineKeyboardButton(text="✅ Выдать подписку", callback_data="admin_grant")],
+        [InlineKeyboardButton(text="⛔ Забрать подписку", callback_data="admin_revoke")],
+        [InlineKeyboardButton(text="📢 Массовая рассылка", callback_data="admin_broadcast")],
+        [InlineKeyboardButton(text="👥 База пользователей", callback_data="admin_users_0")],
+        [InlineKeyboardButton(text="📺 Каналы обяз. подписки", callback_data="admin_channels")],
+        [InlineKeyboardButton(text="🚫 Blacklist", callback_data="admin_blacklist")],
+        [InlineKeyboardButton(text="🖼️ Медиа-оформление", callback_data="admin_media")]
     ])
 
 
@@ -966,7 +999,7 @@ async def safe_edit_or_send(callback: CallbackQuery, text: str, reply_markup=Non
                 await callback.message.delete()
             except:
                 pass
-            await bot.send_message(
+            await send_system_message(
                 chat_id=callback.message.chat.id,
                 text=text,
                 reply_markup=reply_markup,
@@ -986,7 +1019,7 @@ async def safe_edit_or_send(callback: CallbackQuery, text: str, reply_markup=Non
                     await callback.message.delete()
                 except:
                     pass
-                await bot.send_message(
+                await send_system_message(
                     chat_id=callback.message.chat.id,
                     text=text,
                     reply_markup=reply_markup,
@@ -996,7 +1029,7 @@ async def safe_edit_or_send(callback: CallbackQuery, text: str, reply_markup=Non
         logging.warning(f"Ошибка safe_edit_or_send: {e}")
         # Последняя попытка - просто отправить новое сообщение
         try:
-            await bot.send_message(
+            await send_system_message(
                 chat_id=callback.message.chat.id,
                 text=text,
                 reply_markup=reply_markup,
@@ -1397,7 +1430,7 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
                 parse_mode="HTML"
             )
     else:
-        await bot.send_message(
+        await send_system_message(
             chat_id=chat_id,
             text=text,
             reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
@@ -1458,9 +1491,9 @@ async def send_start_message(chat_id: int, user_id: int):
                 await bot.send_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
         except Exception as e:
             logging.error(f"Ошибка отправки медиа: {e}")
-            await bot.send_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+            await send_system_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
     else:
-        await bot.send_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+        await send_system_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
 
 
 @dp.callback_query(F.data == "check_channels")
@@ -2730,10 +2763,22 @@ async def callback_info(callback: CallbackQuery):
         [InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")]
     ]
 
-    await safe_edit_or_send(
-        callback, text,
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
+    if SYSTEM_GIF_URL:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await send_system_message(
+            chat_id=callback.message.chat.id,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+            parse_mode="HTML"
+        )
+    else:
+        await safe_edit_or_send(
+            callback, text,
+            InlineKeyboardMarkup(inline_keyboard=buttons)
+        )
     await callback.answer()
 
 
@@ -3397,6 +3442,10 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
 
     # Формируем историю с системным сообщением если есть предпочтения
     messages = []
+    messages.append({
+        "role": "system",
+        "content": RESPONSE_STYLE_SYSTEM_PROMPT
+    })
 
     if thinking_pref:
         # Проверяем, это JSON или текст
@@ -3513,6 +3562,10 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
 
     # Формируем историю
     messages = []
+    messages.append({
+        "role": "system",
+        "content": RESPONSE_STYLE_SYSTEM_PROMPT
+    })
 
     if thinking_pref:
         # Проверяем, это JSON или текст
@@ -3717,21 +3770,18 @@ def split_message(text: str, max_length: int = MAX_MESSAGE_LENGTH) -> list:
 
 def markdown_to_html(text: str) -> str:
     """Конвертировать markdown в HTML"""
-    import re
-    # Жирный текст: **text** -> <b>text</b>
-    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-    # Курсив: *text* -> <i>text</i>
-    text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', text)
-    # Код: `text` -> <code>text</code>
-    text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
-    return text
+    escaped = html.escape(text or "")
+    escaped = re.sub(r'(?m)^#{1,3}\s+(.+)$', r'<b>\1</b>', escaped)
+    escaped = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped)
+    escaped = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'<i>\1</i>', escaped)
+    escaped = re.sub(r'`([^`\n]+)`', r'<code>\1</code>', escaped)
+    escaped = re.sub(r'(?m)^>\s?(.*)$', r'<blockquote>\1</blockquote>', escaped)
+    escaped = re.sub(r'(?m)^-\s+', '• ', escaped)
+    return escaped
 
 async def send_long_message(message: Message, text: str):
     """Отправить длинное сообщение"""
-    import re
-    # Простая конвертация markdown в HTML
-    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-    text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', text)
+    text = markdown_to_html(text)
 
     parts = split_message(text)
 
