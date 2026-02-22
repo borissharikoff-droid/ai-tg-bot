@@ -38,7 +38,13 @@ def _get_deepseek_key() -> str:
     return os.getenv("DEEPSEEK_API_KEY", "").strip()
 
 if not TELEGRAM_TOKEN:
-    raise RuntimeError("Set TELEGRAM_TOKEN environment variable before start")
+    similar_keys = sorted(
+        [k for k in os.environ.keys() if "TELEGRAM" in k.upper() or "TOKEN" in k.upper()]
+    )
+    raise RuntimeError(
+        "Set TELEGRAM_TOKEN environment variable before start. "
+        f"Visible similar env keys: {similar_keys}"
+    )
 
 if not CRYPTO_BOT_TOKEN:
     logging.warning("CRYPTO_BOT_TOKEN is not set. CryptoBot payments will be unavailable.")
