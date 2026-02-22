@@ -1,2 +1,0 @@
-pip install aiogram aiohttp SpeechRecognition
-pip install --upgrade aiogram --break-system-packages

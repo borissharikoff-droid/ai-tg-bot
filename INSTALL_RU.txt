@@ -1,0 +1,26 @@
+AI Telegram Bot - установка (Railway)
+
+1) Подготовьте переменные окружения:
+- TELEGRAM_TOKEN
+- CRYPTO_BOT_TOKEN
+- ADMIN_IDS (пример: 123456789,987654321)
+- ADMIN_USERNAME (пример: @my_username)
+- API_BEARER_TOKEN
+
+2) Установите зависимости:
+pip install -r requirements.txt
+
+3) Локальный запуск:
+python bot.py
+
+4) Деплой на Railway:
+- Подключите репозиторий
+- Build Command: pip install -r requirements.txt
+- Start Command: python bot.py
+- Добавьте все переменные окружения из п.1
+
+5) Безопасность:
+- Не храните токены в коде/репозитории
+- Никогда не коммитьте `.env`
+- Ограничьте список `ADMIN_IDS` только своими ID
+- Регулярно ротируйте токены

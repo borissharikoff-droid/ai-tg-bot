@@ -16,19 +16,25 @@ import os
 from datetime import datetime, timedelta
 import base64
 import subprocess
-import tempfile
 
 # ==================== КОНФИГУРАЦИЯ ====================
-TELEGRAM_TOKEN = "токен"
-CRYPTO_BOT_TOKEN = "токен"  # Получить на @CryptoBot -> /myapp
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CRYPTO_BOT_TOKEN = os.getenv("CRYPTO_BOT_TOKEN")
 CRYPTO_BOT_API = "https://pay.crypt.bot/api" # не менять!
-ADMIN_IDS = [228]  # Список ID админов
-ADMIN_USERNAME = "@inzdi"  # Username админа для связи
+ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "228").split(",") if x.strip().isdigit()]
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@inzdi")
 #остальное как есть:
 API_URL = "http://api.onlysq.ru/ai/v2"
 IMAGE_API_URL = "https://api.onlysq.ru/ai/imagen"
+API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "openai")
 DEFAULT_MODEL = "gpt-5.2-chat"
 MAX_MESSAGE_LENGTH = 4000
+
+if not TELEGRAM_TOKEN or not CRYPTO_BOT_TOKEN:
+    raise RuntimeError("Set TELEGRAM_TOKEN and CRYPTO_BOT_TOKEN environment variables before start")
+
+if not ADMIN_IDS:
+    raise RuntimeError("Set ADMIN_IDS environment variable with at least one Telegram user ID")
 
 # Пути к файлам
 DATA_DIR = "data"
@@ -48,9 +54,8 @@ logging.basicConfig(level=logging.INFO)
 try:
     import speech_recognition as sr
 except ImportError:
-    logging.info("📦 Устанавливаю SpeechRecognition...")
-    subprocess.run(["pip", "install", "SpeechRecognition", "--break-system-packages", "-q"], check=False)
-    import speech_recognition as sr
+    sr = None
+    logging.warning("⚠️ SpeechRecognition не найден. Установите зависимость заранее через requirements.")
 
 # Проверка ffmpeg
 try:
@@ -63,6 +68,33 @@ except FileNotFoundError:
     logging.warning("  Ubuntu: sudo apt install ffmpeg")
     logging.warning("  MacOS: brew install ffmpeg")
     logging.warning("  Windows: скачайте с ffmpeg.org")
+
+
+def sanitize_user_input(text: str, max_length: int = 4000) -> str:
+    """Ограничить размер и убрать управляющие символы из пользовательского ввода."""
+    if not text:
+        return ""
+    text = str(text)[:max_length]
+    return ''.join(ch for ch in text if ch.isprintable() or ch in '\n\t').strip()
+
+
+def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items: int = 200):
+    """Ограничить глубину/размер JSON, чтобы избежать перегрузки."""
+    if depth > max_depth:
+        raise ValueError("JSON слишком глубоко вложен")
+
+    if isinstance(value, dict):
+        if len(value) > max_items:
+            raise ValueError("JSON содержит слишком много ключей")
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError("Ключи JSON должны быть строками")
+            validate_json_structure(item, depth + 1, max_depth, max_items)
+    elif isinstance(value, list):
+        if len(value) > max_items:
+            raise ValueError("JSON содержит слишком большой список")
+        for item in value:
+            validate_json_structure(item, depth + 1, max_depth, max_items)
 
 # ==================== МОДЕЛИ ====================
 AVAILABLE_MODELS = [
@@ -552,7 +584,7 @@ def get_user_by_username(username: str) -> Optional[dict]:
 async def create_crypto_invoice(user_id: int, amount: float) -> Optional[dict]:
     """Создать инвойс в CryptoBot"""
     try:
-        connector = aiohttp.TCPConnector(ssl=False)
+        connector = aiohttp.TCPConnector()
         async with aiohttp.ClientSession(connector=connector) as session:
             async with session.post(
                 f"{CRYPTO_BOT_API}/createInvoice",
@@ -574,7 +606,7 @@ async def create_crypto_invoice(user_id: int, amount: float) -> Optional[dict]:
                             "invoice_id": result["invoice_id"],
                             "bot_invoice_url": result["bot_invoice_url"]
                         }
-                logging.error(f"CryptoBot error: {await response.text()}")
+                logging.error(f"CryptoBot error status={response.status}")
                 return None
     except Exception as e:
         logging.error(f"Ошибка создания CryptoBot инвойса: {e}")
@@ -584,7 +616,7 @@ async def create_crypto_invoice(user_id: int, amount: float) -> Optional[dict]:
 async def check_crypto_invoice(invoice_id: str) -> Optional[dict]:
     """Проверить статус инвойса CryptoBot"""
     try:
-        connector = aiohttp.TCPConnector(ssl=False)
+        connector = aiohttp.TCPConnector()
         async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(
                 f"{CRYPTO_BOT_API}/getInvoices",
@@ -2027,8 +2059,8 @@ async def process_new_price_stars(message: Message, state: FSMContext):
 
     try:
         new_price = int(message.text.strip())
-        if new_price < 1:
-            raise ValueError("Цена должна быть больше 0")
+        if not 1 <= new_price <= 100000:
+            raise ValueError("Цена должна быть в диапазоне 1..100000")
 
         set_subscription_price(new_price)
 
@@ -2056,8 +2088,8 @@ async def process_new_price_crypto(message: Message, state: FSMContext):
 
     try:
         new_price = float(message.text.strip().replace(',', '.'))
-        if new_price < 0.01:
-            raise ValueError("Цена должна быть больше 0.01")
+        if not 0.01 <= new_price <= 10000:
+            raise ValueError("Цена должна быть в диапазоне 0.01..10000")
 
         set_subscription_price_usd(new_price)
 
@@ -2146,8 +2178,8 @@ async def process_grant_days(message: Message, state: FSMContext):
 
     try:
         days = int(message.text.strip())
-        if days < 1:
-            raise ValueError("Days must be positive")
+        if not 1 <= days <= 3650:
+            raise ValueError("Days must be in range 1..3650")
     except ValueError:
         await message.answer(
             "✖️ Введите целое число дней (больше 0):",
@@ -3261,6 +3293,8 @@ async def process_thinking_document(message: Message, state: FSMContext):
         if len(json_text) > 10000:
             raise ValueError("JSON слишком большой (макс. 10000 символов)")
 
+        validate_json_structure(json_config)
+
         # Сохраняем
         set_thinking_preference(user_id, json_text)
 
@@ -3314,7 +3348,8 @@ async def callback_thinking_delete(callback: CallbackQuery):
 # ==================== AI FUNCTIONS ====================
 async def get_ai_response(user_id: int, user_message: str, photo_base64: str = None) -> str:
     """Получить ответ от AI"""
-    headers = {"Authorization": "Bearer openai"}
+    headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
+    user_message = sanitize_user_input(user_message)
 
     # Получаем предпочтения мышления
     thinking_pref = get_thinking_preference(user_id)
@@ -3422,7 +3457,8 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
 async def get_business_ai_response(bot_owner_id: int, business_connection_id: str, client_chat_id: int,
                                    user_message: str, photo_base64: str = None) -> str:
     """Получить ответ от AI для бизнес-чата"""
-    headers = {"Authorization": "Bearer openai"}
+    headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
+    user_message = sanitize_user_input(user_message)
 
     # Получаем предпочтения мышления владельца
     thinking_pref = get_thinking_preference(bot_owner_id)
@@ -3528,12 +3564,12 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
 
 async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     """Сгенерировать изображение"""
-    headers = {"Authorization": "Bearer openai", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
 
-    send = {"model": model, "prompt": prompt, "n": 1}
+    send = {"model": model, "prompt": sanitize_user_input(prompt, max_length=1500), "n": 1}
 
     try:
-        connector = aiohttp.TCPConnector(ssl=False)
+        connector = aiohttp.TCPConnector()
         async with aiohttp.ClientSession(connector=connector) as session:
             async with session.post(IMAGE_API_URL, json=send, headers=headers, timeout=90) as response:
                 if response.status == 200:
@@ -3559,10 +3595,13 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
 
 async def transcribe_voice(voice_file_path: str) -> str:
     """Распознать голосовое сообщение через Google Speech Recognition"""
+    if sr is None:
+        logging.warning("Распознавание голоса недоступно: SpeechRecognition не установлен")
+        return None
+
+    wav_path = voice_file_path.replace('.ogg', '.wav')
     try:
         # Конвертируем OGG в WAV через ffmpeg
-        wav_path = voice_file_path.replace('.ogg', '.wav')
-
         process = await asyncio.create_subprocess_exec(
             'ffmpeg', '-i', voice_file_path, '-acodec', 'pcm_s16le',
             '-ar', '16000', '-ac', '1', wav_path, '-y',
@@ -3579,13 +3618,6 @@ async def transcribe_voice(voice_file_path: str) -> str:
             # Google Speech API - бесплатный и точный
             text = recognizer.recognize_google(audio_data, language='ru-RU')
 
-        # Удаляем временные файлы
-        try:
-            os.remove(wav_path)
-            os.remove(voice_file_path)
-        except:
-            pass
-
         return text
 
     except sr.UnknownValueError:
@@ -3597,6 +3629,13 @@ async def transcribe_voice(voice_file_path: str) -> str:
     except Exception as e:
         logging.error(f"Ошибка распознавания: {e}")
         return None
+    finally:
+        for temp_path in (wav_path, voice_file_path):
+            try:
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception:
+                pass
 
 
 # ==================== MESSAGE HANDLERS ====================
