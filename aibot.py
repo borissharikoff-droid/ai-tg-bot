@@ -37,8 +37,11 @@ def _get_deepseek_key() -> str:
     """Читать ключ только при первом запросе к AI, не при импорте модуля."""
     return os.getenv("DEEPSEEK_API_KEY", "").strip()
 
-if not TELEGRAM_TOKEN or not CRYPTO_BOT_TOKEN:
-    raise RuntimeError("Set TELEGRAM_TOKEN and CRYPTO_BOT_TOKEN environment variables before start")
+if not TELEGRAM_TOKEN:
+    raise RuntimeError("Set TELEGRAM_TOKEN environment variable before start")
+
+if not CRYPTO_BOT_TOKEN:
+    logging.warning("CRYPTO_BOT_TOKEN is not set. CryptoBot payments will be unavailable.")
 
 if not ADMIN_IDS:
     raise RuntimeError("Set ADMIN_IDS environment variable with at least one Telegram user ID")
