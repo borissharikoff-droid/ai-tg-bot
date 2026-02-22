@@ -26,8 +26,11 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@inzdi")
 #остальное как есть:
 API_URL = "http://api.onlysq.ru/ai/v2"
 IMAGE_API_URL = "https://api.onlysq.ru/ai/imagen"
-API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "openai")
-DEFAULT_MODEL = "gpt-5.2-chat"
+API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
+# Ключ DeepSeek (sk-...) — если задан, чат идёт через api.deepseek.com, Bearer не нужен для чата
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip()
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+DEFAULT_MODEL = "deepseek-chat" if DEEPSEEK_API_KEY else "gpt-5.2-chat"
 MAX_MESSAGE_LENGTH = 4000
 
 if not TELEGRAM_TOKEN or not CRYPTO_BOT_TOKEN:
@@ -3346,9 +3349,34 @@ async def callback_thinking_delete(callback: CallbackQuery):
 
 
 # ==================== AI FUNCTIONS ====================
+def _messages_to_deepseek_format(messages: list) -> list:
+    """Преобразовать сообщения в формат DeepSeek: content только строка."""
+    result = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content")
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if isinstance(part, dict):
+                    if part.get("type") == "text":
+                        parts.append(part.get("text", ""))
+                    elif part.get("type") == "image_url":
+                        parts.append("[Пользователь приложил изображение]")
+            content = " ".join(parts) if parts else "[Медиа]"
+        result.append({"role": role, "content": content or ""})
+    return result
+
+
+def _deepseek_model(user_model: str) -> str:
+    """Маппинг модели бота на модель DeepSeek API."""
+    if user_model == "deepseek-r1":
+        return "deepseek-reasoner"
+    return "deepseek-chat"
+
+
 async def get_ai_response(user_id: int, user_message: str, photo_base64: str = None) -> str:
     """Получить ответ от AI"""
-    headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
     user_message = sanitize_user_input(user_message)
 
     # Получаем предпочтения мышления
@@ -3424,14 +3452,22 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
     user_data = load_user_data(user_id)
     user_model = user_data.get("model", DEFAULT_MODEL)
 
-    send = {
-        "model": user_model,
-        "request": {"messages": messages}
-    }
-
     try:
+        if DEEPSEEK_API_KEY:
+            # Чат через DeepSeek API — Bearer = твой ключ DeepSeek (sk-...)
+            ds_messages = _messages_to_deepseek_format(messages)
+            ds_model = _deepseek_model(user_model)
+            send = {"model": ds_model, "messages": ds_messages}
+            headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
+            url = DEEPSEEK_API_URL
+        else:
+            # Чат через onlysq.ru — нужен API_BEARER_TOKEN от их сервиса
+            send = {"model": user_model, "request": {"messages": messages}}
+            headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
+            url = API_URL
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(API_URL, json=send, headers=headers, timeout=60) as response:
+            async with session.post(url, json=send, headers=headers, timeout=60) as response:
                 if response.status == 200:
                     data = await response.json()
                     ai_reply = data['choices'][0]['message']['content']
@@ -3457,7 +3493,6 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
 async def get_business_ai_response(bot_owner_id: int, business_connection_id: str, client_chat_id: int,
                                    user_message: str, photo_base64: str = None) -> str:
     """Получить ответ от AI для бизнес-чата"""
-    headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
     user_message = sanitize_user_input(user_message)
 
     # Получаем предпочтения мышления владельца
@@ -3533,14 +3568,20 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
     user_data = load_user_data(bot_owner_id)
     user_model = user_data.get("model", DEFAULT_MODEL)
 
-    send = {
-        "model": user_model,
-        "request": {"messages": messages}
-    }
+    if DEEPSEEK_API_KEY:
+        ds_messages = _messages_to_deepseek_format(messages)
+        ds_model = _deepseek_model(user_model)
+        send = {"model": ds_model, "messages": ds_messages}
+        headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
+        url = DEEPSEEK_API_URL
+    else:
+        send = {"model": user_model, "request": {"messages": messages}}
+        headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
+        url = API_URL
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(API_URL, json=send, headers=headers, timeout=60) as response:
+            async with session.post(url, json=send, headers=headers, timeout=60) as response:
                 if response.status == 200:
                     data = await response.json()
                     ai_reply = data['choices'][0]['message']['content']

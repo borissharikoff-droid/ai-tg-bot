@@ -2,10 +2,13 @@ AI Telegram Bot - установка (Railway)
 
 1) Подготовьте переменные окружения:
 - TELEGRAM_TOKEN
-- CRYPTO_BOT_TOKEN
-- ADMIN_IDS (пример: 123456789,987654321)
+- CRYPTO_BOT_TOKEN (см. @CryptoBot в Telegram → Crypto Pay / приложение)
+- ADMIN_IDS (пример: 123456789)
 - ADMIN_USERNAME (пример: @my_username)
-- API_BEARER_TOKEN
+
+   Для чата с AI — один из вариантов:
+   а) DEEPSEEK_API_KEY — ключ DeepSeek (sk-...). Взять: https://platform.deepseek.com → API Keys (бесплатные лимиты есть).
+   б) API_BEARER_TOKEN — ключ от сервиса onlysq.ru (если он у вас есть).
 
 2) Установите зависимости:
 pip install -r requirements.txt
