@@ -27,11 +27,15 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@inzdi")
 API_URL = "http://api.onlysq.ru/ai/v2"
 IMAGE_API_URL = "https://api.onlysq.ru/ai/imagen"
 API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
-# Ключ DeepSeek (sk-...) — если задан, чат идёт через api.deepseek.com, Bearer не нужен для чата
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip()
+# Ключ DeepSeek (sk-...) — читается при запуске, не при сборке (чтобы Railway не требовал переменную на build)
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
-DEFAULT_MODEL = "deepseek-chat" if DEEPSEEK_API_KEY else "gpt-5.2-chat"
+DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
+
+
+def _get_deepseek_key() -> str:
+    """Читать ключ только при первом запросе к AI, не при импорте модуля."""
+    return os.getenv("DEEPSEEK_API_KEY", "").strip()
 
 if not TELEGRAM_TOKEN or not CRYPTO_BOT_TOKEN:
     raise RuntimeError("Set TELEGRAM_TOKEN and CRYPTO_BOT_TOKEN environment variables before start")
@@ -3453,12 +3457,12 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
     user_model = user_data.get("model", DEFAULT_MODEL)
 
     try:
-        if DEEPSEEK_API_KEY:
+        if _get_deepseek_key():
             # Чат через DeepSeek API — Bearer = твой ключ DeepSeek (sk-...)
             ds_messages = _messages_to_deepseek_format(messages)
             ds_model = _deepseek_model(user_model)
             send = {"model": ds_model, "messages": ds_messages}
-            headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
+            headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
             url = DEEPSEEK_API_URL
         else:
             # Чат через onlysq.ru — нужен API_BEARER_TOKEN от их сервиса
@@ -3568,11 +3572,11 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
     user_data = load_user_data(bot_owner_id)
     user_model = user_data.get("model", DEFAULT_MODEL)
 
-    if DEEPSEEK_API_KEY:
+    if _get_deepseek_key():
         ds_messages = _messages_to_deepseek_format(messages)
         ds_model = _deepseek_model(user_model)
         send = {"model": ds_model, "messages": ds_messages}
-        headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
         url = DEEPSEEK_API_URL
     else:
         send = {"model": user_model, "request": {"messages": messages}}
