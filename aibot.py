@@ -238,6 +238,19 @@ def _unicode_to_custom_emoji_tag(emoji_char: str) -> str:
     return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
 
 
+def normalize_text_emojis(text: str) -> str:
+    """Заменить обычные emoji в тексте на custom emoji-теги (если есть маппинг)."""
+    if not text:
+        return text
+
+    normalized = text
+    if EMOJI_TO_CUSTOM_ID:
+        for emoji_char in sorted(EMOJI_TO_CUSTOM_ID.keys(), key=len, reverse=True):
+            if emoji_char in normalized:
+                normalized = normalized.replace(emoji_char, _unicode_to_custom_emoji_tag(emoji_char))
+    return normalized
+
+
 def normalize_system_text(text: str) -> str:
     """
     Нормализовать системный текст:
@@ -247,13 +260,7 @@ def normalize_system_text(text: str) -> str:
     if not text:
         return text
 
-    normalized = text
-
-    # Сначала заменяем обычные emoji на custom-теги.
-    if EMOJI_TO_CUSTOM_ID:
-        for emoji_char in sorted(EMOJI_TO_CUSTOM_ID.keys(), key=len, reverse=True):
-            if emoji_char in normalized:
-                normalized = normalized.replace(emoji_char, _unicode_to_custom_emoji_tag(emoji_char))
+    normalized = normalize_text_emojis(text)
 
     # Добавляем анимодзи в начало строки с заголовком <b>...</b>, если там его еще нет.
     header_prefix = f"{button_emoji_tag('info') or text_emoji('info')} "
@@ -521,6 +528,37 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 # Хранилище бизнес-подключений (инициализируется в main)
 business_connections = {}
+
+
+def _is_html_parse_mode(parse_mode) -> bool:
+    return isinstance(parse_mode, str) and parse_mode.upper() == "HTML"
+
+
+_original_bot_send_message = Bot.send_message
+_original_message_answer = Message.answer
+
+
+async def _bot_send_message_with_custom_emoji(self, *args, **kwargs):
+    parse_mode = kwargs.get("parse_mode")
+    if _is_html_parse_mode(parse_mode):
+        if "text" in kwargs and isinstance(kwargs["text"], str):
+            kwargs["text"] = normalize_text_emojis(kwargs["text"])
+        elif len(args) >= 2 and isinstance(args[1], str):
+            args = list(args)
+            args[1] = normalize_text_emojis(args[1])
+            args = tuple(args)
+    return await _original_bot_send_message(self, *args, **kwargs)
+
+
+async def _message_answer_with_custom_emoji(self, text, *args, **kwargs):
+    parse_mode = kwargs.get("parse_mode")
+    if _is_html_parse_mode(parse_mode) and isinstance(text, str):
+        text = normalize_text_emojis(text)
+    return await _original_message_answer(self, text, *args, **kwargs)
+
+
+Bot.send_message = _bot_send_message_with_custom_emoji
+Message.answer = _message_answer_with_custom_emoji
 
 
 # ==================== FSM STATES ====================
