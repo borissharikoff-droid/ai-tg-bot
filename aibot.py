@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message, InlineKeyboardMarkup, InlineKeyboardButton,
     CallbackQuery, BotCommand, LabeledPrice, PreCheckoutQuery,
-    BufferedInputFile, BusinessConnection, BusinessMessagesDeleted
+    BufferedInputFile, BusinessConnection, BusinessMessagesDeleted, FSInputFile
 )
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
@@ -35,11 +35,13 @@ DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
-DEFAULT_SYSTEM_GIF_URLS = [
-    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExb3NvNWJjb2M0MnY4N3l6YjF2dnRxMXVydnVwOG8wOW5mODR1bHl4NiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3o7aD2saalBwwftBIY/giphy.gif",
-    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3Y2aGlnbW14N2JqbnMxNGUwM3A5ajhucmQ0eWt5bGVzN2QwdnMzZiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0HlBO7eyXzSZkJri/giphy.gif",
-    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjAwMWtvNHY3bXh4cm9taTN0bGc3dDhxNWF4bGFpc3Y5NHJieXN2YSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/xT0xeJpnrWC4XWblEk/giphy.gif"
-]
+DEFAULT_SYSTEM_GIF_URLS = []
+SECTION_MEDIA_PATHS = {
+    "start": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/1-d4b0ca75-d840-4459-b269-9c8a0e7336df.png",
+    "subscription": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/3-d2a8f5cc-13a2-429f-a9be-ef90ace4710e.png",
+    "settings": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/4-eadea2c8-d212-4f5a-aaf6-0344edff5121.png",
+    "thinking": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/2-d506a373-5ac1-4d26-8536-35eee9e7dbb9.png"
+}
 DEFAULT_BUTTON_EMOJI_PACK = {
     # Main menu
     "models": "6030400221232501136",        # 🤖
@@ -218,19 +220,31 @@ def is_image_generation_request(text: str) -> bool:
     """Определить, просит ли пользователь сгенерировать изображение."""
     if not text:
         return False
-    t = text.lower()
+    t = text.lower().strip()
     image_markers = [
         "сгенерируй картин",
         "сделай картин",
+        "картинк",
+        "картинку",
+        "кратинк",      # частая опечатка: "кратинка"
+        "кратинку",
         "нарисуй",
+        "изобрази",
+        "покажи",
         "создай изображ",
         "создай картин",
+        "сделай изображ",
+        "сделай фото",
+        "фото ",
         "сделай мем",
         "сгенерируй мем",
         "иллюстрац",
         "арт",
+        "аватарк",
+        "обои",
         "poster",
         "draw",
+        "image",
         "generate image",
         "image of",
         "logo",
@@ -317,6 +331,25 @@ async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_
         reply_markup=reply_markup,
         parse_mode=parse_mode
     )
+
+
+async def send_section_media_message(chat_id: int, text: str, reply_markup, section: str, parse_mode: str = "HTML") -> bool:
+    """Отправить сообщение с локальной картинкой для конкретного экрана."""
+    media_path = SECTION_MEDIA_PATHS.get(section)
+    if not media_path or not os.path.exists(media_path):
+        return False
+    try:
+        await bot.send_photo(
+            chat_id=chat_id,
+            photo=FSInputFile(media_path),
+            caption=text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode
+        )
+        return True
+    except Exception as e:
+        logging.warning(f"Не удалось отправить media для секции {section}: {e}")
+        return False
 
 # ==================== МОДЕЛИ ====================
 AVAILABLE_MODELS = [
@@ -1732,8 +1765,16 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
             "Нажмите кнопку ниже: там есть сравнение и преимущества."
         )
 
-    start_media = get_start_media()
+    if await send_section_media_message(
+        chat_id=chat_id,
+        text=text,
+        reply_markup=get_main_keyboard(),
+        section="start",
+        parse_mode="HTML"
+    ):
+        return
 
+    start_media = get_start_media()
     if start_media:
         media_type = start_media.get("type")
         file_id = start_media.get("file_id")
@@ -1964,7 +2005,23 @@ async def callback_subscription(callback: CallbackQuery):
             "Оформите подписку, чтобы открыть все возможности бота."
         )
 
-    await safe_edit_or_send(callback, text, get_subscription_keyboard(user_id))
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    if not await send_section_media_message(
+        chat_id=callback.message.chat.id,
+        text=text,
+        reply_markup=get_subscription_keyboard(user_id),
+        section="subscription",
+        parse_mode="HTML"
+    ):
+        await send_system_message(
+            chat_id=callback.message.chat.id,
+            text=text,
+            reply_markup=get_subscription_keyboard(user_id),
+            parse_mode="HTML"
+        )
     await callback.answer()
 
 
@@ -3000,10 +3057,24 @@ async def callback_info(callback: CallbackQuery):
         [make_inline_button(text="Связаться", url=f"https://t.me/{admin_username}", button_key="contact_admin", style="primary")],
         [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
     ]
-    await safe_edit_or_send(
-        callback, text,
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    settings_markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+    if not await send_section_media_message(
+        chat_id=callback.message.chat.id,
+        text=text,
+        reply_markup=settings_markup,
+        section="settings",
+        parse_mode="HTML"
+    ):
+        await send_system_message(
+            chat_id=callback.message.chat.id,
+            text=text,
+            reply_markup=settings_markup,
+            parse_mode="HTML"
+        )
     await callback.answer()
 
 
@@ -3436,7 +3507,24 @@ async def callback_thinking_menu(callback: CallbackQuery):
             f"{text_emoji('star')} Для настройки мышления необходима подписка."
         )
 
-    await safe_edit_or_send(callback, text, InlineKeyboardMarkup(inline_keyboard=buttons))
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    thinking_markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+    if not await send_section_media_message(
+        chat_id=callback.message.chat.id,
+        text=text,
+        reply_markup=thinking_markup,
+        section="thinking",
+        parse_mode="HTML"
+    ):
+        await send_system_message(
+            chat_id=callback.message.chat.id,
+            text=text,
+            reply_markup=thinking_markup,
+            parse_mode="HTML"
+        )
     await callback.answer()
 
 
