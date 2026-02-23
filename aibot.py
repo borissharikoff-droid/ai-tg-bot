@@ -717,13 +717,38 @@ def set_subscription_price_usd(price: float):
 
 
 # Модели по умолчанию
-DEFAULT_ENABLED_MODELS = ["gpt-5.2-chat", "claude-opus-4-6", "claude-sonnet-4-5", "deepseek-v3", "deepseek-r1", "gemini-3-flash"]
+DEFAULT_ENABLED_MODELS = [
+    "gpt-5.2-chat",
+    "claude-opus-4-6",
+    "claude-sonnet-4-5",
+    "deepseek-v3",
+    "deepseek-r1",
+    "gemini-3-flash",
+    "flux"  # image-model по умолчанию, чтобы генерация картинок работала из коробки
+]
 
 
 def get_enabled_models() -> list:
     """Получить список включенных моделей"""
     config = load_config()
-    return config.get("enabled_models", DEFAULT_ENABLED_MODELS)
+    raw_models = config.get("enabled_models", DEFAULT_ENABLED_MODELS)
+    if not isinstance(raw_models, list):
+        raw_models = DEFAULT_ENABLED_MODELS.copy()
+
+    # Оставляем только модели, которые реально есть в AVAILABLE_MODELS.
+    enabled = [m for m in raw_models if m in AVAILABLE_MODELS]
+    if not enabled:
+        enabled = [m for m in DEFAULT_ENABLED_MODELS if m in AVAILABLE_MODELS]
+
+    # Авто-страховка: если нет ни одной image-модели, добавляем первую доступную.
+    has_image_model = any(m in IMAGE_MODELS for m in enabled)
+    if not has_image_model:
+        for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
+            if candidate in AVAILABLE_MODELS and candidate not in enabled:
+                enabled.append(candidate)
+                break
+
+    return enabled
 
 
 def set_enabled_models(models: list):
