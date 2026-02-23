@@ -3,9 +3,9 @@ import logging
 from typing import Optional
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
-    Message, InlineKeyboardMarkup, InlineKeyboardButton,
-    CallbackQuery, BotCommand, LabeledPrice, PreCheckoutQuery,
-    BufferedInputFile, BusinessConnection, BusinessMessagesDeleted
+ Message, InlineKeyboardMarkup, InlineKeyboardButton,
+ CallbackQuery, BotCommand, LabeledPrice, PreCheckoutQuery,
+ BufferedInputFile, FSInputFile, BusinessConnection, BusinessMessagesDeleted
 )
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
@@ -34,135 +34,146 @@ API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
+FREE_REQUESTS_LIMIT = 5
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
 DEFAULT_SYSTEM_GIF_URLS = [
-    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExb3NvNWJjb2M0MnY4N3l6YjF2dnRxMXVydnVwOG8wOW5mODR1bHl4NiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3o7aD2saalBwwftBIY/giphy.gif",
-    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3Y2aGlnbW14N2JqbnMxNGUwM3A5ajhucmQ0eWt5bGVzN2QwdnMzZiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0HlBO7eyXzSZkJri/giphy.gif",
-    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjAwMWtvNHY3bXh4cm9taTN0bGc3dDhxNWF4bGFpc3Y5NHJieXN2YSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/xT0xeJpnrWC4XWblEk/giphy.gif"
+ "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExb3NvNWJjb2M0MnY4N3l6YjF2dnRxMXVydnVwOG8wOW5mODR1bHl4NiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3o7aD2saalBwwftBIY/giphy.gif",
+ "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3Y2aGlnbW14N2JqbnMxNGUwM3A5ajhucmQ0eWt5bGVzN2QwdnMzZiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0HlBO7eyXzSZkJri/giphy.gif",
+ "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjAwMWtvNHY3bXh4cm9taTN0bGc3dDhxNWF4bGFpc3Y5NHJieXN2YSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/xT0xeJpnrWC4XWblEk/giphy.gif"
 ]
 DEFAULT_BUTTON_EMOJI_PACK = {
-    # Main menu
-    "models": "6030400221232501136",        # 🤖
-    "thinking": "5864019342873598613",      # 🧠
-    "subscription": "6028338546736107668",  # ⭐️
-    "info": "6028435952299413210",          # ℹ
-    "home": "6042137469204303531",          # 🏠
-    # Model navigation
-    "model_item": "5936143551854285132",    # 📊
-    "nav_prev": "5960671702059848143",      # ⬅️
-    "nav_next": "5773626993010546707",      # ▶️
-    # Subscription/payment
-    "extend_stars": "6028338546736107668",  # ⭐️
-    "extend_crypto": "5776023601941582822", # 💎
-    "buy_stars": "5778613750688911681",     # 🪙
-    "buy_crypto": "5776023601941582822",    # 💎
-    "pay_crypto": "5776023601941582822",    # 💎
-    # Common actions
-    "cancel": "6030757850274336631",        # ❌
-    "confirm_clear": "5774022692642492953", # ✅
-    "required_channel": "6021418126061605425",  # 📢
-    "check_channels": "5843596438373667352",    # ✅️
-    "contact_admin": "6030784887093464891",     # 💬
-    # Style presets
-    "preset_serious": "6030537007350944596",    # 🛡
-    "preset_neutral": "6041748912102968702",    # 😐
-    "preset_funny": "6043996047582170909",      # 😀
-    "preset_friend": "5774034804450267485",     # 🙂
-    "thinking_edit": "6039779802741739617",      # ✏️
-    "thinking_delete": "6039522349517115015"     # 🗑
+ # Main menu
+ "models": "6030400221232501136", # 🤖
+ "thinking": "5864019342873598613", # 🧠
+ "subscription": "6028338546736107668", # ️
+ "info": "6028435952299413210", # ℹ
+ "home": "6042137469204303531", # 
+ # Model navigation
+ "model_item": "5936143551854285132", # 
+ "nav_prev": "5960671702059848143", # ⬅️
+ "nav_next": "5773626993010546707", # 
+ # Subscription/payment
+ "extend_stars": "6028338546736107668", # ️
+ "extend_crypto": "5776023601941582822", # 
+ "buy_stars": "5778613750688911681", # 🪙
+ "buy_crypto": "5776023601941582822", # 
+ "pay_crypto": "5776023601941582822", # 
+ # Common actions
+ "cancel": "6030757850274336631", # ❌
+ "confirm_clear": "5774022692642492953", # 
+ "required_channel": "6021418126061605425", # 
+ "check_channels": "5843596438373667352", # ️
+ "contact_admin": "6030784887093464891", # 💬
+ # Style presets
+ "preset_serious": "6030537007350944596", # 🛡
+ "preset_neutral": "6041748912102968702", # 😐
+ "preset_funny": "6043996047582170909", # 😀
+ "preset_friend": "5774034804450267485", # 🙂
+ "thinking_edit": "6039779802741739617", # ✏️
+ "thinking_delete": "6039522349517115015" # 🗑
 }
 TEXT_EMOJI_IDS = {
-    "wave": "6041921818896372382",          # 👋
-    "crown": "5805553606635559688",         # 👑
-    "robot": "6030400221232501136",         # 🤖
-    "chat": "6030784887093464891",          # 💬
-    "style": "5864019342873598613",         # 🧠
-    "star": "6028338546736107668",          # ⭐️
-    "info": "6028435952299413210",          # ℹ
-    "home": "6042137469204303531",          # 🏠
-    "money": "5778421276024509124",         # 💰
-    "clock": "5850317551090800862",         # ⏰
-    "rocket": "6041731551845159060",        # 🎉 (ассоц. преимущества/апгрейд)
-    "models": "6030400221232501136",        # 🤖
-    "image": "6030466823290360017",         # 🖼
-    "note": "5920046907782074235",          # 📝
-    "check": "5774022692642492953"          # ✅
+ "wave": "6041921818896372382", # 👋
+ "crown": "5805553606635559688", # 👑
+ "robot": "6030400221232501136", # 🤖
+ "chat": "6030784887093464891", # 💬
+ "style": "5864019342873598613", # 🧠
+ "star": "6028338546736107668", # ️
+ "info": "6028435952299413210", # ℹ
+ "home": "6042137469204303531", # 
+ "money": "5778421276024509124", # 
+ "clock": "5850317551090800862", # 
+ "rocket": "6041731551845159060", # (ассоц. преимущества/апгрейд)
+ "models": "6030400221232501136", # 🤖
+ "image": "6030466823290360017", # 
+ "note": "5920046907782074235", # 📝
+ "check": "5774022692642492953" # 
+}
+SCREEN_MEDIA_FILES = {
+ "start": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/1-d4b0ca75-d840-4459-b269-9c8a0e7336df.png",
+ "subscription": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/3-d2a8f5cc-13a2-429f-a9be-ef90ace4710e.png",
+ "settings": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/4-eadea2c8-d212-4f5a-aaf6-0344edff5121.png",
+ "thinking": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/2-d506a373-5ac1-4d26-8536-35eee9e7dbb9.png"
 }
 
 STYLE_PRESET_PROMPTS = {
-    "serious": (
-        "Стиль ответа: серьезный и деловой. "
-        "Минимум эмоций, четкая структура, точные формулировки, без разговорного сленга."
-    ),
-    "neutral": (
-        "Стиль ответа: нейтральный и дружелюбно-деловой. "
-        "Понятно и спокойно, без лишней эмоциональности."
-    ),
-    "funny": (
-        "Стиль ответа: веселый и легкий. "
-        "Добавляй уместный юмор, но сохраняй пользу и корректность."
-    ),
-    "friend": (
-        "Стиль ответа: как близкий друг. "
-        "Тепло, просто и поддерживающе, можно немного разговорного стиля."
-    )
+ "serious": (
+ "Стиль ответа: серьезный и деловой. "
+ "Минимум эмоций, четкая структура, точные формулировки, без разговорного сленга."
+ ),
+ "neutral": (
+ "Стиль ответа: нейтральный и дружелюбно-деловой. "
+ "Понятно и спокойно, без лишней эмоциональности."
+ ),
+ "funny": (
+ "Стиль ответа: веселый и легкий. "
+ "Добавляй уместный юмор, но сохраняй пользу и корректность."
+ ),
+ "friend": (
+ "Стиль ответа: как близкий друг. "
+ "Тепло, просто и поддерживающе, можно немного разговорного стиля."
+ )
 }
 
 STYLE_PRESET_LABELS = {
-    "serious": "Серьезный",
-    "neutral": "Нейтральный",
-    "funny": "Веселый",
-    "friend": "Друг"
+ "serious": "Серьезный",
+ "neutral": "Нейтральный",
+ "funny": "Веселый",
+ "friend": "Друг"
 }
 
 # Короткие описания пресетов для юзера (чем отличаются)
 STYLE_PRESET_DESCRIPTIONS = {
-    "serious": "Сухо и по делу: минимум эмоций, чёткая структура, без сленга. Для рабочих задач и формального тона.",
-    "neutral": "Спокойно и универсально: понятно, дружелюбно, без лишней эмоциональности. Подходит для большинства запросов.",
-    "funny": "С юмором и легко: уместные шутки, но с пользой и без перегибов. Идеально для креатива и развлечения.",
-    "friend": "Как близкий друг: тепло, просто, с поддержкой и разговорным стилем. Для неформального общения."
+ "serious": "Сухо и по делу: минимум эмоций, чёткая структура, без сленга. Для рабочих задач и формального тона.",
+ "neutral": "Спокойно и универсально: понятно, дружелюбно, без лишней эмоциональности. Подходит для большинства запросов.",
+ "funny": "С юмором и легко: уместные шутки, но с пользой и без перегибов. Идеально для креатива и развлечения.",
+ "friend": "Как близкий друг: тепло, просто, с поддержкой и разговорным стилем. Для неформального общения."
 }
 
 START_EXAMPLES = [
-    "«Сделай 5 идей смешной открытки про понедельник для коллег»",
-    "«Придумай короткий текст для поздравления друга с днем рождения»",
-    "«Сгенерируй идею мем-картинки про удаленку и дедлайны»",
-    "«Объясни простыми словами, как составить план на неделю»",
-    "«Придумай подпись к фото для сторис в веселом стиле»",
-    "«Напиши короткий пост для соцсетей про выходные»",
-    "«Нарисуй смешную картинку: кот в костюме офисного работника»",
-    "«Помоги сформулировать отказ от встречи вежливо и коротко»",
-    "«Идеи для смешного стикера про утро понедельника»",
+ "«Подбери быстрый рецепт ужина из курицы и риса на 20 минут»",
+ "«Сделай 5 идей смешной открытки про понедельник для коллег»",
+ "«Придумай короткий текст для поздравления друга с днем рождения»",
+ "«Сгенерируй идею мем-картинки про удаленку и дедлайны»",
+ "«Сделай картинку: уютная кофейня в дождливом городе, стиль аниме»",
+ "«Объясни простыми словами, как составить план на неделю»",
+ "«Придумай подпись к фото для сторис в веселом стиле»",
+ "«Напиши короткий пост для соцсетей про выходные»",
+ "«Нарисуй смешную картинку: кот в костюме офисного работника»",
+ "«Помоги сформулировать отказ от встречи вежливо и коротко»",
+ "«Идеи для смешного стикера про утро понедельника»",
 ]
 
 RESPONSE_STYLE_SYSTEM_PROMPT = (
-    "Ты — полезный ассистент. Отвечай максимально по делу, без воды и повторов. "
-    "По умолчанию всегда используй формат под Telegram: короткие абзацы, списки, выделения. "
-    "Структурируй ответ: короткий вывод, затем 2-6 пунктов по сути. "
-    "Разрешенная разметка: **жирный**, *курсив*, `код`, цитаты >, списки через '-'. "
-    "Не используй таблицы и markdown-ссылки вида [текст](url). "
-    "Если вопрос простой — дай короткий ответ в 1-3 предложениях."
+ "Ты — полезный ассистент для обычного пользователя, который может не разбираться в ИИ и Telegram. "
+ "Пиши простыми словами, без сложных терминов; если термин нужен — коротко объясни его в 1 фразе. "
+ "По умолчанию используй удобный формат под Telegram: короткие абзацы, списки, выделения и цитаты. "
+ "Структура ответа: короткий вывод, затем 2-6 понятных пунктов по сути. "
+ "Разрешенная разметка: **жирный**, *курсив*, `код`, цитаты >, списки через '-'. "
+ "Не используй таблицы и markdown-ссылки вида [текст](url). "
+ "Если вопрос простой — дай ответ в 1-3 предложениях. "
+ "Если пользователь просит рецепт, инструкцию или идею — сначала дай готовый вариант, потом при желании предложи 1-2 улучшения."
 )
 
 
 def _get_deepseek_key() -> str:
-    """Читать ключ только при первом запросе к AI, не при импорте модуля."""
-    return os.getenv("DEEPSEEK_API_KEY", "").strip()
+ """Читать ключ только при первом запросе к AI, не при импорте модуля."""
+ return os.getenv("DEEPSEEK_API_KEY", "").strip()
 
 if not TELEGRAM_TOKEN:
-    similar_keys = sorted(
-        [k for k in os.environ.keys() if "TELEGRAM" in k.upper() or "TOKEN" in k.upper()]
-    )
-    raise RuntimeError(
-        "Set TELEGRAM_TOKEN environment variable before start. "
-        f"Visible similar env keys: {similar_keys}"
-    )
+ similar_keys = sorted(
+ [k for k in os.environ.keys() if "TELEGRAM" in k.upper() or "TOKEN" in k.upper()]
+ )
+ raise RuntimeError(
+ "Set TELEGRAM_TOKEN environment variable before start. "
+ f"Visible similar env keys: {similar_keys}"
+ )
 
 if not CRYPTO_BOT_TOKEN:
-    logging.warning("CRYPTO_BOT_TOKEN is not set. CryptoBot payments will be unavailable.")
+ logging.warning("CRYPTO_BOT_TOKEN is not set. CryptoBot payments will be unavailable.")
 
 if not ADMIN_IDS:
-    raise RuntimeError("Set ADMIN_IDS environment variable with at least one Telegram user ID")
+ raise RuntimeError("Set ADMIN_IDS environment variable with at least one Telegram user ID")
 
 # Пути к файлам
 DATA_DIR = "data"
@@ -180,243 +191,267 @@ os.makedirs(USERS_DIR, exist_ok=True)
 logging.basicConfig(level=logging.INFO)
 
 try:
-    import speech_recognition as sr
+ import speech_recognition as sr
 except ImportError:
-    sr = None
-    logging.warning("⚠️ SpeechRecognition не найден. Установите зависимость заранее через requirements.")
+ sr = None
+ logging.warning("SpeechRecognition не найден. Установите зависимость заранее через requirements.")
 
 # Проверка ffmpeg
 try:
-    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise FileNotFoundError
+ result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
+ if result.returncode != 0:
+ raise FileNotFoundError
 except FileNotFoundError:
-    logging.warning("⚠️ ffmpeg не установлен!")
-    logging.warning("Установите для распознавания голоса:")
-    logging.warning("  Ubuntu: sudo apt install ffmpeg")
-    logging.warning("  MacOS: brew install ffmpeg")
-    logging.warning("  Windows: скачайте с ffmpeg.org")
+ logging.warning("ffmpeg не установлен!")
+ logging.warning("Установите для распознавания голоса:")
+ logging.warning(" Ubuntu: sudo apt install ffmpeg")
+ logging.warning(" MacOS: brew install ffmpeg")
+ logging.warning(" Windows: скачайте с ffmpeg.org")
 
 
 def sanitize_user_input(text: str, max_length: int = 4000) -> str:
-    """Ограничить размер и убрать управляющие символы из пользовательского ввода."""
-    if not text:
-        return ""
-    text = str(text)[:max_length]
-    return ''.join(ch for ch in text if ch.isprintable() or ch in '\n\t').strip()
+ """Ограничить размер и убрать управляющие символы из пользовательского ввода."""
+ if not text:
+ return ""
+ text = str(text)[:max_length]
+ return ''.join(ch for ch in text if ch.isprintable() or ch in '\n\t').strip()
 
 
 def text_emoji(name: str) -> str:
-    """Вернуть HTML-тег custom emoji для текста."""
-    emoji_id = TEXT_EMOJI_IDS.get(name)
-    if not emoji_id:
-        return ""
-    return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
+ """Вернуть HTML-тег custom emoji для текста."""
+ emoji_id = TEXT_EMOJI_IDS.get(name)
+ if not emoji_id:
+ return ""
+ return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
 
 
 def is_image_generation_request(text: str) -> bool:
-    """Определить, просит ли пользователь сгенерировать изображение."""
-    if not text:
-        return False
-    t = text.lower()
-    image_markers = [
-        "сгенерируй картин",
-        "сделай картин",
-        "нарисуй",
-        "создай изображ",
-        "создай картин",
-        "сделай мем",
-        "сгенерируй мем",
-        "иллюстрац",
-        "арт",
-        "poster",
-        "draw",
-        "generate image",
-        "image of",
-        "logo",
-        "стикер"
-    ]
-    return any(marker in t for marker in image_markers)
+ """Определить, просит ли пользователь сгенерировать изображение."""
+ if not text:
+ return False
+ t = text.lower()
+ image_markers = [
+ "сгенерируй картин",
+ "сделай картин",
+ "нарисуй",
+ "создай изображ",
+ "создай картин",
+ "сделай мем",
+ "сгенерируй мем",
+ "иллюстрац",
+ "арт",
+ "poster",
+ "draw",
+ "generate image",
+ "image of",
+ "logo",
+ "стикер"
+ ]
+ return any(marker in t for marker in image_markers)
 
 
 def pick_image_model(user_id: int) -> Optional[str]:
-    """Выбрать модель генерации изображения: сначала пользовательскую, затем дефолт из доступных."""
-    enabled_models = set(get_enabled_models())
-    enabled_image_models = [m for m in AVAILABLE_MODELS if m in IMAGE_MODELS and m in enabled_models]
-    if not enabled_image_models:
-        return None
+ """Выбрать модель генерации изображения: сначала пользовательскую, затем дефолт из доступных."""
+ enabled_models = set(get_enabled_models())
+ enabled_image_models = [m for m in AVAILABLE_MODELS if m in IMAGE_MODELS and m in enabled_models]
+ if not enabled_image_models:
+ return None
 
-    user_data = load_user_data(user_id)
-    preferred_model = user_data.get("model")
-    if preferred_model in enabled_image_models:
-        return preferred_model
+ user_data = load_user_data(user_id)
+ preferred_model = user_data.get("model")
+ if preferred_model in enabled_image_models:
+ return preferred_model
 
-    for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
-        if candidate in enabled_image_models:
-            return candidate
-    return enabled_image_models[0]
+ for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
+ if candidate in enabled_image_models:
+ return candidate
+ return enabled_image_models[0]
 
 
 def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items: int = 200):
-    """Ограничить глубину/размер JSON, чтобы избежать перегрузки."""
-    if depth > max_depth:
-        raise ValueError("JSON слишком глубоко вложен")
+ """Ограничить глубину/размер JSON, чтобы избежать перегрузки."""
+ if depth > max_depth:
+ raise ValueError("JSON слишком глубоко вложен")
 
-    if isinstance(value, dict):
-        if len(value) > max_items:
-            raise ValueError("JSON содержит слишком много ключей")
-        for key, item in value.items():
-            if not isinstance(key, str):
-                raise ValueError("Ключи JSON должны быть строками")
-            validate_json_structure(item, depth + 1, max_depth, max_items)
-    elif isinstance(value, list):
-        if len(value) > max_items:
-            raise ValueError("JSON содержит слишком большой список")
-        for item in value:
-            validate_json_structure(item, depth + 1, max_depth, max_items)
+ if isinstance(value, dict):
+ if len(value) > max_items:
+ raise ValueError("JSON содержит слишком много ключей")
+ for key, item in value.items():
+ if not isinstance(key, str):
+ raise ValueError("Ключи JSON должны быть строками")
+ validate_json_structure(item, depth + 1, max_depth, max_items)
+ elif isinstance(value, list):
+ if len(value) > max_items:
+ raise ValueError("JSON содержит слишком большой список")
+ for item in value:
+ validate_json_structure(item, depth + 1, max_depth, max_items)
 
 
 async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_mode: str = "HTML"):
-    """Отправить системное сообщение с GIF/анимацией в caption, если задана."""
-    gif_pool = []
-    env_gif_urls = os.getenv("SYSTEM_GIF_URLS", "").strip()
-    if env_gif_urls:
-        gif_pool.extend([u.strip() for u in env_gif_urls.split(",") if u.strip()])
-    if SYSTEM_GIF_URL:
-        gif_pool.append(SYSTEM_GIF_URL)
+ """Отправить системное сообщение с GIF/анимацией в caption, если задана."""
+ gif_pool = []
+ env_gif_urls = os.getenv("SYSTEM_GIF_URLS", "").strip()
+ if env_gif_urls:
+ gif_pool.extend([u.strip() for u in env_gif_urls.split(",") if u.strip()])
+ if SYSTEM_GIF_URL:
+ gif_pool.append(SYSTEM_GIF_URL)
 
-    # Берем пул из config, если задан
-    try:
-        config = load_config()
-        cfg_urls = config.get("system_gif_urls")
-        if isinstance(cfg_urls, list):
-            gif_pool = [str(u).strip() for u in cfg_urls if str(u).strip()]
-    except Exception:
-        pass
+ # Берем пул из config, если задан
+ try:
+ config = load_config()
+ cfg_urls = config.get("system_gif_urls")
+ if isinstance(cfg_urls, list):
+ gif_pool = [str(u).strip() for u in cfg_urls if str(u).strip()]
+ except Exception:
+ pass
 
-    if not gif_pool:
-        gif_pool = DEFAULT_SYSTEM_GIF_URLS.copy()
+ if not gif_pool:
+ gif_pool = DEFAULT_SYSTEM_GIF_URLS.copy()
 
-    if gif_pool:
-        chosen_gif = random.choice(gif_pool)
-        try:
-            await bot.send_animation(
-                chat_id=chat_id,
-                animation=chosen_gif,
-                caption=text,
-                reply_markup=reply_markup,
-                parse_mode=parse_mode
-            )
-            return
-        except Exception as e:
-            logging.warning(f"Не удалось отправить system GIF: {e}")
+ if gif_pool:
+ chosen_gif = random.choice(gif_pool)
+ try:
+ await bot.send_animation(
+ chat_id=chat_id,
+ animation=chosen_gif,
+ caption=text,
+ reply_markup=reply_markup,
+ parse_mode=parse_mode
+ )
+ return
+ except Exception as e:
+ logging.warning(f"Не удалось отправить system GIF: {e}")
 
-    await bot.send_message(
-        chat_id=chat_id,
-        text=text,
-        reply_markup=reply_markup,
-        parse_mode=parse_mode
-    )
+ await bot.send_message(
+ chat_id=chat_id,
+ text=text,
+ reply_markup=reply_markup,
+ parse_mode=parse_mode
+ )
+
+
+async def send_system_screen_message(chat_id: int, text: str, screen_key: str, reply_markup=None, parse_mode: str = "HTML"):
+ """Отправить системный экран с локальной картинкой (если есть), иначе обычное системное сообщение."""
+ media_path = SCREEN_MEDIA_FILES.get(screen_key)
+ if media_path and os.path.exists(media_path):
+ try:
+ await bot.send_photo(
+ chat_id=chat_id,
+ photo=FSInputFile(media_path),
+ caption=text,
+ reply_markup=reply_markup,
+ parse_mode=parse_mode
+ )
+ return
+ except Exception as e:
+ logging.warning(f"Не удалось отправить screen media '{screen_key}': {e}")
+
+ await send_system_message(
+ chat_id=chat_id,
+ text=text,
+ reply_markup=reply_markup,
+ parse_mode=parse_mode
+ )
 
 # ==================== МОДЕЛИ ====================
 AVAILABLE_MODELS = [
-    # deepseek
-    "deepseek-v3",
-    "deepseek-r1",
+ # deepseek
+ "deepseek-v3",
+ "deepseek-r1",
 
-    # gemini
-    "gemini-3-pro",
-    "gemini-3-pro-preview",
-    "gemini-3-flash",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
+ # gemini
+ "gemini-3-pro",
+ "gemini-3-pro-preview",
+ "gemini-3-flash",
+ "gemini-2.5-pro",
+ "gemini-2.5-flash",
+ "gemini-2.5-flash-lite",
+ "gemini-2.0-flash",
+ "gemini-2.0-flash-lite",
 
-    # claude
-    "claude-opus-4-6",
-    "claude-opus-4-5",
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
+ # claude
+ "claude-opus-4-6",
+ "claude-opus-4-5",
+ "claude-sonnet-4-5",
+ "claude-haiku-4-5",
 
-    # chatgpt / gpt
-    "gpt-5.2-chat",
-    "gpt-5.1-chat",
-    "gpt-5.1-2025-11-13",
-    "gpt-5.1",
-    "gpt-5-search-api-2025-10-14",
-    "gpt-5-search",
-    "gpt-5-nano-2025-08-07",
-    "gpt-5-nano",
-    "gpt-5-mini-2025-08-07",
-    "gpt-5-mini",
-    "gpt-5-chat",
-    "gpt-5-2025-08-07",
-    "gpt-5",
-    "gpt-4.1-nano-2025-04-14",
-    "gpt-4.1-nano",
-    "gpt-4.1-mini-2025-04-14",
-    "gpt-4.1-mini",
-    "gpt-4.1-2025-04-14",
-    "gpt-4.1",
-    "o4-mini-2025-04-16",
-    "o4-mini",
-    "o3-mini-2025-01-31",
-    "o3-mini",
-    "o3-2025-04-16",
-    "o3",
-    "o1-2024-12-17",
-    "o1",
-    "chatgpt-4o",
-    "gpt-4o-search-preview-2025-03-11",
-    "gpt-4o-search-preview",
-    "gpt-4o-mini-search-preview-2025-03-11",
-    "gpt-4o-mini-search-preview",
-    "gpt-4o-mini-2024-07-18",
-    "gpt-4o-mini",
-    "gpt-4o-2024-11-20",
-    "gpt-4o-2024-08-06",
-    "gpt-4o-2024-05-13",
-    "gpt-4o",
-    "gpt-4-turbo-preview",
-    "gpt-4-turbo-2024-04-09",
-    "gpt-4-turbo",
-    "gpt-4-1106-preview",
-    "gpt-4-0613",
-    "gpt-4-0125-preview",
-    "gpt-4",
-    "gpt-3.5-turbo-16k",
-    "gpt-3.5-turbo-1106",
-    "gpt-3.5-turbo-0125",
-    "gpt-3.5-turbo",
+ # chatgpt / gpt
+ "gpt-5.2-chat",
+ "gpt-5.1-chat",
+ "gpt-5.1-2025-11-13",
+ "gpt-5.1",
+ "gpt-5-search-api-2025-10-14",
+ "gpt-5-search",
+ "gpt-5-nano-2025-08-07",
+ "gpt-5-nano",
+ "gpt-5-mini-2025-08-07",
+ "gpt-5-mini",
+ "gpt-5-chat",
+ "gpt-5-2025-08-07",
+ "gpt-5",
+ "gpt-4.1-nano-2025-04-14",
+ "gpt-4.1-nano",
+ "gpt-4.1-mini-2025-04-14",
+ "gpt-4.1-mini",
+ "gpt-4.1-2025-04-14",
+ "gpt-4.1",
+ "o4-mini-2025-04-16",
+ "o4-mini",
+ "o3-mini-2025-01-31",
+ "o3-mini",
+ "o3-2025-04-16",
+ "o3",
+ "o1-2024-12-17",
+ "o1",
+ "chatgpt-4o",
+ "gpt-4o-search-preview-2025-03-11",
+ "gpt-4o-search-preview",
+ "gpt-4o-mini-search-preview-2025-03-11",
+ "gpt-4o-mini-search-preview",
+ "gpt-4o-mini-2024-07-18",
+ "gpt-4o-mini",
+ "gpt-4o-2024-11-20",
+ "gpt-4o-2024-08-06",
+ "gpt-4o-2024-05-13",
+ "gpt-4o",
+ "gpt-4-turbo-preview",
+ "gpt-4-turbo-2024-04-09",
+ "gpt-4-turbo",
+ "gpt-4-1106-preview",
+ "gpt-4-0613",
+ "gpt-4-0125-preview",
+ "gpt-4",
+ "gpt-3.5-turbo-16k",
+ "gpt-3.5-turbo-1106",
+ "gpt-3.5-turbo-0125",
+ "gpt-3.5-turbo",
 
-    # остальные
-    "sonar-deep-research",
-    "sonar-reasoning-pro",
-    "sonar-reasoning",
-    "sonar-pro",
-    "sonar",
-    "d-gemma-3-4b-it",
-    "d-llama-3.3-70b",
-    "d-llama-4-maverick",
-    "rev-perplexity",
-    "searchgpt",
-    "grok-2-vision",
-    "grok-3",
-    "gpt-oss-120b",
-    "gpt-oss-20b",
-    "mistral-small-3.1",
-    "zai-glm-4.6",
-    "llama3.1-8b",
-    "llama-3.3-70b",
-    "qwen-3-32b",
-    "p-flux",
-    "grok-2-image",
-    "flux-2-dev",
-    "phoenix-1.0",
-    "lucid-origin",
-    "flux"
+ # остальные
+ "sonar-deep-research",
+ "sonar-reasoning-pro",
+ "sonar-reasoning",
+ "sonar-pro",
+ "sonar",
+ "d-gemma-3-4b-it",
+ "d-llama-3.3-70b",
+ "d-llama-4-maverick",
+ "rev-perplexity",
+ "searchgpt",
+ "grok-2-vision",
+ "grok-3",
+ "gpt-oss-120b",
+ "gpt-oss-20b",
+ "mistral-small-3.1",
+ "zai-glm-4.6",
+ "llama3.1-8b",
+ "llama-3.3-70b",
+ "qwen-3-32b",
+ "p-flux",
+ "grok-2-image",
+ "flux-2-dev",
+ "phoenix-1.0",
+ "lucid-origin",
+ "flux"
 ]
 
 IMAGE_MODELS = {"p-flux", "grok-2-image", "flux-2-dev", "phoenix-1.0", "lucid-origin", "flux"}
@@ -430,69 +465,70 @@ business_connections = {}
 
 # ==================== FSM STATES ====================
 class AdminStates(StatesGroup):
-    waiting_for_price = State()
-    waiting_for_price_stars = State()  # НОВОЕ
-    waiting_for_price_crypto = State()  # НОВОЕ
-    waiting_for_user_id_grant = State()
-    waiting_for_grant_days = State()
-    waiting_for_user_id_revoke = State()
-    waiting_for_broadcast = State()
-    waiting_for_broadcast_confirm = State()
-    waiting_for_start_media = State()
-    waiting_for_channel = State()
-    waiting_for_blacklist_add = State()
-    waiting_for_blacklist_remove = State()
-    waiting_for_channel_media = State()
+ waiting_for_price = State()
+ waiting_for_price_stars = State() # НОВОЕ
+ waiting_for_price_crypto = State() # НОВОЕ
+ waiting_for_user_id_grant = State()
+ waiting_for_grant_days = State()
+ waiting_for_user_id_revoke = State()
+ waiting_for_broadcast = State()
+ waiting_for_broadcast_confirm = State()
+ waiting_for_start_media = State()
+ waiting_for_channel = State()
+ waiting_for_blacklist_add = State()
+ waiting_for_blacklist_remove = State()
+ waiting_for_channel_media = State()
 
 
 class UserStates(StatesGroup):
-    waiting_for_thinking = State()
+ waiting_for_thinking = State()
+ waiting_for_onboarding_test = State()
 
 
 # ==================== РАБОТА С КОНФИГОМ ====================
 def load_config():
-    """Загрузить конфигурацию"""
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {
-        "subscription_price": 100,  # Цена в звездах
-        "subscription_price_usd": 5,  # Цена в USD для CryptoBot
-        "system_gif_urls": [],
-        "button_emoji_pack": DEFAULT_BUTTON_EMOJI_PACK.copy()
-    }
+ """Загрузить конфигурацию"""
+ if os.path.exists(CONFIG_FILE):
+ with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+ return json.load(f)
+ return {
+ "subscription_price": 100, # Цена в звездах
+ "subscription_price_usd": 5, # Цена в USD для CryptoBot
+ "system_gif_urls": [],
+ "button_emoji_pack": DEFAULT_BUTTON_EMOJI_PACK.copy()
+ }
 
 
 def save_config(config):
-    """Сохранить конфигурацию"""
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+ """Сохранить конфигурацию"""
+ with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+ json.dump(config, f, ensure_ascii=False, indent=2)
 
 
 def get_subscription_price():
-    """Получить цену подписки в звездах"""
-    config = load_config()
-    return config.get("subscription_price", 100)
+ """Получить цену подписки в звездах"""
+ config = load_config()
+ return config.get("subscription_price", 100)
 
 
 def get_subscription_price_usd():
-    """Получить цену подписки в USD"""
-    config = load_config()
-    return config.get("subscription_price_usd", 5)
+ """Получить цену подписки в USD"""
+ config = load_config()
+ return config.get("subscription_price_usd", 5)
 
 
 def set_subscription_price(price: int):
-    """Установить цену подписки в звездах"""
-    config = load_config()
-    config["subscription_price"] = price
-    save_config(config)
+ """Установить цену подписки в звездах"""
+ config = load_config()
+ config["subscription_price"] = price
+ save_config(config)
 
 
 def set_subscription_price_usd(price: float):
-    """Установить цену подписки в USD"""
-    config = load_config()
-    config["subscription_price_usd"] = price
-    save_config(config)
+ """Установить цену подписки в USD"""
+ config = load_config()
+ config["subscription_price_usd"] = price
+ save_config(config)
 
 
 # Модели по умолчанию
@@ -500,2511 +536,2676 @@ DEFAULT_ENABLED_MODELS = ["gpt-5.2-chat", "claude-opus-4-6", "claude-sonnet-4-5"
 
 
 def get_enabled_models() -> list:
-    """Получить список включенных моделей"""
-    config = load_config()
-    return config.get("enabled_models", DEFAULT_ENABLED_MODELS)
+ """Получить список включенных моделей"""
+ config = load_config()
+ return config.get("enabled_models", DEFAULT_ENABLED_MODELS)
 
 
 def set_enabled_models(models: list):
-    """Установить список включенных моделей"""
-    config = load_config()
-    config["enabled_models"] = models
-    save_config(config)
+ """Установить список включенных моделей"""
+ config = load_config()
+ config["enabled_models"] = models
+ save_config(config)
 
 
 def toggle_model(model: str) -> bool:
-    """Переключить модель (вкл/выкл). Возвращает новое состояние"""
-    enabled = get_enabled_models()
-    if model in enabled:
-        enabled.remove(model)
-        result = False
-    else:
-        enabled.append(model)
-        result = True
-    set_enabled_models(enabled)
-    return result
+ """Переключить модель (вкл/выкл). Возвращает новое состояние"""
+ enabled = get_enabled_models()
+ if model in enabled:
+ enabled.remove(model)
+ result = False
+ else:
+ enabled.append(model)
+ result = True
+ set_enabled_models(enabled)
+ return result
 
 
 def is_model_enabled(model: str) -> bool:
-    """Проверить, включена ли модель"""
-    return model in get_enabled_models()
+ """Проверить, включена ли модель"""
+ return model in get_enabled_models()
 
 
 # ==================== РАБОТА СО СТАТИСТИКОЙ ====================
 def load_stats():
-    """Загрузить статистику"""
-    if os.path.exists(STATS_FILE):
-        with open(STATS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {
-        "total_users": 0,
-        "active_subscriptions": 0,
-        "total_messages": 0,
-        "total_revenue": 0
-    }
+ """Загрузить статистику"""
+ if os.path.exists(STATS_FILE):
+ with open(STATS_FILE, 'r', encoding='utf-8') as f:
+ return json.load(f)
+ return {
+ "total_users": 0,
+ "active_subscriptions": 0,
+ "total_messages": 0,
+ "total_revenue": 0
+ }
 
 
 def save_stats(stats):
-    """Сохранить статистику"""
-    with open(STATS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(stats, f, ensure_ascii=False, indent=2)
+ """Сохранить статистику"""
+ with open(STATS_FILE, 'w', encoding='utf-8') as f:
+ json.dump(stats, f, ensure_ascii=False, indent=2)
 
 
 def increment_stat(key: str, value: int = 1):
-    """Увеличить значение статистики"""
-    stats = load_stats()
-    stats[key] = stats.get(key, 0) + value
-    save_stats(stats)
+ """Увеличить значение статистики"""
+ stats = load_stats()
+ stats[key] = stats.get(key, 0) + value
+ save_stats(stats)
 
 # ==================== РАБОТА С БИЗНЕС-ПОДКЛЮЧЕНИЯМИ ====================
 def load_business_connections():
-    """Загрузить бизнес-подключения из файла"""
-    if os.path.exists(BUSINESS_CONNECTIONS_FILE):
-        try:
-            with open(BUSINESS_CONNECTIONS_FILE, 'r', encoding='utf-8') as f:
-                connections = json.load(f)
-                logging.info(f"✅ Загружено {len(connections)} бизнес-подключений")
-                return connections
-        except Exception as e:
-            logging.error(f"❌ Ошибка загрузки подключений: {e}")
-            return {}
-    return {}
+ """Загрузить бизнес-подключения из файла"""
+ if os.path.exists(BUSINESS_CONNECTIONS_FILE):
+ try:
+ with open(BUSINESS_CONNECTIONS_FILE, 'r', encoding='utf-8') as f:
+ connections = json.load(f)
+ logging.info(f"Загружено {len(connections)} бизнес-подключений")
+ return connections
+ except Exception as e:
+ logging.error(f"❌ Ошибка загрузки подключений: {e}")
+ return {}
+ return {}
 
 
 def save_business_connections(connections):
-    """Сохранить бизнес-подключения в файл"""
-    try:
-        with open(BUSINESS_CONNECTIONS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(connections, f, ensure_ascii=False, indent=2)
-        logging.info(f"💾 Сохранено {len(connections)} бизнес-подключений")
-    except Exception as e:
-        logging.error(f"❌ Ошибка сохранения подключений: {e}")
+ """Сохранить бизнес-подключения в файл"""
+ try:
+ with open(BUSINESS_CONNECTIONS_FILE, 'w', encoding='utf-8') as f:
+ json.dump(connections, f, ensure_ascii=False, indent=2)
+ logging.info(f"💾 Сохранено {len(connections)} бизнес-подключений")
+ except Exception as e:
+ logging.error(f"❌ Ошибка сохранения подключений: {e}")
 
 
 def add_business_connection(connection_id: str, user_id: int):
-    """Добавить бизнес-подключение"""
-    business_connections[connection_id] = user_id
-    save_business_connections(business_connections)
+ """Добавить бизнес-подключение"""
+ business_connections[connection_id] = user_id
+ save_business_connections(business_connections)
 
 # ==================== РАБОТА С ПОЛЬЗОВАТЕЛЯМИ ====================
 def get_user_dir(user_id: int) -> str:
-    """Получить директорию пользователя"""
-    user_dir = os.path.join(USERS_DIR, str(user_id))
-    os.makedirs(user_dir, exist_ok=True)
-    return user_dir
+ """Получить директорию пользователя"""
+ user_dir = os.path.join(USERS_DIR, str(user_id))
+ os.makedirs(user_dir, exist_ok=True)
+ return user_dir
 
 
 def get_user_data_path(user_id: int) -> str:
-    """Получить путь к данным пользователя"""
-    return os.path.join(get_user_dir(user_id), "user_data.json")
+ """Получить путь к данным пользователя"""
+ return os.path.join(get_user_dir(user_id), "user_data.json")
 
 
 def get_user_history_path(user_id: int) -> str:
-    """Получить путь к истории чата пользователя"""
-    return os.path.join(get_user_dir(user_id), "chat_history.json")
+ """Получить путь к истории чата пользователя"""
+ return os.path.join(get_user_dir(user_id), "chat_history.json")
 
 
 def load_user_data(user_id: int) -> dict:
-    """Загрузить данные пользователя"""
-    path = get_user_data_path(user_id)
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {
-        "user_id": user_id,
-        "model": DEFAULT_MODEL,
-        "subscription_end": None,
-        "created_at": datetime.now().isoformat(),
-        "username": None,
-        "full_name": None
-    }
+ """Загрузить данные пользователя"""
+ defaults = {
+ "user_id": user_id,
+ "model": DEFAULT_MODEL,
+ "subscription_end": None,
+ "created_at": datetime.now().isoformat(),
+ "username": None,
+ "full_name": None,
+ "free_requests_used": 0,
+ "onboarding_completed": False,
+ "onboarding_started": False
+ }
+ path = get_user_data_path(user_id)
+ if os.path.exists(path):
+ with open(path, 'r', encoding='utf-8') as f:
+ data = json.load(f)
+ for key, value in defaults.items():
+ data.setdefault(key, value)
+ return data
+ return defaults
 
 
 def save_user_data(user_id: int, data: dict):
-    """Сохранить данные пользователя"""
-    path = get_user_data_path(user_id)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+ """Сохранить данные пользователя"""
+ path = get_user_data_path(user_id)
+ with open(path, 'w', encoding='utf-8') as f:
+ json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def load_chat_history(user_id: int) -> list:
-    """Загрузить историю чата"""
-    path = get_user_history_path(user_id)
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+ """Загрузить историю чата"""
+ path = get_user_history_path(user_id)
+ if os.path.exists(path):
+ with open(path, 'r', encoding='utf-8') as f:
+ return json.load(f)
+ return []
 
 
 def save_chat_history(user_id: int, history: list):
-    """Сохранить историю чата"""
-    path = get_user_history_path(user_id)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+ """Сохранить историю чата"""
+ path = get_user_history_path(user_id)
+ with open(path, 'w', encoding='utf-8') as f:
+ json.dump(history, f, ensure_ascii=False, indent=2)
 
 
 def add_message_to_history(user_id: int, role: str, content: str):
-    """Добавить сообщение в историю"""
-    history = load_chat_history(user_id)
-    history.append({
-        "role": role,
-        "content": content,
-        "timestamp": datetime.now().isoformat()
-    })
-    # Ограничиваем историю последними 50 сообщениями
-    if len(history) > 50:
-        history = history[-50:]
-    save_chat_history(user_id, history)
+ """Добавить сообщение в историю"""
+ history = load_chat_history(user_id)
+ history.append({
+ "role": role,
+ "content": content,
+ "timestamp": datetime.now().isoformat()
+ })
+ # Ограничиваем историю последними 50 сообщениями
+ if len(history) > 50:
+ history = history[-50:]
+ save_chat_history(user_id, history)
 
 
 def clear_chat_history(user_id: int):
-    """Очистить историю чата"""
-    save_chat_history(user_id, [])
+ """Очистить историю чата"""
+ save_chat_history(user_id, [])
 
 
 def get_history_for_api(user_id: int, limit: int = 20) -> list:
-    """Получить историю для API"""
-    history = load_chat_history(user_id)
-    messages = history[-limit:]
-    return [{"role": msg["role"], "content": msg["content"]} for msg in messages]
+ """Получить историю для API"""
+ history = load_chat_history(user_id)
+ messages = history[-limit:]
+ return [{"role": msg["role"], "content": msg["content"]} for msg in messages]
 
 # ==================== РАБОТА С ИСТОРИЕЙ БИЗНЕС-ЧАТОВ ====================
 def get_business_chat_history_path(business_connection_id: str, client_chat_id: int) -> str:
-    """Получить путь к истории бизнес-чата"""
-    business_dir = os.path.join(DATA_DIR, "business_chats")
-    os.makedirs(business_dir, exist_ok=True)
-    return os.path.join(business_dir, f"{business_connection_id}_{client_chat_id}.json")
+ """Получить путь к истории бизнес-чата"""
+ business_dir = os.path.join(DATA_DIR, "business_chats")
+ os.makedirs(business_dir, exist_ok=True)
+ return os.path.join(business_dir, f"{business_connection_id}_{client_chat_id}.json")
 
 
 def load_business_chat_history(business_connection_id: str, client_chat_id: int) -> list:
-    """Загрузить историю бизнес-чата"""
-    path = get_business_chat_history_path(business_connection_id, client_chat_id)
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+ """Загрузить историю бизнес-чата"""
+ path = get_business_chat_history_path(business_connection_id, client_chat_id)
+ if os.path.exists(path):
+ with open(path, 'r', encoding='utf-8') as f:
+ return json.load(f)
+ return []
 
 
 def save_business_chat_history(business_connection_id: str, client_chat_id: int, history: list):
-    """Сохранить историю бизнес-чата"""
-    path = get_business_chat_history_path(business_connection_id, client_chat_id)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+ """Сохранить историю бизнес-чата"""
+ path = get_business_chat_history_path(business_connection_id, client_chat_id)
+ with open(path, 'w', encoding='utf-8') as f:
+ json.dump(history, f, ensure_ascii=False, indent=2)
 
 
 def add_message_to_business_history(business_connection_id: str, client_chat_id: int, role: str, content: str):
-    """Добавить сообщение в историю бизнес-чата"""
-    history = load_business_chat_history(business_connection_id, client_chat_id)
-    history.append({
-        "role": role,
-        "content": content,
-        "timestamp": datetime.now().isoformat()
-    })
-    # Ограничиваем историю последними 50 сообщениями
-    if len(history) > 50:
-        history = history[-50:]
-    save_business_chat_history(business_connection_id, client_chat_id, history)
+ """Добавить сообщение в историю бизнес-чата"""
+ history = load_business_chat_history(business_connection_id, client_chat_id)
+ history.append({
+ "role": role,
+ "content": content,
+ "timestamp": datetime.now().isoformat()
+ })
+ # Ограничиваем историю последними 50 сообщениями
+ if len(history) > 50:
+ history = history[-50:]
+ save_business_chat_history(business_connection_id, client_chat_id, history)
 
 
 def get_business_history_for_api(business_connection_id: str, client_chat_id: int, limit: int = 20) -> list:
-    """Получить историю бизнес-чата для API"""
-    history = load_business_chat_history(business_connection_id, client_chat_id)
-    messages = history[-limit:]
-    return [{"role": msg["role"], "content": msg["content"]} for msg in messages]
+ """Получить историю бизнес-чата для API"""
+ history = load_business_chat_history(business_connection_id, client_chat_id)
+ messages = history[-limit:]
+ return [{"role": msg["role"], "content": msg["content"]} for msg in messages]
 
 
 def clear_business_chat_history(business_connection_id: str, client_chat_id: int):
-    """Очистить историю бизнес-чата"""
-    save_business_chat_history(business_connection_id, client_chat_id, [])
+ """Очистить историю бизнес-чата"""
+ save_business_chat_history(business_connection_id, client_chat_id, [])
 
 # ==================== ПОДПИСКА ====================
 def has_active_subscription(user_id: int) -> bool:
-    """Проверить активность подписки"""
-    # Админы имеют бесплатный доступ
-    if user_id in ADMIN_IDS:
-        return True
+ """Проверить активность подписки"""
+ # Админы имеют бесплатный доступ
+ if user_id in ADMIN_IDS:
+ return True
 
-    user_data = load_user_data(user_id)
-    sub_end = user_data.get("subscription_end")
+ user_data = load_user_data(user_id)
+ sub_end = user_data.get("subscription_end")
 
-    if not sub_end:
-        return False
+ if not sub_end:
+ return False
 
-    try:
-        end_date = datetime.fromisoformat(sub_end)
-        return datetime.now() < end_date
-    except:
-        return False
+ try:
+ end_date = datetime.fromisoformat(sub_end)
+ return datetime.now() < end_date
+ except:
+ return False
 
 
 def get_subscription_end(user_id: int) -> Optional[datetime]:
-    """Получить дату окончания подписки"""
-    user_data = load_user_data(user_id)
-    sub_end = user_data.get("subscription_end")
+ """Получить дату окончания подписки"""
+ user_data = load_user_data(user_id)
+ sub_end = user_data.get("subscription_end")
 
-    if not sub_end:
-        return None
+ if not sub_end:
+ return None
 
-    try:
-        return datetime.fromisoformat(sub_end)
-    except:
-        return None
+ try:
+ return datetime.fromisoformat(sub_end)
+ except:
+ return None
 
 
 def grant_subscription(user_id: int, days: int = 30):
-    """Выдать подписку пользователю"""
-    user_data = load_user_data(user_id)
+ """Выдать подписку пользователю"""
+ user_data = load_user_data(user_id)
 
-    # Если есть активная подписка, продлеваем
-    current_end = get_subscription_end(user_id)
-    if current_end and current_end > datetime.now():
-        new_end = current_end + timedelta(days=days)
-    else:
-        new_end = datetime.now() + timedelta(days=days)
+ # Если есть активная подписка, продлеваем
+ current_end = get_subscription_end(user_id)
+ if current_end and current_end > datetime.now():
+ new_end = current_end + timedelta(days=days)
+ else:
+ new_end = datetime.now() + timedelta(days=days)
 
-    user_data["subscription_end"] = new_end.isoformat()
-    save_user_data(user_id, user_data)
+ user_data["subscription_end"] = new_end.isoformat()
+ save_user_data(user_id, user_data)
 
-    # Обновляем статистику
-    increment_stat("active_subscriptions")
+ # Обновляем статистику
+ increment_stat("active_subscriptions")
 
 
 def revoke_subscription(user_id: int):
-    """Отобрать подписку у пользователя"""
-    user_data = load_user_data(user_id)
-    user_data["subscription_end"] = None
-    save_user_data(user_id, user_data)
+ """Отобрать подписку у пользователя"""
+ user_data = load_user_data(user_id)
+ user_data["subscription_end"] = None
+ save_user_data(user_id, user_data)
+
+
+def get_free_requests_remaining(user_id: int) -> int:
+ """Сколько бесплатных запросов осталось без подписки."""
+ if has_active_subscription(user_id):
+ return FREE_REQUESTS_LIMIT
+ user_data = load_user_data(user_id)
+ used = int(user_data.get("free_requests_used", 0) or 0)
+ return max(0, FREE_REQUESTS_LIMIT - used)
+
+
+def consume_free_request(user_id: int):
+ """Списать 1 бесплатный запрос, если у пользователя нет подписки."""
+ if has_active_subscription(user_id):
+ return
+ user_data = load_user_data(user_id)
+ used = int(user_data.get("free_requests_used", 0) or 0)
+ user_data["free_requests_used"] = min(FREE_REQUESTS_LIMIT, used + 1)
+ save_user_data(user_id, user_data)
+
+
+async def ensure_request_access(chat_id: int, user_id: int) -> bool:
+ """Проверить доступ к запросу: подписка или бесплатный лимит."""
+ if has_active_subscription(user_id):
+ return True
+ remaining = get_free_requests_remaining(user_id)
+ if remaining > 0:
+ return True
+ await send_system_message(
+ chat_id=chat_id,
+ text=(
+ f"{text_emoji('star')} <b>Бесплатный лимит исчерпан</b>\n\n"
+ "Вы использовали 5 из 5 бесплатных запросов.\n"
+ "Оформите подписку PRO, чтобы продолжить без ограничений."
+ ),
+ reply_markup=get_subscription_keyboard(user_id),
+ parse_mode="HTML"
+ )
+ return False
 
 
 def get_all_users() -> list:
-    """Получить список всех пользователей"""
-    users = []
-    if os.path.exists(USERS_DIR):
-        for user_dir in os.listdir(USERS_DIR):
-            try:
-                user_id = int(user_dir)
-                user_data = load_user_data(user_id)
-                users.append(user_data)
-            except:
-                continue
-    return users
+ """Получить список всех пользователей"""
+ users = []
+ if os.path.exists(USERS_DIR):
+ for user_dir in os.listdir(USERS_DIR):
+ try:
+ user_id = int(user_dir)
+ user_data = load_user_data(user_id)
+ users.append(user_data)
+ except:
+ continue
+ return users
 
 
 def get_users_with_active_subscription() -> list:
-    """Получить пользователей с активной подпиской"""
-    users = get_all_users()
-    return [u for u in users if has_active_subscription(u["user_id"])]
+ """Получить пользователей с активной подпиской"""
+ users = get_all_users()
+ return [u for u in users if has_active_subscription(u["user_id"])]
 
 
 def get_user_by_username(username: str) -> Optional[dict]:
-    """Найти пользователя по username"""
-    username = username.lstrip('@').lower()
-    users = get_all_users()
-    for user in users:
-        if user.get("username") and user["username"].lower() == username:
-            return user
-    return None
+ """Найти пользователя по username"""
+ username = username.lstrip('@').lower()
+ users = get_all_users()
+ for user in users:
+ if user.get("username") and user["username"].lower() == username:
+ return user
+ return None
 
 async def create_crypto_invoice(user_id: int, amount: float) -> Optional[dict]:
-    """Создать инвойс в CryptoBot"""
-    try:
-        connector = aiohttp.TCPConnector()
-        async with aiohttp.ClientSession(connector=connector) as session:
-            async with session.post(
-                f"{CRYPTO_BOT_API}/createInvoice",
-                headers={"Crypto-Pay-API-Token": CRYPTO_BOT_TOKEN},
-                json={
-                    "amount": amount,
-                    "currency_type": "fiat",
-                    "fiat": "USD",
-                    "description": f"Подписка AI Chat Bot (30 дней)",
-                    "payload": f"subscription_{user_id}",
-                    "expires_in": 3600
-                }
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data.get("ok"):
-                        result = data["result"]
-                        return {
-                            "invoice_id": result["invoice_id"],
-                            "bot_invoice_url": result["bot_invoice_url"]
-                        }
-                logging.error(f"CryptoBot error status={response.status}")
-                return None
-    except Exception as e:
-        logging.error(f"Ошибка создания CryptoBot инвойса: {e}")
-        return None
+ """Создать инвойс в CryptoBot"""
+ try:
+ connector = aiohttp.TCPConnector()
+ async with aiohttp.ClientSession(connector=connector) as session:
+ async with session.post(
+ f"{CRYPTO_BOT_API}/createInvoice",
+ headers={"Crypto-Pay-API-Token": CRYPTO_BOT_TOKEN},
+ json={
+ "amount": amount,
+ "currency_type": "fiat",
+ "fiat": "USD",
+ "description": f"Подписка AI Chat Bot (30 дней)",
+ "payload": f"subscription_{user_id}",
+ "expires_in": 3600
+ }
+ ) as response:
+ if response.status == 200:
+ data = await response.json()
+ if data.get("ok"):
+ result = data["result"]
+ return {
+ "invoice_id": result["invoice_id"],
+ "bot_invoice_url": result["bot_invoice_url"]
+ }
+ logging.error(f"CryptoBot error status={response.status}")
+ return None
+ except Exception as e:
+ logging.error(f"Ошибка создания CryptoBot инвойса: {e}")
+ return None
 
 
 async def check_crypto_invoice(invoice_id: str) -> Optional[dict]:
-    """Проверить статус инвойса CryptoBot"""
-    try:
-        connector = aiohttp.TCPConnector()
-        async with aiohttp.ClientSession(connector=connector) as session:
-            async with session.get(
-                f"{CRYPTO_BOT_API}/getInvoices",
-                headers={"Crypto-Pay-API-Token": CRYPTO_BOT_TOKEN},
-                params={"invoice_ids": invoice_id}
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data.get("ok") and data.get("result", {}).get("items"):
-                        invoice = data["result"]["items"][0]
-                        return {
-                            "status": invoice.get("status"),
-                            "payload": invoice.get("payload")
-                        }
-                return None
-    except Exception as e:
-        logging.error(f"Ошибка проверки CryptoBot инвойса: {e}")
-        return None
+ """Проверить статус инвойса CryptoBot"""
+ try:
+ connector = aiohttp.TCPConnector()
+ async with aiohttp.ClientSession(connector=connector) as session:
+ async with session.get(
+ f"{CRYPTO_BOT_API}/getInvoices",
+ headers={"Crypto-Pay-API-Token": CRYPTO_BOT_TOKEN},
+ params={"invoice_ids": invoice_id}
+ ) as response:
+ if response.status == 200:
+ data = await response.json()
+ if data.get("ok") and data.get("result", {}).get("items"):
+ invoice = data["result"]["items"][0]
+ return {
+ "status": invoice.get("status"),
+ "payload": invoice.get("payload")
+ }
+ return None
+ except Exception as e:
+ logging.error(f"Ошибка проверки CryptoBot инвойса: {e}")
+ return None
 
 def get_thinking_preference(user_id: int) -> Optional[str]:
-    """Получить настройки мышления пользователя"""
-    user_data = load_user_data(user_id)
-    return user_data.get("thinking_preference")
+ """Получить настройки мышления пользователя"""
+ user_data = load_user_data(user_id)
+ return user_data.get("thinking_preference")
 
 
 def set_thinking_preference(user_id: int, preference: Optional[str]):
-    """Установить настройки мышления пользователю"""
-    user_data = load_user_data(user_id)
-    user_data["thinking_preference"] = preference
-    save_user_data(user_id, user_data)
+ """Установить настройки мышления пользователю"""
+ user_data = load_user_data(user_id)
+ user_data["thinking_preference"] = preference
+ save_user_data(user_id, user_data)
 
 
 def get_response_style_preset(user_id: int) -> str:
-    """Получить preset стиля ответа (serious|neutral|funny|friend)."""
-    user_data = load_user_data(user_id)
-    preset = user_data.get("style_preset", "neutral")
-    return preset if preset in STYLE_PRESET_PROMPTS else "neutral"
+ """Получить preset стиля ответа (serious|neutral|funny|friend)."""
+ user_data = load_user_data(user_id)
+ preset = user_data.get("style_preset", "neutral")
+ return preset if preset in STYLE_PRESET_PROMPTS else "neutral"
 
 
 def set_response_style_preset(user_id: int, preset: str):
-    """Установить preset стиля ответа."""
-    if preset not in STYLE_PRESET_PROMPTS:
-        return
-    user_data = load_user_data(user_id)
-    user_data["style_preset"] = preset
-    save_user_data(user_id, user_data)
+ """Установить preset стиля ответа."""
+ if preset not in STYLE_PRESET_PROMPTS:
+ return
+ user_data = load_user_data(user_id)
+ user_data["style_preset"] = preset
+ save_user_data(user_id, user_data)
 
 
 def get_start_example(user_id: int, rotate: bool = False) -> str:
-    """Вернуть пример для стартового экрана; при rotate меняет пример."""
-    user_data = load_user_data(user_id)
-    last_idx = user_data.get("start_example_idx", -1)
+ """Вернуть пример для стартового экрана; при rotate меняет пример."""
+ user_data = load_user_data(user_id)
+ last_idx = user_data.get("start_example_idx", -1)
 
-    if not START_EXAMPLES:
-        return "«Сделай смешную картинку про работу и кофе»"
+ if not START_EXAMPLES:
+ return "«Сделай смешную картинку про работу и кофе»"
 
-    if rotate or last_idx not in range(len(START_EXAMPLES)):
-        idx = random.randrange(len(START_EXAMPLES))
-        if len(START_EXAMPLES) > 1:
-            while idx == last_idx:
-                idx = random.randrange(len(START_EXAMPLES))
-        user_data["start_example_idx"] = idx
-        save_user_data(user_id, user_data)
-        return START_EXAMPLES[idx]
+ if rotate or last_idx not in range(len(START_EXAMPLES)):
+ idx = random.randrange(len(START_EXAMPLES))
+ if len(START_EXAMPLES) > 1:
+ while idx == last_idx:
+ idx = random.randrange(len(START_EXAMPLES))
+ user_data["start_example_idx"] = idx
+ save_user_data(user_id, user_data)
+ return START_EXAMPLES[idx]
 
-    return START_EXAMPLES[last_idx]
+ return START_EXAMPLES[last_idx]
 
 
 def get_button_emoji_pack() -> dict:
-    """
-    Получить маппинг button_key -> custom emoji id.
-    Источники: config.button_emoji_pack или env BUTTON_EMOJI_PACK_JSON.
-    """
-    config = load_config()
-    from_config = config.get("button_emoji_pack")
-    if isinstance(from_config, dict):
-        return {str(k): str(v) for k, v in from_config.items() if str(v).strip()}
+ """
+ Получить маппинг button_key -> custom emoji id.
+ Источники: config.button_emoji_pack или env BUTTON_EMOJI_PACK_JSON.
+ """
+ config = load_config()
+ from_config = config.get("button_emoji_pack")
+ if isinstance(from_config, dict):
+ return {str(k): str(v) for k, v in from_config.items() if str(v).strip()}
 
-    raw = os.getenv("BUTTON_EMOJI_PACK_JSON", "").strip()
-    if not raw:
-        return {}
+ raw = os.getenv("BUTTON_EMOJI_PACK_JSON", "").strip()
+ if not raw:
+ return {}
 
-    try:
-        parsed = json.loads(raw)
-        if isinstance(parsed, dict):
-            return {str(k): str(v) for k, v in parsed.items() if str(v).strip()}
-    except Exception:
-        pass
-    return DEFAULT_BUTTON_EMOJI_PACK.copy()
+ try:
+ parsed = json.loads(raw)
+ if isinstance(parsed, dict):
+ return {str(k): str(v) for k, v in parsed.items() if str(v).strip()}
+ except Exception:
+ pass
+ return DEFAULT_BUTTON_EMOJI_PACK.copy()
 
 
 def make_inline_button(
-    text: str,
-    callback_data: Optional[str] = None,
-    url: Optional[str] = None,
-    button_key: Optional[str] = None,
-    style: Optional[str] = None
+ text: str,
+ callback_data: Optional[str] = None,
+ url: Optional[str] = None,
+ button_key: Optional[str] = None,
+ style: Optional[str] = None
 ) -> InlineKeyboardButton:
-    """Создать кнопку с поддержкой цвета и custom emoji (если API/библиотека поддерживают)."""
-    kwargs = {"text": text}
-    if callback_data is not None:
-        kwargs["callback_data"] = callback_data
-    if url is not None:
-        kwargs["url"] = url
+ """Создать кнопку с поддержкой цвета и custom emoji (если API/библиотека поддерживают)."""
+ kwargs = {"text": text}
+ if callback_data is not None:
+ kwargs["callback_data"] = callback_data
+ if url is not None:
+ kwargs["url"] = url
 
-    emoji_pack = get_button_emoji_pack()
-    custom_emoji_id = emoji_pack.get(button_key) if button_key else None
-    if custom_emoji_id:
-        kwargs["icon_custom_emoji_id"] = custom_emoji_id
-    if style in {"primary", "success", "danger"}:
-        kwargs["style"] = style
+ emoji_pack = get_button_emoji_pack()
+ custom_emoji_id = emoji_pack.get(button_key) if button_key else None
+ if custom_emoji_id:
+ kwargs["icon_custom_emoji_id"] = custom_emoji_id
+ if style in {"primary", "success", "danger"}:
+ kwargs["style"] = style
 
-    try:
-        return InlineKeyboardButton(**kwargs)
-    except TypeError:
-        # Совместимость со старыми версиями aiogram/Bot API
-        kwargs.pop("style", None)
-        try:
-            return InlineKeyboardButton(**kwargs)
-        except TypeError:
-            kwargs.pop("icon_custom_emoji_id", None)
-            return InlineKeyboardButton(**kwargs)
+ try:
+ return InlineKeyboardButton(**kwargs)
+ except TypeError:
+ # Совместимость со старыми версиями aiogram/Bot API
+ kwargs.pop("style", None)
+ try:
+ return InlineKeyboardButton(**kwargs)
+ except TypeError:
+ kwargs.pop("icon_custom_emoji_id", None)
+ return InlineKeyboardButton(**kwargs)
 
 
 def get_start_media() -> Optional[dict]:
-    """Получить медиа для /start"""
-    config = load_config()
-    return config.get("start_media")
+ """Получить медиа для /start"""
+ config = load_config()
+ return config.get("start_media")
 
 
 def set_start_media(media_type: Optional[str], file_id: Optional[str]):
-    """Установить медиа для /start"""
-    config = load_config()
-    if media_type and file_id:
-        config["start_media"] = {"type": media_type, "file_id": file_id}
-    else:
-        config["start_media"] = None
-    save_config(config)
+ """Установить медиа для /start"""
+ config = load_config()
+ if media_type and file_id:
+ config["start_media"] = {"type": media_type, "file_id": file_id}
+ else:
+ config["start_media"] = None
+ save_config(config)
 
 
 def get_channel_media() -> Optional[dict]:
-    """Получить медиа для сообщения о подписке на канал"""
-    config = load_config()
-    return config.get("channel_media")
+ """Получить медиа для сообщения о подписке на канал"""
+ config = load_config()
+ return config.get("channel_media")
 
 
 def set_channel_media(media_type: Optional[str], file_id: Optional[str]):
-    """Установить медиа для сообщения о подписке на канал"""
-    config = load_config()
-    if media_type and file_id:
-        config["channel_media"] = {"type": media_type, "file_id": file_id}
-    else:
-        config["channel_media"] = None
-    save_config(config)
+ """Установить медиа для сообщения о подписке на канал"""
+ config = load_config()
+ if media_type and file_id:
+ config["channel_media"] = {"type": media_type, "file_id": file_id}
+ else:
+ config["channel_media"] = None
+ save_config(config)
 
 
 # ==================== ЧЕРНЫЙ СПИСОК ====================
 def load_blacklist() -> list:
-    """Загрузить черный список"""
-    if os.path.exists(BLACKLIST_FILE):
-        with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+ """Загрузить черный список"""
+ if os.path.exists(BLACKLIST_FILE):
+ with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
+ return json.load(f)
+ return []
 
 
 def save_blacklist(blacklist: list):
-    """Сохранить черный список"""
-    with open(BLACKLIST_FILE, 'w', encoding='utf-8') as f:
-        json.dump(blacklist, f, ensure_ascii=False, indent=2)
+ """Сохранить черный список"""
+ with open(BLACKLIST_FILE, 'w', encoding='utf-8') as f:
+ json.dump(blacklist, f, ensure_ascii=False, indent=2)
 
 
 def is_blacklisted(user_id: int) -> bool:
-    """Проверить, в черном ли списке пользователь"""
-    return user_id in load_blacklist()
+ """Проверить, в черном ли списке пользователь"""
+ return user_id in load_blacklist()
 
 
 def add_to_blacklist(user_id: int):
-    """Добавить пользователя в черный список"""
-    blacklist = load_blacklist()
-    if user_id not in blacklist:
-        blacklist.append(user_id)
-        save_blacklist(blacklist)
+ """Добавить пользователя в черный список"""
+ blacklist = load_blacklist()
+ if user_id not in blacklist:
+ blacklist.append(user_id)
+ save_blacklist(blacklist)
 
 
 def remove_from_blacklist(user_id: int):
-    """Удалить пользователя из черного списка"""
-    blacklist = load_blacklist()
-    if user_id in blacklist:
-        blacklist.remove(user_id)
-        save_blacklist(blacklist)
+ """Удалить пользователя из черного списка"""
+ blacklist = load_blacklist()
+ if user_id in blacklist:
+ blacklist.remove(user_id)
+ save_blacklist(blacklist)
 
 def load_pending_invoices() -> dict:
-    """Загрузить ожидающие инвойсы"""
-    if os.path.exists(PENDING_INVOICES_FILE):
-        with open(PENDING_INVOICES_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
+ """Загрузить ожидающие инвойсы"""
+ if os.path.exists(PENDING_INVOICES_FILE):
+ with open(PENDING_INVOICES_FILE, 'r', encoding='utf-8') as f:
+ return json.load(f)
+ return {}
 
 
 def save_pending_invoices(invoices: dict):
-    """Сохранить ожидающие инвойсы"""
-    with open(PENDING_INVOICES_FILE, 'w', encoding='utf-8') as f:
-        json.dump(invoices, f, ensure_ascii=False, indent=2)
+ """Сохранить ожидающие инвойсы"""
+ with open(PENDING_INVOICES_FILE, 'w', encoding='utf-8') as f:
+ json.dump(invoices, f, ensure_ascii=False, indent=2)
 
 
 def add_pending_invoice(invoice_id: str, user_id: int):
-    """Добавить ожидающий инвойс"""
-    invoices = load_pending_invoices()
-    invoices[invoice_id] = {
-        "user_id": user_id,
-        "created_at": datetime.now().isoformat()
-    }
-    save_pending_invoices(invoices)
+ """Добавить ожидающий инвойс"""
+ invoices = load_pending_invoices()
+ invoices[invoice_id] = {
+ "user_id": user_id,
+ "created_at": datetime.now().isoformat()
+ }
+ save_pending_invoices(invoices)
 
 
 def remove_pending_invoice(invoice_id: str):
-    """Удалить ожидающий инвойс"""
-    invoices = load_pending_invoices()
-    if invoice_id in invoices:
-        del invoices[invoice_id]
-        save_pending_invoices(invoices)
+ """Удалить ожидающий инвойс"""
+ invoices = load_pending_invoices()
+ if invoice_id in invoices:
+ del invoices[invoice_id]
+ save_pending_invoices(invoices)
 
 # ==================== ОБЯЗАТЕЛЬНЫЕ КАНАЛЫ ====================
 def get_required_channels() -> list:
-    """Получить список обязательных каналов"""
-    config = load_config()
-    return config.get("required_channels", [])
+ """Получить список обязательных каналов"""
+ config = load_config()
+ return config.get("required_channels", [])
 
 
 def add_required_channel(channel_id: str, channel_name: str, channel_link: str):
-    """Добавить обязательный канал"""
-    config = load_config()
-    channels = config.get("required_channels", [])
+ """Добавить обязательный канал"""
+ config = load_config()
+ channels = config.get("required_channels", [])
 
-    # Проверяем, нет ли уже такого канала
-    for ch in channels:
-        if ch["id"] == channel_id:
-            return False
+ # Проверяем, нет ли уже такого канала
+ for ch in channels:
+ if ch["id"] == channel_id:
+ return False
 
-    channels.append({
-        "id": channel_id,
-        "name": channel_name,
-        "link": channel_link
-    })
-    config["required_channels"] = channels
-    save_config(config)
-    return True
+ channels.append({
+ "id": channel_id,
+ "name": channel_name,
+ "link": channel_link
+ })
+ config["required_channels"] = channels
+ save_config(config)
+ return True
 
 
 def remove_required_channel(channel_id: str):
-    """Удалить обязательный канал"""
-    config = load_config()
-    channels = config.get("required_channels", [])
-    channels = [ch for ch in channels if ch["id"] != channel_id]
-    config["required_channels"] = channels
-    save_config(config)
+ """Удалить обязательный канал"""
+ config = load_config()
+ channels = config.get("required_channels", [])
+ channels = [ch for ch in channels if ch["id"] != channel_id]
+ config["required_channels"] = channels
+ save_config(config)
 
 
 async def check_channel_subscription(user_id: int) -> bool:
-    """Проверить подписку на все обязательные каналы"""
-    channels = get_required_channels()
+ """Проверить подписку на все обязательные каналы"""
+ channels = get_required_channels()
 
-    if not channels:
-        return True
+ if not channels:
+ return True
 
-    for channel in channels:
-        try:
-            member = await bot.get_chat_member(channel["id"], user_id)
-            if member.status in ["left", "kicked"]:
-                return False
-        except Exception as e:
-            logging.warning(f"Ошибка проверки подписки на канал {channel['id']}: {e}")
-            # Если не можем проверить - пропускаем
-            continue
+ for channel in channels:
+ try:
+ member = await bot.get_chat_member(channel["id"], user_id)
+ if member.status in ["left", "kicked"]:
+ return False
+ except Exception as e:
+ logging.warning(f"Ошибка проверки подписки на канал {channel['id']}: {e}")
+ # Если не можем проверить - пропускаем
+ continue
 
-    return True
+ return True
 
 
 # ==================== НАПОМИНАНИЯ О ПОДПИСКЕ ====================
 def get_last_reminder(user_id: int) -> Optional[dict]:
-    """Получить информацию о последнем напоминании"""
-    user_data = load_user_data(user_id)
-    return user_data.get("last_reminder")
+ """Получить информацию о последнем напоминании"""
+ user_data = load_user_data(user_id)
+ return user_data.get("last_reminder")
 
 
 def set_last_reminder(user_id: int, reminder_type: str):
-    """Установить время последнего напоминания"""
-    user_data = load_user_data(user_id)
-    user_data["last_reminder"] = {
-        "type": reminder_type,
-        "time": datetime.now().isoformat()
-    }
-    save_user_data(user_id, user_data)
+ """Установить время последнего напоминания"""
+ user_data = load_user_data(user_id)
+ user_data["last_reminder"] = {
+ "type": reminder_type,
+ "time": datetime.now().isoformat()
+ }
+ save_user_data(user_id, user_data)
 
 
 def should_send_reminder(user_id: int, reminder_type: str) -> bool:
-    """Проверить, нужно ли отправлять напоминание"""
-    last_reminder = get_last_reminder(user_id)
+ """Проверить, нужно ли отправлять напоминание"""
+ last_reminder = get_last_reminder(user_id)
 
-    if not last_reminder:
-        return True
+ if not last_reminder:
+ return True
 
-    if last_reminder.get("type") != reminder_type:
-        return True
+ if last_reminder.get("type") != reminder_type:
+ return True
 
-    last_time = datetime.fromisoformat(last_reminder["time"])
-    time_diff = datetime.now() - last_time
+ last_time = datetime.fromisoformat(last_reminder["time"])
+ time_diff = datetime.now() - last_time
 
-    # Не отправлять чаще чем раз в 12 часов для одного типа напоминания
-    if time_diff.total_seconds() < 12 * 3600:
-        return False
+ # Не отправлять чаще чем раз в 12 часов для одного типа напоминания
+ if time_diff.total_seconds() < 12 * 3600:
+ return False
 
-    return True
+ return True
 
 
 # ==================== КЛАВИАТУРЫ ====================
 def get_main_keyboard():
-    """Главная клавиатура"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            make_inline_button("Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")
-        ],
-        [
-            make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success"),
-            make_inline_button("Настройки", callback_data="settings", button_key="info")
-        ]
-    ])
+ """Главная клавиатура"""
+ return InlineKeyboardMarkup(inline_keyboard=[
+ [
+ make_inline_button("Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")
+ ],
+ [
+ make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success"),
+ make_inline_button("Настройки", callback_data="settings", button_key="info")
+ ]
+ ])
 
 
 def get_models_keyboard(page: int, user_id: int):
-    """Клавиатура выбора моделей"""
-    has_sub = has_active_subscription(user_id)
+ """Клавиатура выбора моделей"""
+ has_sub = has_active_subscription(user_id)
 
-    # Получаем только включенные модели
-    enabled_models = get_enabled_models()
-    available = [m for m in AVAILABLE_MODELS if m in enabled_models]
+ # Получаем только включенные модели
+ enabled_models = get_enabled_models()
+ available = [m for m in AVAILABLE_MODELS if m in enabled_models]
 
-    start_idx = page * MODELS_PER_PAGE
-    end_idx = start_idx + MODELS_PER_PAGE
-    models_page = available[start_idx:end_idx]
+ start_idx = page * MODELS_PER_PAGE
+ end_idx = start_idx + MODELS_PER_PAGE
+ models_page = available[start_idx:end_idx]
 
-    buttons = []
-    for model in models_page:
-        display_name = f"Картинки: {model}" if model in IMAGE_MODELS else model
-        callback_data = f"setmodel_{model}" if has_sub else f"needsub_{model}"
-        buttons.append([make_inline_button(display_name, callback_data=callback_data, button_key="model_item")])
+ buttons = []
+ for model in models_page:
+ display_name = f"Картинки: {model}" if model in IMAGE_MODELS else model
+ callback_data = f"setmodel_{model}" if has_sub else f"needsub_{model}"
+ buttons.append([make_inline_button(display_name, callback_data=callback_data, button_key="model_item")])
 
-    # Навигация
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(make_inline_button("Назад", callback_data=f"models_{page - 1}", button_key="nav_prev"))
-    if end_idx < len(available):
-        nav_buttons.append(make_inline_button("Далее", callback_data=f"models_{page + 1}", button_key="nav_next"))
+ # Навигация
+ nav_buttons = []
+ if page > 0:
+ nav_buttons.append(make_inline_button("Назад", callback_data=f"models_{page - 1}", button_key="nav_prev"))
+ if end_idx < len(available):
+ nav_buttons.append(make_inline_button("Далее", callback_data=f"models_{page + 1}", button_key="nav_next"))
 
-    if nav_buttons:
-        buttons.append(nav_buttons)
+ if nav_buttons:
+ buttons.append(nav_buttons)
 
-    buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")])
+ buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")])
 
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+ return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def get_subscription_keyboard(user_id: int):
-    """Клавиатура подписки"""
-    has_sub = has_active_subscription(user_id)
-    price_stars = get_subscription_price()
-    price_usd = get_subscription_price_usd()
+ """Клавиатура подписки"""
+ has_sub = has_active_subscription(user_id)
+ price_stars = get_subscription_price()
+ price_usd = get_subscription_price_usd()
 
-    buttons = []
+ buttons = []
 
-    if has_sub:
-        # Если подписка активна - показываем кнопки продления
-        buttons.append([make_inline_button(
-            f"Продлить звездами ({price_stars})",
-            callback_data="extend_stars",
-            button_key="extend_stars",
-            style="success"
-        )])
-        buttons.append([make_inline_button(
-            f"Продлить через CryptoBot ({price_usd} USD)",
-            callback_data="extend_crypto",
-            button_key="extend_crypto",
-            style="primary"
-        )])
-    else:
-        buttons.append([make_inline_button(
-            f"Купить звездами ({price_stars})",
-            callback_data="buy_stars",
-            button_key="buy_stars",
-            style="success"
-        )])
-        buttons.append([make_inline_button(
-            f"Купить через CryptoBot ({price_usd} USD)",
-            callback_data="buy_crypto",
-            button_key="buy_crypto",
-            style="primary"
-        )])
+ if has_sub:
+ # Если подписка активна - показываем кнопки продления
+ buttons.append([make_inline_button(
+ f"Продлить звездами ({price_stars})",
+ callback_data="extend_stars",
+ button_key="extend_stars",
+ style="success"
+ )])
+ buttons.append([make_inline_button(
+ f"Продлить через CryptoBot ({price_usd} USD)",
+ callback_data="extend_crypto",
+ button_key="extend_crypto",
+ style="primary"
+ )])
+ else:
+ buttons.append([make_inline_button(
+ f"Купить звездами ({price_stars})",
+ callback_data="buy_stars",
+ button_key="buy_stars",
+ style="success"
+ )])
+ buttons.append([make_inline_button(
+ f"Купить через CryptoBot ({price_usd} USD)",
+ callback_data="buy_crypto",
+ button_key="buy_crypto",
+ style="primary"
+ )])
 
-    buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")])
+ buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")])
 
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+ return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_cancel_keyboard(callback_data: str = "admin_menu"):
-    """Клавиатура отмены"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [make_inline_button("Отмена", callback_data=callback_data, button_key="cancel", style="danger")]
-    ])
+ """Клавиатура отмены"""
+ return InlineKeyboardMarkup(inline_keyboard=[
+ [make_inline_button("Отмена", callback_data=callback_data, button_key="cancel", style="danger")]
+ ])
 
 
 def get_admin_keyboard():
-    """Клавиатура админ-панели"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Аналитика", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="💰 Тарифы", callback_data="admin_price")],
-        [InlineKeyboardButton(text="🧬 Доступные модели", callback_data="admin_models_0")],
-        [InlineKeyboardButton(text="✅ Выдать подписку", callback_data="admin_grant")],
-        [InlineKeyboardButton(text="⛔ Забрать подписку", callback_data="admin_revoke")],
-        [InlineKeyboardButton(text="📢 Массовая рассылка", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="👥 База пользователей", callback_data="admin_users_0")],
-        [InlineKeyboardButton(text="📺 Каналы обяз. подписки", callback_data="admin_channels")],
-        [InlineKeyboardButton(text="🚫 Blacklist", callback_data="admin_blacklist")],
-        [InlineKeyboardButton(text="🖼️ Медиа-оформление", callback_data="admin_media")]
-    ])
+ """Клавиатура админ-панели"""
+ return InlineKeyboardMarkup(inline_keyboard=[
+ [InlineKeyboardButton(text="Аналитика", callback_data="admin_stats")],
+ [InlineKeyboardButton(text="Тарифы", callback_data="admin_price")],
+ [InlineKeyboardButton(text="Доступные модели", callback_data="admin_models_0")],
+ [InlineKeyboardButton(text="Выдать подписку", callback_data="admin_grant")],
+ [InlineKeyboardButton(text="Забрать подписку", callback_data="admin_revoke")],
+ [InlineKeyboardButton(text="Массовая рассылка", callback_data="admin_broadcast")],
+ [InlineKeyboardButton(text="База пользователей", callback_data="admin_users_0")],
+ [InlineKeyboardButton(text="Каналы обяз. подписки", callback_data="admin_channels")],
+ [InlineKeyboardButton(text="Blacklist", callback_data="admin_blacklist")],
+ [InlineKeyboardButton(text="Медиа-оформление", callback_data="admin_media")]
+ ])
 
 
 def get_broadcast_confirm_keyboard():
-    """Клавиатура подтверждения рассылки"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✔️ Отправить", callback_data="broadcast_confirm")],
-        [InlineKeyboardButton(text="✖️ Отмена", callback_data="admin_menu")]
-    ])
+ """Клавиатура подтверждения рассылки"""
+ return InlineKeyboardMarkup(inline_keyboard=[
+ [InlineKeyboardButton(text="Отправить", callback_data="broadcast_confirm")],
+ [InlineKeyboardButton(text="Отмена", callback_data="admin_menu")]
+ ])
+
+
+def get_onboarding_start_keyboard():
+ """Клавиатура первого шага онбординга."""
+ return InlineKeyboardMarkup(inline_keyboard=[
+ [make_inline_button("Начать", callback_data="onboarding_begin", button_key="confirm_clear", style="success")]
+ ])
+
+
+def get_onboarding_style_keyboard():
+ """Клавиатура выбора стиля в онбординге."""
+ return InlineKeyboardMarkup(inline_keyboard=[
+ [
+ make_inline_button("Серьезный", callback_data="onboarding_style_serious", button_key="preset_serious"),
+ make_inline_button("Нейтральный", callback_data="onboarding_style_neutral", button_key="preset_neutral")
+ ],
+ [
+ make_inline_button("Веселый", callback_data="onboarding_style_funny", button_key="preset_funny"),
+ make_inline_button("Друг", callback_data="onboarding_style_friend", button_key="preset_friend")
+ ]
+ ])
 
 
 async def safe_edit_or_send(callback: CallbackQuery, text: str, reply_markup=None, parse_mode="HTML"):
-    """Безопасно отправить новое системное сообщение (с GIF при наличии)."""
-    try:
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        await send_system_message(
-            chat_id=callback.message.chat.id,
-            text=text,
-            reply_markup=reply_markup,
-            parse_mode=parse_mode
-        )
-    except Exception as e:
-        logging.warning(f"Ошибка safe_edit_or_send: {e}")
-        # Последняя попытка - просто отправить новое сообщение
-        try:
-            await send_system_message(
-                chat_id=callback.message.chat.id,
-                text=text,
-                reply_markup=reply_markup,
-                parse_mode=parse_mode
-            )
-        except:
-            pass
+ """Безопасно отправить новое системное сообщение (с GIF при наличии)."""
+ try:
+ try:
+ await callback.message.delete()
+ except Exception:
+ pass
+ await send_system_message(
+ chat_id=callback.message.chat.id,
+ text=text,
+ reply_markup=reply_markup,
+ parse_mode=parse_mode
+ )
+ except Exception as e:
+ logging.warning(f"Ошибка safe_edit_or_send: {e}")
+ # Последняя попытка - просто отправить новое сообщение
+ try:
+ await send_system_message(
+ chat_id=callback.message.chat.id,
+ text=text,
+ reply_markup=reply_markup,
+ parse_mode=parse_mode
+ )
+ except:
+ pass
+
+
+async def safe_edit_or_send_screen(callback: CallbackQuery, text: str, screen_key: str, reply_markup=None, parse_mode="HTML"):
+ """Безопасно отправить экран с закрепленной картинкой."""
+ try:
+ try:
+ await callback.message.delete()
+ except Exception:
+ pass
+ await send_system_screen_message(
+ chat_id=callback.message.chat.id,
+ text=text,
+ screen_key=screen_key,
+ reply_markup=reply_markup,
+ parse_mode=parse_mode
+ )
+ except Exception as e:
+ logging.warning(f"Ошибка safe_edit_or_send_screen: {e}")
+ try:
+ await send_system_screen_message(
+ chat_id=callback.message.chat.id,
+ text=text,
+ screen_key=screen_key,
+ reply_markup=reply_markup,
+ parse_mode=parse_mode
+ )
+ except Exception:
+ pass
 
 
 # ==================== КОМАНДЫ БОТА ====================
 async def set_bot_commands():
-    """Установить команды бота"""
-    # Команды для всех
-    user_commands = [
-        BotCommand(command="start", description="🏠 Главное меню"),
-        BotCommand(command="clear", description="🗑️ Очистить историю чата")
-    ]
+ """Установить команды бота"""
+ # Команды для всех
+ user_commands = [
+ BotCommand(command="start", description="Главное меню"),
+ BotCommand(command="clear", description="Очистить историю чата")
+ ]
 
-    # Команды для админов (включая /admin)
-    admin_commands = [
-        BotCommand(command="start", description="🏠 Главное меню"),
-        BotCommand(command="clear", description="🗑️ Очистить историю чата"),
-        BotCommand(command="admin", description="⚙️ Админ-панель")
-    ]
+ # Команды для админов (включая /admin)
+ admin_commands = [
+ BotCommand(command="start", description="Главное меню"),
+ BotCommand(command="clear", description="Очистить историю чата"),
+ BotCommand(command="admin", description="Админ-панель")
+ ]
 
-    # Устанавливаем базовые команды для всех
-    await bot.set_my_commands(user_commands)
+ # Устанавливаем базовые команды для всех
+ await bot.set_my_commands(user_commands)
 
-    # Устанавливаем команды для админов
-    from aiogram.types import BotCommandScopeChat
-    for admin_id in ADMIN_IDS:
-        try:
-            await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
-        except Exception as e:
-            logging.warning(f"Не удалось установить команды для админа {admin_id}: {e}")
+ # Устанавливаем команды для админов
+ from aiogram.types import BotCommandScopeChat
+ for admin_id in ADMIN_IDS:
+ try:
+ await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+ except Exception as e:
+ logging.warning(f"Не удалось установить команды для админа {admin_id}: {e}")
 
 
 # ==================== TELEGRAM BUSINESS HANDLERS ====================
 @dp.business_connection()
 async def handle_business_connection(business_connection: BusinessConnection):
-    """Обработка подключения бизнес-аккаунта"""
-    try:
-        user_id = business_connection.user.id
-        connection_id = business_connection.id
+ """Обработка подключения бизнес-аккаунта"""
+ try:
+ user_id = business_connection.user.id
+ connection_id = business_connection.id
 
-        add_business_connection(connection_id, user_id)
+ add_business_connection(connection_id, user_id)
 
-        logging.info(f"✅ Бизнес-подключение сохранено: {connection_id} -> User {user_id}")
-        logging.info(f"📊 Всего подключений: {len(business_connections)}")
+ logging.info(f"Бизнес-подключение сохранено: {connection_id} -> User {user_id}")
+ logging.info(f"Всего подключений: {len(business_connections)}")
 
-    except Exception as e:
-        logging.error(f"❌ Ошибка сохранения подключения: {e}")
+ except Exception as e:
+ logging.error(f"❌ Ошибка сохранения подключения: {e}")
 
 @dp.business_message(F.text)
 async def handle_business_text_message(message: Message):
-    """Обработка текстовых сообщений из бизнес-чатов"""
-    try:
-        business_connection_id = message.business_connection_id
+ """Обработка текстовых сообщений из бизнес-чатов"""
+ try:
+ business_connection_id = message.business_connection_id
 
-        if not business_connection_id:
-            return
+ if not business_connection_id:
+ return
 
-            # Если подключение неизвестно, пробуем получить user_id из сообщения
-        if business_connection_id not in business_connections:
-            logging.warning(f"⚠️ Неизвестное подключение {business_connection_id}, пробую определить владельца...")
+ # Если подключение неизвестно, пробуем получить user_id из сообщения
+ if business_connection_id not in business_connections:
+ logging.warning(f"Неизвестное подключение {business_connection_id}, пробую определить владельца...")
 
-            # Для бизнес-сообщений владелец бота = тот, кто подключил бота
-            # Используем ID из chat (это будет ID владельца бизнес-аккаунта)
-            try:
-                # Получаем информацию о чате
-                chat_info = await bot.get_chat(message.chat.id)
-                if hasattr(chat_info, 'business_connection_id'):
-                    bot_owner_id = message.from_user.id if message.from_user else None
-                    if bot_owner_id:
-                        business_connections[business_connection_id] = bot_owner_id
-                        logging.info(f"✅ Автосохранение: {business_connection_id} -> {bot_owner_id}")
-                    else:
-                        return
-                else:
-                    return
-            except Exception as e:
-                logging.error(f"❌ Не удалось определить владельца: {e}")
-                return
+ # Для бизнес-сообщений владелец бота = тот, кто подключил бота
+ # Используем ID из chat (это будет ID владельца бизнес-аккаунта)
+ try:
+ # Получаем информацию о чате
+ chat_info = await bot.get_chat(message.chat.id)
+ if hasattr(chat_info, 'business_connection_id'):
+ bot_owner_id = message.from_user.id if message.from_user else None
+ if bot_owner_id:
+ business_connections[business_connection_id] = bot_owner_id
+ logging.info(f"Автосохранение: {business_connection_id} -> {bot_owner_id}")
+ else:
+ return
+ else:
+ return
+ except Exception as e:
+ logging.error(f"❌ Не удалось определить владельца: {e}")
+ return
 
-        # Получаем ID владельца бизнес-аккаунта
-        bot_owner_id = business_connections[business_connection_id]
+ # Получаем ID владельца бизнес-аккаунта
+ bot_owner_id = business_connections[business_connection_id]
 
-        # Игнорируем сообщения от самого владельца бизнес-аккаунта
-        if message.from_user and message.from_user.id == bot_owner_id:
-            return
+ # Игнорируем сообщения от самого владельца бизнес-аккаунта
+ if message.from_user and message.from_user.id == bot_owner_id:
+ return
 
-        # Проверки
-        if is_blacklisted(bot_owner_id):
-            return
+ # Проверки
+ if is_blacklisted(bot_owner_id):
+ return
 
-        if not has_active_subscription(bot_owner_id):
-            await bot.send_message(
-                message.chat.id,
-                "✖️ У владельца бота закончилась подписка!",
-                business_connection_id=business_connection_id
-            )
-            return
+ if not has_active_subscription(bot_owner_id):
+ await bot.send_message(
+ message.chat.id,
+ "У владельца бота закончилась подписка PRO.",
+ business_connection_id=business_connection_id
+ )
+ return
 
-        await bot.send_chat_action(
-            message.chat.id,
-            "typing",
-            business_connection_id=business_connection_id
-        )
+ await bot.send_chat_action(
+ message.chat.id,
+ "typing",
+ business_connection_id=business_connection_id
+ )
 
-        # Обработка сообщения
-        user_data = load_user_data(bot_owner_id)
-        user_model = user_data.get("model", DEFAULT_MODEL)
+ # Обработка сообщения
+ user_data = load_user_data(bot_owner_id)
+ user_model = user_data.get("model", DEFAULT_MODEL)
 
-        if user_model in IMAGE_MODELS:
-            await bot.send_chat_action(
-                message.chat.id,
-                "upload_photo",
-                business_connection_id=business_connection_id
-            )
-            success, result = await generate_image(bot_owner_id, message.text, user_model)
+ if user_model in IMAGE_MODELS:
+ await bot.send_chat_action(
+ message.chat.id,
+ "upload_photo",
+ business_connection_id=business_connection_id
+ )
+ success, result = await generate_image(bot_owner_id, message.text, user_model)
 
-            if success:
-                photo = BufferedInputFile(result, filename="generated_image.jpg")
-                await bot.send_photo(
-                    chat_id=message.chat.id,
-                    photo=photo,
-                    caption=f"🖼 {user_model}",
-                    business_connection_id=business_connection_id
-                )
-            else:
-                await bot.send_message(
-                    message.chat.id,
-                    result,
-                    business_connection_id=business_connection_id
-                )
-        else:
-            ai_response = await get_business_ai_response(
-                bot_owner_id,
-                business_connection_id,
-                message.chat.id,
-                message.text
-            )
-            ai_response = markdown_to_html(ai_response)
+ if success:
+ photo = BufferedInputFile(result, filename="generated_image.jpg")
+ await bot.send_photo(
+ chat_id=message.chat.id,
+ photo=photo,
+ caption=f"{user_model}",
+ business_connection_id=business_connection_id
+ )
+ else:
+ await bot.send_message(
+ message.chat.id,
+ result,
+ business_connection_id=business_connection_id
+ )
+ else:
+ ai_response = await get_business_ai_response(
+ bot_owner_id,
+ business_connection_id,
+ message.chat.id,
+ message.text
+ )
+ ai_response = markdown_to_html(ai_response)
 
-            # Отправка длинного сообщения для бизнес-чата
-            if len(ai_response) <= MAX_MESSAGE_LENGTH:
-                await bot.send_message(
-                    message.chat.id,
-                    ai_response,
-                    business_connection_id=business_connection_id,
-                    parse_mode="HTML"
-                )
-            else:
-                parts = [ai_response[i:i + MAX_MESSAGE_LENGTH]
-                         for i in range(0, len(ai_response), MAX_MESSAGE_LENGTH)]
-                for part in parts:
-                    await bot.send_message(
-                        message.chat.id,
-                        part,
-                        business_connection_id=business_connection_id,
-                        parse_mode="HTML"
-                    )
+ # Отправка длинного сообщения для бизнес-чата
+ if len(ai_response) <= MAX_MESSAGE_LENGTH:
+ await bot.send_message(
+ message.chat.id,
+ ai_response,
+ business_connection_id=business_connection_id,
+ parse_mode="HTML"
+ )
+ else:
+ parts = [ai_response[i:i + MAX_MESSAGE_LENGTH]
+ for i in range(0, len(ai_response), MAX_MESSAGE_LENGTH)]
+ for part in parts:
+ await bot.send_message(
+ message.chat.id,
+ part,
+ business_connection_id=business_connection_id,
+ parse_mode="HTML"
+ )
 
-        increment_stat("total_messages")
+ increment_stat("total_messages")
 
-    except Exception as e:
-        logging.error(f"❌ Ошибка бизнес-сообщения: {e}")
+ except Exception as e:
+ logging.error(f"❌ Ошибка бизнес-сообщения: {e}")
 
 
 @dp.business_message(F.photo)
 async def handle_business_photo(message: Message):
-    """Обработка фото из бизнес-чатов"""
-    try:
-        business_connection_id = message.business_connection_id
+ """Обработка фото из бизнес-чатов"""
+ try:
+ business_connection_id = message.business_connection_id
 
-        if not business_connection_id or business_connection_id not in business_connections:
-            return
+ if not business_connection_id or business_connection_id not in business_connections:
+ return
 
-        bot_owner_id = business_connections[business_connection_id]
+ bot_owner_id = business_connections[business_connection_id]
 
-        # Игнорируем фото от самого владельца
-        if message.from_user and message.from_user.id == bot_owner_id:
-            return
+ # Игнорируем фото от самого владельца
+ if message.from_user and message.from_user.id == bot_owner_id:
+ return
 
-        if is_blacklisted(bot_owner_id):
-            return
+ if is_blacklisted(bot_owner_id):
+ return
 
-        if not has_active_subscription(bot_owner_id):
-            return
+ if not has_active_subscription(bot_owner_id):
+ return
 
-        await bot.send_chat_action(
-            message.chat.id,
-            "typing",
-            business_connection_id=business_connection_id
-        )
+ await bot.send_chat_action(
+ message.chat.id,
+ "typing",
+ business_connection_id=business_connection_id
+ )
 
-        user_text = message.caption if message.caption else "Что на фото?"
+ user_text = message.caption if message.caption else "Что на фото?"
 
-        user_text = message.caption if message.caption else "Что на фото?"
+ user_text = message.caption if message.caption else "Что на фото?"
 
-        photo = message.photo[-1]
-        file = await bot.get_file(photo.file_id)
-        photo_bytes = await bot.download_file(file.file_path)
-        photo_base64 = base64.b64encode(photo_bytes.read()).decode('utf-8')
+ photo = message.photo[-1]
+ file = await bot.get_file(photo.file_id)
+ photo_bytes = await bot.download_file(file.file_path)
+ photo_base64 = base64.b64encode(photo_bytes.read()).decode('utf-8')
 
-        ai_response = await get_business_ai_response(
-            bot_owner_id,
-            business_connection_id,
-            message.chat.id,
-            user_text,
-            photo_base64
-        )
-        ai_response = markdown_to_html(ai_response)
+ ai_response = await get_business_ai_response(
+ bot_owner_id,
+ business_connection_id,
+ message.chat.id,
+ user_text,
+ photo_base64
+ )
+ ai_response = markdown_to_html(ai_response)
 
-        await bot.send_message(
-            message.chat.id,
-            ai_response,
-            business_connection_id=business_connection_id,
-            parse_mode="HTML"
-        )
+ await bot.send_message(
+ message.chat.id,
+ ai_response,
+ business_connection_id=business_connection_id,
+ parse_mode="HTML"
+ )
 
-    except Exception as e:
-        logging.error(f"❌ Ошибка бизнес-фото: {e}")
+ except Exception as e:
+ logging.error(f"❌ Ошибка бизнес-фото: {e}")
 
 
 @dp.business_message(F.voice)
 async def handle_business_voice(message: Message):
-    """Обработка голоса из бизнес-чатов"""
-    try:
-        business_connection_id = message.business_connection_id
+ """Обработка голоса из бизнес-чатов"""
+ try:
+ business_connection_id = message.business_connection_id
 
-        if not business_connection_id or business_connection_id not in business_connections:
-            return
+ if not business_connection_id or business_connection_id not in business_connections:
+ return
 
-        bot_owner_id = business_connections[business_connection_id]
+ bot_owner_id = business_connections[business_connection_id]
 
-        # Игнорируем голосовые от самого владельца
-        if message.from_user and message.from_user.id == bot_owner_id:
-            return
+ # Игнорируем голосовые от самого владельца
+ if message.from_user and message.from_user.id == bot_owner_id:
+ return
 
-        if is_blacklisted(bot_owner_id):
-            return
+ if is_blacklisted(bot_owner_id):
+ return
 
-        if not has_active_subscription(bot_owner_id):
-            return
+ if not has_active_subscription(bot_owner_id):
+ return
 
-        await bot.send_chat_action(
-            message.chat.id,
-            "typing",
-            business_connection_id=business_connection_id
-        )
+ await bot.send_chat_action(
+ message.chat.id,
+ "typing",
+ business_connection_id=business_connection_id
+ )
 
-        voice = message.voice
-        file = await bot.get_file(voice.file_id)
-        voice_path = f"/tmp/business_voice_{voice.file_id}.ogg"
-        await bot.download_file(file.file_path, voice_path)
+ voice = message.voice
+ file = await bot.get_file(voice.file_id)
+ voice_path = f"/tmp/business_voice_{voice.file_id}.ogg"
+ await bot.download_file(file.file_path, voice_path)
 
-        transcribed_text = await transcribe_voice(voice_path)
+ transcribed_text = await transcribe_voice(voice_path)
 
-        if not transcribed_text:
-            await bot.send_message(
-                message.chat.id,
-                "✖️ Не удалось распознать",
-                business_connection_id=business_connection_id
-            )
-            return
+ if not transcribed_text:
+ await bot.send_message(
+ message.chat.id,
+ "Не удалось распознать голосовое сообщение.",
+ business_connection_id=business_connection_id
+ )
+ return
 
-        ai_response = await get_business_ai_response(
-            bot_owner_id,
-            business_connection_id,
-            message.chat.id,
-            transcribed_text
-        )
-        ai_response = markdown_to_html(ai_response)
+ ai_response = await get_business_ai_response(
+ bot_owner_id,
+ business_connection_id,
+ message.chat.id,
+ transcribed_text
+ )
+ ai_response = markdown_to_html(ai_response)
 
-        await bot.send_message(
-            message.chat.id,
-            ai_response,
-            business_connection_id=business_connection_id,
-            parse_mode="HTML"
-        )
+ await bot.send_message(
+ message.chat.id,
+ ai_response,
+ business_connection_id=business_connection_id,
+ parse_mode="HTML"
+ )
 
-    except Exception as e:
-        logging.error(f"❌ Ошибка бизнес-голос: {e}")
+ except Exception as e:
+ logging.error(f"❌ Ошибка бизнес-голос: {e}")
 
 
 @dp.business_message(F.text.startswith('/clear'))
 async def handle_business_clear(message: Message):
-    """Очистка истории для клиента в бизнес-чате"""
-    try:
-        business_connection_id = message.business_connection_id
+ """Очистка истории для клиента в бизнес-чате"""
+ try:
+ business_connection_id = message.business_connection_id
 
-        if not business_connection_id or business_connection_id not in business_connections:
-            return
+ if not business_connection_id or business_connection_id not in business_connections:
+ return
 
-        # Очищаем историю этого клиента
-        clear_business_chat_history(business_connection_id, message.chat.id)
+ # Очищаем историю этого клиента
+ clear_business_chat_history(business_connection_id, message.chat.id)
 
-        await bot.send_message(
-            message.chat.id,
-            "✔️ История чата очищена!",
-            business_connection_id=business_connection_id
-        )
+ await bot.send_message(
+ message.chat.id,
+ "Готово! История чата очищена.",
+ business_connection_id=business_connection_id
+ )
 
-    except Exception as e:
-        logging.error(f"❌ Ошибка очистки бизнес-истории: {e}")
+ except Exception as e:
+ logging.error(f"❌ Ошибка очистки бизнес-истории: {e}")
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    """Команда /start"""
-    user_id = message.from_user.id
+ """Команда /start"""
+ user_id = message.from_user.id
 
-    # Проверяем черный список
-    if is_blacklisted(user_id):
-        return
+ # Проверяем черный список
+ if is_blacklisted(user_id):
+ return
 
-    user_data = load_user_data(user_id)
+ user_data = load_user_data(user_id)
 
-    # Обновляем данные пользователя
-    user_data["username"] = message.from_user.username
-    user_data["full_name"] = message.from_user.full_name
-    save_user_data(user_id, user_data)
+ # Обновляем данные пользователя
+ user_data["username"] = message.from_user.username
+ user_data["full_name"] = message.from_user.full_name
+ save_user_data(user_id, user_data)
 
-    # Проверяем, новый ли пользователь
-    if not os.path.exists(get_user_history_path(user_id)):
-        increment_stat("total_users")
+ # Проверяем, новый ли пользователь
+ if not os.path.exists(get_user_history_path(user_id)):
+ increment_stat("total_users")
 
-    # Проверяем подписку на каналы (админы не проверяются)
-    if user_id not in ADMIN_IDS:
-        channels = get_required_channels()
-        if channels and not await check_channel_subscription(user_id):
-            await send_channel_subscription_message(message.chat.id, user_id)
-            return
+ # Проверяем подписку на каналы (админы не проверяются)
+ if user_id not in ADMIN_IDS:
+ channels = get_required_channels()
+ if channels and not await check_channel_subscription(user_id):
+ await send_channel_subscription_message(message.chat.id, user_id)
+ return
 
-    await send_start_message(message.chat.id, user_id, rotate_example=True)
+ if not user_data.get("onboarding_completed"):
+ user_data["onboarding_started"] = True
+ save_user_data(user_id, user_data)
+ await send_system_message(
+ chat_id=message.chat.id,
+ text=(
+ f"{text_emoji('wave')} <b>Добро пожаловать!</b>\n\n"
+ "Сделаем короткую настройку в 3 шага:\n"
+ "1) выберите стиль ответов\n"
+ "2) отправьте тестовый вопрос\n"
+ "3) получите 5 бесплатных запросов\n\n"
+ "<blockquote>Это займет меньше минуты.</blockquote>"
+ ),
+ reply_markup=get_onboarding_start_keyboard(),
+ parse_mode="HTML"
+ )
+ return
+
+ await send_start_message(message.chat.id, user_id, rotate_example=True)
+
+
+@dp.callback_query(F.data == "onboarding_begin")
+async def callback_onboarding_begin(callback: CallbackQuery):
+ """Шаг 1 онбординга: выбор стиля ответа."""
+ text = (
+ f"{text_emoji('style')} <b>Шаг 1/3: выберите стиль ответов</b>\n\n"
+ "Можно поменять в любой момент в настройках."
+ )
+ await safe_edit_or_send(callback, text, get_onboarding_style_keyboard())
+ await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("onboarding_style_"))
+async def callback_onboarding_style(callback: CallbackQuery, state: FSMContext):
+ """Шаг 2 онбординга: сохраняем стиль и просим тестовый вопрос."""
+ user_id = callback.from_user.id
+ preset = callback.data.replace("onboarding_style_", "").strip()
+ if preset not in STYLE_PRESET_PROMPTS:
+ await callback.answer("Неизвестный стиль", show_alert=True)
+ return
+
+ set_response_style_preset(user_id, preset)
+ await state.set_state(UserStates.waiting_for_onboarding_test)
+ await safe_edit_or_send(
+ callback,
+ (
+ f"{text_emoji('check')} <b>Шаг 2/3 готово</b>\n\n"
+ "Теперь отправьте ваш тестовый вопрос одним сообщением.\n"
+ "<blockquote>Например: «Напиши короткий пост про выходные»</blockquote>"
+ ),
+ get_cancel_keyboard("main_menu")
+ )
+ await callback.answer()
 
 
 async def send_channel_subscription_message(chat_id: int, user_id: int):
-    """Отправить сообщение о необходимости подписки на каналы"""
-    channels = get_required_channels()
+ """Отправить сообщение о необходимости подписки на каналы"""
+ channels = get_required_channels()
 
-    if not channels:
-        return
+ if not channels:
+ return
 
-    text = "📺 <b>Подпишитесь на наши каналы</b>\n\n"
-    text += "👇 Для использования бота необходимо подписаться на следующие каналы:\n\n"
+ text = (
+ f"{text_emoji('info')} <b>Остался один шаг</b>\n\n"
+ "Чтобы открыть бота, подпишитесь на каналы ниже и нажмите кнопку <b>«Проверить подписку»</b>.\n\n"
+ "<blockquote>Это занимает меньше минуты.</blockquote>\n"
+ )
 
-    buttons = []
-    for ch in channels:
-        buttons.append([make_inline_button(
-            text=f"📢 {ch['name']}",
-            url=ch['link'],
-            button_key="required_channel",
-            style="primary"
-        )])
+ buttons = []
+ for ch in channels:
+ buttons.append([make_inline_button(
+ text=f"{ch['name']}",
+ url=ch['link'],
+ button_key="required_channel",
+ style="primary"
+ )])
 
-    buttons.append([make_inline_button(
-        text="✔️ Продолжить",
-        callback_data="check_channels",
-        button_key="check_channels",
-        style="success"
-    )])
+ buttons.append([make_inline_button(
+ text="Проверить подписку",
+ callback_data="check_channels",
+ button_key="check_channels",
+ style="success"
+ )])
 
-    channel_media = get_channel_media()
+ channel_media = get_channel_media()
 
-    if channel_media:
-        media_type = channel_media.get("type")
-        file_id = channel_media.get("file_id")
+ if channel_media:
+ media_type = channel_media.get("type")
+ file_id = channel_media.get("file_id")
 
-        try:
-            if media_type == "photo":
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=file_id,
-                    caption=text,
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-                    parse_mode="HTML"
-                )
-            elif media_type == "video":
-                await bot.send_video(
-                    chat_id=chat_id,
-                    video=file_id,
-                    caption=text,
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-                    parse_mode="HTML"
-                )
-            elif media_type == "animation":
-                await bot.send_animation(
-                    chat_id=chat_id,
-                    animation=file_id,
-                    caption=text,
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-                    parse_mode="HTML"
-                )
-            else:
-                await send_system_message(
-                    chat_id=chat_id,
-                    text=text,
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-                    parse_mode="HTML"
-                )
-        except Exception as e:
-            logging.error(f"Ошибка отправки медиа каналов: {e}")
-            await send_system_message(
-                chat_id=chat_id,
-                text=text,
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-                parse_mode="HTML"
-            )
-    else:
-        await send_system_message(
-            chat_id=chat_id,
-            text=text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-            parse_mode="HTML"
-        )
+ try:
+ if media_type == "photo":
+ await bot.send_photo(
+ chat_id=chat_id,
+ photo=file_id,
+ caption=text,
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+ parse_mode="HTML"
+ )
+ elif media_type == "video":
+ await bot.send_video(
+ chat_id=chat_id,
+ video=file_id,
+ caption=text,
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+ parse_mode="HTML"
+ )
+ elif media_type == "animation":
+ await bot.send_animation(
+ chat_id=chat_id,
+ animation=file_id,
+ caption=text,
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+ parse_mode="HTML"
+ )
+ else:
+ await send_system_message(
+ chat_id=chat_id,
+ text=text,
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+ parse_mode="HTML"
+ )
+ except Exception as e:
+ logging.error(f"Ошибка отправки медиа каналов: {e}")
+ await send_system_message(
+ chat_id=chat_id,
+ text=text,
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+ parse_mode="HTML"
+ )
+ else:
+ await send_system_message(
+ chat_id=chat_id,
+ text=text,
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+ parse_mode="HTML"
+ )
 
 
 async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = False):
-    """Отправить приветственное сообщение (понятно обывателю: простые задачи + смешные картинки)."""
-    has_sub = has_active_subscription(user_id)
-    start_example = get_start_example(user_id, rotate=rotate_example)
+ """Отправить приветственное сообщение (понятно обывателю: простые задачи + смешные картинки)."""
+ has_sub = has_active_subscription(user_id)
+ start_example = get_start_example(user_id, rotate=rotate_example)
 
-    text = f"{text_emoji('wave')} {text_emoji('robot')} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
-    text += (
-        "<b>Могу помочь с чем угодно:</b>\n"
-        "— написать пост, поздравление или идею\n"
-        "— сделать мем или смешную картинку\n"
-        "— разобрать фото или голосовое сообщение\n\n"
-        "Просто напиши, что нужно — и я сделаю.\n\n"
-        "<b>Пример запроса:</b>\n"
-        f"<blockquote>{start_example}</blockquote>\n"
-    )
+ text = f"{text_emoji('wave')} {text_emoji('robot')} <b>Привет! Я твой AI-помощник в Telegram.</b>\n\n"
+ text += (
+ "<b>Что я умею:</b>\n"
+ "— рецепты, тексты, идеи и планы\n"
+ "— мемы, картинки и креативные промпты\n"
+ "— разбор фото и голосовых сообщений\n\n"
+ "Просто напишите задачу обычными словами.\n\n"
+ "<b>Пример запроса:</b>\n"
+ f"<blockquote>{start_example}</blockquote>\n"
+ )
 
-    if not has_sub:
-        text += (
-            f"{text_emoji('star')} <b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
-            "Нажмите кнопку ниже: там есть сравнение и преимущества."
-        )
+ if not has_sub:
+ text += (
+ f"{text_emoji('star')} <b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
+ "Нажмите кнопку ниже — там коротко и понятно про условия."
+ )
 
-    start_media = get_start_media()
+ start_screen_path = SCREEN_MEDIA_FILES.get("start")
+ if start_screen_path and os.path.exists(start_screen_path):
+ try:
+ await bot.send_photo(
+ chat_id=chat_id,
+ photo=FSInputFile(start_screen_path),
+ caption=text,
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
+ return
+ except Exception as e:
+ logging.warning(f"Не удалось отправить стартовую картинку: {e}")
 
-    if start_media:
-        media_type = start_media.get("type")
-        file_id = start_media.get("file_id")
+ start_media = get_start_media()
 
-        try:
-            if media_type == "photo":
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
-            elif media_type == "video":
-                await bot.send_video(
-                    chat_id=chat_id,
-                    video=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
-            elif media_type == "animation":
-                await bot.send_animation(
-                    chat_id=chat_id,
-                    animation=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
-            else:
-                await bot.send_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
-        except Exception as e:
-            logging.error(f"Ошибка отправки медиа: {e}")
-            await send_system_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
-    else:
-        await send_system_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+ if start_media:
+ media_type = start_media.get("type")
+ file_id = start_media.get("file_id")
+
+ try:
+ if media_type == "photo":
+ await bot.send_photo(
+ chat_id=chat_id,
+ photo=file_id,
+ caption=text,
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
+ elif media_type == "video":
+ await bot.send_video(
+ chat_id=chat_id,
+ video=file_id,
+ caption=text,
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
+ elif media_type == "animation":
+ await bot.send_animation(
+ chat_id=chat_id,
+ animation=file_id,
+ caption=text,
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
+ else:
+ await bot.send_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+ except Exception as e:
+ logging.error(f"Ошибка отправки медиа: {e}")
+ await send_system_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+ else:
+ await send_system_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
 
 
 @dp.callback_query(F.data == "check_channels")
 async def callback_check_channels(callback: CallbackQuery):
-    """Проверка подписки на каналы"""
-    user_id = callback.from_user.id
+ """Проверка подписки на каналы"""
+ user_id = callback.from_user.id
 
-    if await check_channel_subscription(user_id):
-        try:
-            await callback.message.delete()
-        except:
-            pass
-        await send_start_message(callback.message.chat.id, user_id, rotate_example=False)
-        await callback.answer()
-    else:
-        await callback.answer("✖️ Вы не подписались на все каналы!", show_alert=True)
+ if await check_channel_subscription(user_id):
+ try:
+ await callback.message.delete()
+ except:
+ pass
+ await send_start_message(callback.message.chat.id, user_id, rotate_example=False)
+ await callback.answer()
+ else:
+ await callback.answer("Нужно подписаться на все каналы из списка.", show_alert=True)
 
 
 @dp.message(Command("clear"))
 async def cmd_clear(message: Message):
-    """Команда /clear"""
-    await send_system_message(
-        chat_id=message.chat.id,
-        text=(
-            "🗑️ <b>Очистить историю чата?</b>\n\n"
-            "Все сообщения будут удалены безвозвратно."
-        ),
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [make_inline_button(text="✔️ Да, очистить", callback_data="confirm_clear", button_key="confirm_clear", style="danger")],
-            [make_inline_button(text="✖️ Отмена", callback_data="cancel_clear", button_key="cancel", style="primary")]
-        ]),
-        parse_mode="HTML"
-    )
+ """Команда /clear"""
+ await send_system_message(
+ chat_id=message.chat.id,
+ text=(
+ f"{text_emoji('note')} <b>Очистить историю чата?</b>\n\n"
+ "Удалятся все предыдущие сообщения в этом чате.\n"
+ "<blockquote>Это действие нельзя отменить.</blockquote>"
+ ),
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+ [make_inline_button(text="Очистить историю", callback_data="confirm_clear", button_key="confirm_clear", style="danger")],
+ [make_inline_button(text="Отмена", callback_data="cancel_clear", button_key="cancel", style="primary")]
+ ]),
+ parse_mode="HTML"
+ )
 
 
 @dp.callback_query(F.data == "confirm_clear")
 async def callback_confirm_clear(callback: CallbackQuery):
-    """Подтверждение очистки истории"""
-    clear_chat_history(callback.from_user.id)
-    await safe_edit_or_send(callback, "✔️ История чата очищена!")
-    await callback.answer()
+ """Подтверждение очистки истории"""
+ clear_chat_history(callback.from_user.id)
+ await safe_edit_or_send(callback, f"{text_emoji('check')} <b>Готово!</b>\n\nИстория чата очищена.")
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "cancel_clear")
 async def callback_cancel_clear(callback: CallbackQuery):
-    """Отмена очистки истории"""
-    await callback.message.delete()
-    await callback.answer("Отменено")
+ """Отмена очистки истории"""
+ await callback.message.delete()
+ await callback.answer("Очистка отменена")
 
 
 @dp.message(Command("admin"))
 async def cmd_admin(message: Message):
-    """Команда /admin"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Команда /admin"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    await send_system_message(
-        chat_id=message.chat.id,
-        text="⚙️ <b>Админ-панель</b>",
-        reply_markup=get_admin_keyboard(),
-        parse_mode="HTML"
-    )
+ await send_system_message(
+ chat_id=message.chat.id,
+ text="<b>Админ-панель</b>",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
 
 
 # ==================== CALLBACK HANDLERS ====================
 @dp.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: CallbackQuery, state: FSMContext):
-    """Возврат в главное меню"""
-    await state.clear()
+ """Возврат в главное меню"""
+ await state.clear()
 
-    user_id = callback.from_user.id
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+ user_id = callback.from_user.id
+ try:
+ await callback.message.delete()
+ except Exception:
+ pass
 
-    await send_start_message(callback.message.chat.id, user_id, rotate_example=False)
+ await send_start_message(callback.message.chat.id, user_id, rotate_example=False)
 
-    await callback.answer()
+ await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("models_"))
 async def callback_models(callback: CallbackQuery):
-    """Показать модели"""
-    user_id = callback.from_user.id
+ """Показать модели"""
+ user_id = callback.from_user.id
 
-    # Проверки
-    if is_blacklisted(user_id):
-        await callback.answer()
-        return
+ # Проверки
+ if is_blacklisted(user_id):
+ await callback.answer()
+ return
 
-    if user_id not in ADMIN_IDS and get_required_channels():
-        if not await check_channel_subscription(user_id):
-            await callback.answer("✖️ Подпишитесь на каналы!", show_alert=True)
-            return
+ if user_id not in ADMIN_IDS and get_required_channels():
+ if not await check_channel_subscription(user_id):
+ await callback.answer("Сначала подпишитесь на каналы из списка.", show_alert=True)
+ return
 
-    page = int(callback.data.split("_")[1])
-    user_data = load_user_data(user_id)
-    current_model = user_data.get("model", DEFAULT_MODEL)
-    model_type = (
-        f"{text_emoji('image')} Генерация изображений"
-        if current_model in IMAGE_MODELS
-        else f"{text_emoji('chat')} Текстовый чат"
-    )
+ page = int(callback.data.split("_")[1])
+ user_data = load_user_data(user_id)
+ current_model = user_data.get("model", DEFAULT_MODEL)
+ model_type = (
+ f"{text_emoji('image')} Генерация изображений"
+ if current_model in IMAGE_MODELS
+ else f"{text_emoji('chat')} Текстовый чат"
+ )
 
-    text = (
-        f"{text_emoji('models')} <b>Модели</b>\n\n"
-        f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code>\n"
-        f"<b>Тип:</b> {model_type}\n\n"
-        "Бот сам выбирает текст или картинку по вашему запросу.\n"
-        "Тут вы меняете базовую модель по умолчанию."
-    )
+ text = (
+ f"{text_emoji('models')} <b>Выбор модели</b>\n\n"
+ f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code>\n"
+ f"<b>Тип:</b> {model_type}\n\n"
+ "Бот сам понимает: нужен текст или картинка.\n"
+ "<blockquote>Здесь вы выбираете модель по умолчанию.</blockquote>"
+ )
 
-    await safe_edit_or_send(callback, text, get_models_keyboard(page, user_id))
-    await callback.answer()
+ await safe_edit_or_send(callback, text, get_models_keyboard(page, user_id))
+ await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("setmodel_"))
 async def callback_set_model(callback: CallbackQuery):
-    """Установить модель"""
-    model = callback.data.replace("setmodel_", "")
-    user_id = callback.from_user.id
+ """Установить модель"""
+ model = callback.data.replace("setmodel_", "")
+ user_id = callback.from_user.id
 
-    if not has_active_subscription(user_id):
-        await callback.answer("✖️ Для смены модели требуется подписка!", show_alert=True)
-        return
+ if not has_active_subscription(user_id):
+ await callback.answer("Для смены модели нужна подписка PRO.", show_alert=True)
+ return
 
-    user_data = load_user_data(user_id)
-    user_data["model"] = model
-    save_user_data(user_id, user_data)
+ user_data = load_user_data(user_id)
+ user_data["model"] = model
+ save_user_data(user_id, user_data)
 
-    model_type = (
-        f"{text_emoji('image')} Генерация изображений"
-        if model in IMAGE_MODELS
-        else f"{text_emoji('chat')} Текстовый чат"
-    )
+ model_type = (
+ f"{text_emoji('image')} Генерация изображений"
+ if model in IMAGE_MODELS
+ else f"{text_emoji('chat')} Текстовый чат"
+ )
 
-    await callback.answer(f"✔️ Модель изменена на {model}!")
+ await callback.answer(f"Модель переключена: {model}")
 
-    await safe_edit_or_send(
-        callback,
-        f"{text_emoji('check')} <b>Модель изменена!</b>\n\n"
-        f"{text_emoji('robot')} <b>Новая модель:</b> <code>{model}</code>\n"
-        f"<b>Тип:</b> {model_type}",
-        InlineKeyboardMarkup(inline_keyboard=[
-            [make_inline_button("Модели", callback_data="models_0", button_key="models", style="primary")],
-            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
-        ])
-    )
+ await safe_edit_or_send(
+ callback,
+ f"{text_emoji('check')} <b>Модель изменена!</b>\n\n"
+ f"{text_emoji('robot')} <b>Новая модель:</b> <code>{model}</code>\n"
+ f"<b>Тип:</b> {model_type}",
+ InlineKeyboardMarkup(inline_keyboard=[
+ [make_inline_button("Модели", callback_data="models_0", button_key="models", style="primary")],
+ [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+ ])
+ )
 
 
 @dp.callback_query(F.data.startswith("needsub_"))
 async def callback_need_subscription(callback: CallbackQuery):
-    """Нужна подписка для смены модели"""
-    await callback.answer(
-        "⭐ Для смены модели необходимо оформить подписку!",
-        show_alert=True
-    )
+ """Нужна подписка для смены модели"""
+ await callback.answer(
+ "Для смены модели нужна подписка PRO.",
+ show_alert=True
+ )
 
 
 @dp.callback_query(F.data == "subscription")
 async def callback_subscription(callback: CallbackQuery):
-    """Информация о подписке"""
-    user_id = callback.from_user.id
-    has_sub = has_active_subscription(user_id)
-    sub_end = get_subscription_end(user_id)
-    price_stars = get_subscription_price()
-    price_usd = get_subscription_price_usd()
+ """Информация о подписке"""
+ user_id = callback.from_user.id
+ has_sub = has_active_subscription(user_id)
+ sub_end = get_subscription_end(user_id)
+ price_stars = get_subscription_price()
+ price_usd = get_subscription_price_usd()
 
-    if user_id in ADMIN_IDS:
-        text = f"{text_emoji('crown')} <b>Подписка</b>\n\n"
-        text += "Вы администратор бота и имеете неограниченный доступ."
-    elif has_sub:
-        text = f"{text_emoji('star')} <b>Подписка активна!</b>\n\n"
-        text += f"{text_emoji('clock')} <b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
-        time_left = sub_end - datetime.now()
-        days = time_left.days
-        hours = time_left.seconds // 3600
-        minutes = (time_left.seconds % 3600) // 60
-        text += f"{text_emoji('clock')} <b>Осталось:</b> {days}д {hours}ч {minutes}м"
-    else:
-        text = f"{text_emoji('star')} <b>Подписка PRO</b>\n\n"
-        text += f"{text_emoji('money')} <b>Цена:</b> {price_stars} звёзд или {price_usd} USD/мес\n\n"
-        text += (
-            f"{text_emoji('rocket')} <b>Значительные преимущества PRO:</b>\n\n"
-            "• <b>Все модели нейросети</b> — от быстрых до самых умных, без ограничений\n"
-            "• <b>Генерация картинок</b> — мемы, иллюстрации, смешные образы по тексту\n"
-            "• <b>Стиль ответа</b> — серьёзный, нейтральный, весёлый или «как друг»\n"
-            "• <b>Фото и голос</b> — отправляй скриншоты и голосовые, бот поймёт и ответит\n"
-            "• <b>Без лимитов</b> — общайся и генерируй сколько нужно\n"
-            "• <b>Удобно с телефона</b> — решай задачи без перехода на сайты и приложения\n\n"
-            "Оформите подписку, чтобы открыть все возможности бота."
-        )
+ if user_id in ADMIN_IDS:
+ text = f"{text_emoji('crown')} <b>Подписка</b>\n\n"
+ text += "У вас доступ администратора: все функции открыты без ограничений."
+ elif has_sub:
+ text = f"{text_emoji('star')} <b>Подписка активна!</b>\n\n"
+ text += f"{text_emoji('clock')} <b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
+ time_left = sub_end - datetime.now()
+ days = time_left.days
+ hours = time_left.seconds // 3600
+ minutes = (time_left.seconds % 3600) // 60
+ text += f"{text_emoji('clock')} <b>Осталось:</b> {days}д {hours}ч {minutes}м"
+ else:
+ text = f"{text_emoji('star')} <b>Подписка PRO</b>\n\n"
+ text += f"{text_emoji('money')} <b>Цена:</b> {price_stars} звёзд или {price_usd} USD в месяц\n\n"
+ text += (
+ f"{text_emoji('rocket')} <b>Что дает PRO:</b>\n\n"
+ "• <b>Все модели</b> — быстрые и продвинутые\n"
+ "• <b>Картинки по описанию</b> — от мемов до иллюстраций\n"
+ "• <b>Разные стили ответов</b> — серьезно, нейтрально, весело, по-дружески\n"
+ "• <b>Работа с фото и голосом</b> — можно отправлять скриншоты и аудио\n"
+ "• <b>Без лимитов</b> — пользуйтесь столько, сколько нужно\n\n"
+ "<blockquote>Подписка нужна только для расширенных функций.</blockquote>"
+ )
 
-    await safe_edit_or_send(callback, text, get_subscription_keyboard(user_id))
-    await callback.answer()
+ await safe_edit_or_send_screen(callback, text, "subscription", get_subscription_keyboard(user_id))
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "buy_stars")
 async def callback_buy_stars(callback: CallbackQuery):
-    """Покупка подписки за звезды"""
-    user_id = callback.from_user.id
-    price = get_subscription_price()
+ """Покупка подписки за звезды"""
+ user_id = callback.from_user.id
+ price = get_subscription_price()
 
-    await bot.send_invoice(
-        chat_id=user_id,
-        title="Подписка на AI Chat Bot",
-        description="Подписка на 30 дней. Доступ ко всем моделям AI.",
-        payload=f"subscription_{user_id}",
-        currency="XTR",
-        prices=[LabeledPrice(label="Подписка (30 дней)", amount=price)]
-    )
-    await callback.answer()
+ await bot.send_invoice(
+ chat_id=user_id,
+ title="Подписка на AI Chat Bot",
+ description="Подписка на 30 дней. Доступ ко всем моделям AI.",
+ payload=f"subscription_{user_id}",
+ currency="XTR",
+ prices=[LabeledPrice(label="Подписка (30 дней)", amount=price)]
+ )
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "buy_crypto")
 async def callback_buy_crypto(callback: CallbackQuery):
-    """Покупка подписки через CryptoBot"""
-    user_id = callback.from_user.id
-    price_usd = get_subscription_price_usd()
+ """Покупка подписки через CryptoBot"""
+ user_id = callback.from_user.id
+ price_usd = get_subscription_price_usd()
 
-    await safe_edit_or_send(callback, "💎 <b>Создание инвойса...</b>", parse_mode="HTML")
+ await safe_edit_or_send(callback, f"{text_emoji('money')} <b>Готовлю ссылку на оплату…</b>", parse_mode="HTML")
 
-    invoice_data = await create_crypto_invoice(user_id, price_usd)
+ invoice_data = await create_crypto_invoice(user_id, price_usd)
 
-    if invoice_data:
-        # Сохраняем инвойс для отслеживания
-        add_pending_invoice(invoice_data["invoice_id"], user_id)
+ if invoice_data:
+ # Сохраняем инвойс для отслеживания
+ add_pending_invoice(invoice_data["invoice_id"], user_id)
 
-        await safe_edit_or_send(
-            callback,
-            (
-                "💎 <b>Оплата через CryptoBot</b>\n\n"
-                f"💰 Сумма: {price_usd} USD\n"
-                "⏰ Ссылка действительна 1 час\n\n"
-                "Нажмите кнопку ниже для оплаты:"
-            ),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
-                [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
-            ]),
-            parse_mode="HTML"
-        )
-    else:
-        await safe_edit_or_send(
-            callback,
-            "✖️ Ошибка создания инвойса. Попробуйте позже.",
-            reply_markup=get_main_keyboard()
-        )
+ await safe_edit_or_send(
+ callback,
+ (
+ "<b>Оплата через CryptoBot</b>\n\n"
+ f"{text_emoji('money')} <b>Сумма:</b> {price_usd} USD\n"
+ f"{text_emoji('clock')} <b>Ссылка действует:</b> 1 час\n\n"
+ "<blockquote>Нажмите кнопку ниже, чтобы оплатить.</blockquote>"
+ ),
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+ [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
+ [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+ ]),
+ parse_mode="HTML"
+ )
+ else:
+ await safe_edit_or_send(
+ callback,
+ "Не получилось создать ссылку на оплату. Попробуйте чуть позже.",
+ reply_markup=get_main_keyboard()
+ )
 
-    await callback.answer()
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "extend_stars")
 async def callback_extend_stars(callback: CallbackQuery):
-    """Продление подписки за звезды"""
-    user_id = callback.from_user.id
-    price = get_subscription_price()
+ """Продление подписки за звезды"""
+ user_id = callback.from_user.id
+ price = get_subscription_price()
 
-    await bot.send_invoice(
-        chat_id=user_id,
-        title="Продление подписки AI Chat Bot",
-        description="Продление подписки на 30 дней.",
-        payload=f"extend_{user_id}",
-        currency="XTR",
-        prices=[LabeledPrice(label="Продление (30 дней)", amount=price)]
-    )
-    await callback.answer()
+ await bot.send_invoice(
+ chat_id=user_id,
+ title="Продление подписки AI Chat Bot",
+ description="Продление подписки на 30 дней.",
+ payload=f"extend_{user_id}",
+ currency="XTR",
+ prices=[LabeledPrice(label="Продление (30 дней)", amount=price)]
+ )
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "extend_crypto")
 async def callback_extend_crypto(callback: CallbackQuery):
-    """Продление подписки через CryptoBot"""
-    user_id = callback.from_user.id
-    price_usd = get_subscription_price_usd()
+ """Продление подписки через CryptoBot"""
+ user_id = callback.from_user.id
+ price_usd = get_subscription_price_usd()
 
-    await safe_edit_or_send(callback, "💎 <b>Создание инвойса...</b>", parse_mode="HTML")
+ await safe_edit_or_send(callback, f"{text_emoji('money')} <b>Готовлю ссылку на продление…</b>", parse_mode="HTML")
 
-    invoice_data = await create_crypto_invoice(user_id, price_usd)
+ invoice_data = await create_crypto_invoice(user_id, price_usd)
 
-    if invoice_data:
-        # Сохраняем инвойс для отслеживания
-        add_pending_invoice(invoice_data["invoice_id"], user_id)
+ if invoice_data:
+ # Сохраняем инвойс для отслеживания
+ add_pending_invoice(invoice_data["invoice_id"], user_id)
 
-        await safe_edit_or_send(
-            callback,
-            (
-                "💎 <b>Продление через CryptoBot</b>\n\n"
-                f"💰 Сумма: {price_usd} USD\n"
-                "⏰ Ссылка действительна 1 час\n\n"
-                "Нажмите кнопку ниже для оплаты:"
-            ),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
-                [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
-            ]),
-            parse_mode="HTML"
-        )
-    else:
-        await safe_edit_or_send(
-            callback,
-            "✖️ Ошибка создания инвойса. Попробуйте позже.",
-            reply_markup=get_main_keyboard()
-        )
+ await safe_edit_or_send(
+ callback,
+ (
+ "<b>Продление через CryptoBot</b>\n\n"
+ f"{text_emoji('money')} <b>Сумма:</b> {price_usd} USD\n"
+ f"{text_emoji('clock')} <b>Ссылка действует:</b> 1 час\n\n"
+ "<blockquote>Нажмите кнопку ниже, чтобы оплатить.</blockquote>"
+ ),
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+ [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
+ [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+ ]),
+ parse_mode="HTML"
+ )
+ else:
+ await safe_edit_or_send(
+ callback,
+ "Не получилось создать ссылку на оплату. Попробуйте чуть позже.",
+ reply_markup=get_main_keyboard()
+ )
 
-    await callback.answer()
+ await callback.answer()
 
 
 @dp.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
-    """Обработка предварительного запроса оплаты"""
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+ """Обработка предварительного запроса оплаты"""
+ await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 
 @dp.message(F.successful_payment)
 async def process_successful_payment(message: Message):
-    """Обработка успешной оплаты"""
-    user_id = message.from_user.id
+ """Обработка успешной оплаты"""
+ user_id = message.from_user.id
 
-    # Выдаем подписку
-    grant_subscription(user_id, days=30)
+ # Выдаем подписку
+ grant_subscription(user_id, days=30)
 
-    # Обновляем статистику
-    price = get_subscription_price()
-    increment_stat("total_revenue", price)
+ # Обновляем статистику
+ price = get_subscription_price()
+ increment_stat("total_revenue", price)
 
-    sub_end = get_subscription_end(user_id)
+ sub_end = get_subscription_end(user_id)
 
-    await send_system_message(
-        chat_id=message.chat.id,
-        text=(
-            "🎉 <b>Оплата прошла успешно!</b>\n\n"
-            f"⭐ Подписка активирована до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
-            "Теперь вы можете использовать все функции бота!"
-        ),
-        reply_markup=get_main_keyboard(),
-        parse_mode="HTML"
-    )
+ await send_system_message(
+ chat_id=message.chat.id,
+ text=(
+ "<b>Оплата прошла успешно!</b>\n\n"
+ f"Подписка активирована до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
+ "Теперь вы можете использовать все функции бота!"
+ ),
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
 
 
 # ==================== ADMIN HANDLERS ====================
 @dp.callback_query(F.data == "admin_menu")
 async def callback_admin_menu(callback: CallbackQuery, state: FSMContext):
-    """Возврат в админ-меню"""
-    await state.clear()
+ """Возврат в админ-меню"""
+ await state.clear()
 
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    await safe_edit_or_send(
-        callback,
-        "⚙️ <b>Админ-панель</b>",
-        get_admin_keyboard()
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback,
+ "<b>Админ-панель</b>",
+ get_admin_keyboard()
+ )
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "admin_stats")
 async def callback_admin_stats(callback: CallbackQuery):
-    """Статистика"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Статистика"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    stats = load_stats()
-    users = get_all_users()
-    active_subs = len(get_users_with_active_subscription())
-    price = get_subscription_price()
+ stats = load_stats()
+ users = get_all_users()
+ active_subs = len(get_users_with_active_subscription())
+ price = get_subscription_price()
 
-    text = (
-        "📊 <b>Статистика</b>\n\n"
-        f"👥 <b>Всего пользователей:</b> {len(users)}\n"
-        f"⭐ <b>Активных подписок:</b> {active_subs}\n"
-        f"💬 <b>Всего сообщений:</b> {stats.get('total_messages', 0)}\n"
-        f"💰 <b>Общий доход:</b> {stats.get('total_revenue', 0)} ⭐\n\n"
-        f"🏷️ <b>Текущая цена:</b> {price} ⭐/мес"
-    )
+ text = (
+ "<b>Статистика</b>\n\n"
+ f"<b>Всего пользователей:</b> {len(users)}\n"
+ f"<b>Активных подписок:</b> {active_subs}\n"
+ f"💬 <b>Всего сообщений:</b> {stats.get('total_messages', 0)}\n"
+ f"<b>Общий доход:</b> {stats.get('total_revenue', 0)} \n\n"
+ f"<b>Текущая цена:</b> {price} /мес"
+ )
 
-    await safe_edit_or_send(
-        callback, text,
-        InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")]
-        ])
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback, text,
+ InlineKeyboardMarkup(inline_keyboard=[
+ [InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")]
+ ])
+ )
+ await callback.answer()
 
 
 # ==================== ADMIN MODELS MANAGEMENT ====================
 @dp.callback_query(F.data.startswith("admin_models_"))
 async def callback_admin_models(callback: CallbackQuery):
-    """Управление моделями"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Управление моделями"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    page = int(callback.data.split("_")[-1])
-    enabled_models = get_enabled_models()
+ page = int(callback.data.split("_")[-1])
+ enabled_models = get_enabled_models()
 
-    # Пагинация
-    per_page = 8
-    total_pages = (len(AVAILABLE_MODELS) + per_page - 1) // per_page
-    start_idx = page * per_page
-    end_idx = start_idx + per_page
-    page_models = AVAILABLE_MODELS[start_idx:end_idx]
+ # Пагинация
+ per_page = 8
+ total_pages = (len(AVAILABLE_MODELS) + per_page - 1) // per_page
+ start_idx = page * per_page
+ end_idx = start_idx + per_page
+ page_models = AVAILABLE_MODELS[start_idx:end_idx]
 
-    buttons = []
-    for model in page_models:
-        is_enabled = model in enabled_models
-        status = "🟢" if is_enabled else "🔴"
-        buttons.append([InlineKeyboardButton(
-            text=f"{model} {status}",
-            callback_data=f"togglemodel_{model}"
-        )])
+ buttons = []
+ for model in page_models:
+ is_enabled = model in enabled_models
+ status = "🟢" if is_enabled else "🔴"
+ buttons.append([InlineKeyboardButton(
+ text=f"{model} {status}",
+ callback_data=f"togglemodel_{model}"
+ )])
 
-    # Навигация
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(InlineKeyboardButton(text="◀️", callback_data=f"admin_models_{page - 1}"))
-    if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton(text="▶️", callback_data=f"admin_models_{page + 1}"))
-    if nav_buttons:
-        buttons.append(nav_buttons)
+ # Навигация
+ nav_buttons = []
+ if page > 0:
+ nav_buttons.append(InlineKeyboardButton(text="", callback_data=f"admin_models_{page - 1}"))
+ if page < total_pages - 1:
+ nav_buttons.append(InlineKeyboardButton(text="", callback_data=f"admin_models_{page + 1}"))
+ if nav_buttons:
+ buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+ buttons.append([InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")])
 
-    await safe_edit_or_send(
-        callback,
-        f"🧬 <b>Управление моделями</b>\n\n"
-        f"🟢 - включена для пользователей\n"
-        f"🔴 - выключена\n\n"
-        f"Включено: {len(enabled_models)} из {len(AVAILABLE_MODELS)}",
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback,
+ f"<b>Управление моделями</b>\n\n"
+ f"🟢 - включена для пользователей\n"
+ f"🔴 - выключена\n\n"
+ f"Включено: {len(enabled_models)} из {len(AVAILABLE_MODELS)}",
+ InlineKeyboardMarkup(inline_keyboard=buttons)
+ )
+ await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("togglemodel_"))
 async def callback_toggle_model(callback: CallbackQuery):
-    """Переключение модели"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Переключение модели"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    model = callback.data.replace("togglemodel_", "")
-    new_state = toggle_model(model)
+ model = callback.data.replace("togglemodel_", "")
+ new_state = toggle_model(model)
 
-    status = "включена 🟢" if new_state else "выключена 🔴"
-    await callback.answer(f"{model} {status}", show_alert=False)
+ status = "включена 🟢" if new_state else "выключена 🔴"
+ await callback.answer(f"{model} {status}", show_alert=False)
 
-    # Обновляем список моделей (остаёмся на той же странице)
-    enabled_models = get_enabled_models()
+ # Обновляем список моделей (остаёмся на той же странице)
+ enabled_models = get_enabled_models()
 
-    # Определяем текущую страницу
-    try:
-        model_index = AVAILABLE_MODELS.index(model)
-        page = model_index // 8
-    except ValueError:
-        page = 0
+ # Определяем текущую страницу
+ try:
+ model_index = AVAILABLE_MODELS.index(model)
+ page = model_index // 8
+ except ValueError:
+ page = 0
 
-    per_page = 8
-    total_pages = (len(AVAILABLE_MODELS) + per_page - 1) // per_page
-    start_idx = page * per_page
-    end_idx = start_idx + per_page
-    page_models = AVAILABLE_MODELS[start_idx:end_idx]
+ per_page = 8
+ total_pages = (len(AVAILABLE_MODELS) + per_page - 1) // per_page
+ start_idx = page * per_page
+ end_idx = start_idx + per_page
+ page_models = AVAILABLE_MODELS[start_idx:end_idx]
 
-    buttons = []
-    for m in page_models:
-        is_enabled = m in enabled_models
-        status = "🟢" if is_enabled else "🔴"
-        buttons.append([InlineKeyboardButton(
-            text=f"{m} {status}",
-            callback_data=f"togglemodel_{m}"
-        )])
+ buttons = []
+ for m in page_models:
+ is_enabled = m in enabled_models
+ status = "🟢" if is_enabled else "🔴"
+ buttons.append([InlineKeyboardButton(
+ text=f"{m} {status}",
+ callback_data=f"togglemodel_{m}"
+ )])
 
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(InlineKeyboardButton(text="◀️", callback_data=f"admin_models_{page - 1}"))
-    if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton(text="▶️", callback_data=f"admin_models_{page + 1}"))
-    if nav_buttons:
-        buttons.append(nav_buttons)
+ nav_buttons = []
+ if page > 0:
+ nav_buttons.append(InlineKeyboardButton(text="", callback_data=f"admin_models_{page - 1}"))
+ if page < total_pages - 1:
+ nav_buttons.append(InlineKeyboardButton(text="", callback_data=f"admin_models_{page + 1}"))
+ if nav_buttons:
+ buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+ buttons.append([InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")])
 
-    try:
-        await callback.message.edit_text(
-            f"🧬 <b>Управление моделями</b>\n\n"
-            f"🟢 - включена для пользователей\n"
-            f"🔴 - выключена\n\n"
-            f"Включено: {len(enabled_models)} из {len(AVAILABLE_MODELS)}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-            parse_mode="HTML"
-        )
-    except:
-        pass
+ try:
+ await callback.message.edit_text(
+ f"<b>Управление моделями</b>\n\n"
+ f"🟢 - включена для пользователей\n"
+ f"🔴 - выключена\n\n"
+ f"Включено: {len(enabled_models)} из {len(AVAILABLE_MODELS)}",
+ reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+ parse_mode="HTML"
+ )
+ except:
+ pass
 
 
 @dp.callback_query(F.data == "admin_price")
 async def callback_admin_price(callback: CallbackQuery, state: FSMContext):
-    """Выбор валюты для изменения цены"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Выбор валюты для изменения цены"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    price_stars = get_subscription_price()
-    price_usd = get_subscription_price_usd()
+ price_stars = get_subscription_price()
+ price_usd = get_subscription_price_usd()
 
-    await safe_edit_or_send(
-        callback,
-        f"💰 <b>Изменить цену подписки</b>\n\n"
-        f"⭐ Текущая цена (Звезды): {price_stars} ⭐\n"
-        f"💎 Текущая цена (Crypto): {price_usd} USD\n\n"
-        f"Выберите валюту:",
-        InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Звезды", callback_data="price_stars")],
-            [InlineKeyboardButton(text="💎 CryptoBot", callback_data="price_crypto")],
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")]
-        ])
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback,
+ f"<b>Изменить цену подписки</b>\n\n"
+ f"Текущая цена (Звезды): {price_stars} \n"
+ f"Текущая цена (Crypto): {price_usd} USD\n\n"
+ f"Выберите валюту:",
+ InlineKeyboardMarkup(inline_keyboard=[
+ [InlineKeyboardButton(text="Звезды", callback_data="price_stars")],
+ [InlineKeyboardButton(text="CryptoBot", callback_data="price_crypto")],
+ [InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")]
+ ])
+ )
+ await callback.answer()
 
 @dp.callback_query(F.data == "price_stars")
 async def callback_price_stars(callback: CallbackQuery, state: FSMContext):
-    """Изменение цены в звездах"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Изменение цены в звездах"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    price = get_subscription_price()
+ price = get_subscription_price()
 
-    await safe_edit_or_send(
-        callback,
-        f"⭐ <b>Введите новую цену в звёздах:</b>\n\n"
-        f"Текущая цена: {price} ⭐",
-        get_cancel_keyboard("admin_menu")
-    )
+ await safe_edit_or_send(
+ callback,
+ f"<b>Введите новую цену в звёздах:</b>\n\n"
+ f"Текущая цена: {price} ",
+ get_cancel_keyboard("admin_menu")
+ )
 
-    await state.set_state(AdminStates.waiting_for_price_stars)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_price_stars)
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "price_crypto")
 async def callback_price_crypto(callback: CallbackQuery, state: FSMContext):
-    """Изменение цены в USD"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Изменение цены в USD"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    price = get_subscription_price_usd()
+ price = get_subscription_price_usd()
 
-    await safe_edit_or_send(
-        callback,
-        f"💎 <b>Введите новую цену в USD:</b>\n\n"
-        f"Текущая цена: {price} USD",
-        get_cancel_keyboard("admin_menu")
-    )
+ await safe_edit_or_send(
+ callback,
+ f"<b>Введите новую цену в USD:</b>\n\n"
+ f"Текущая цена: {price} USD",
+ get_cancel_keyboard("admin_menu")
+ )
 
-    await state.set_state(AdminStates.waiting_for_price_crypto)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_price_crypto)
+ await callback.answer()
 
 
 @dp.message(AdminStates.waiting_for_price_stars)
 async def process_new_price_stars(message: Message, state: FSMContext):
-    """Обработка новой цены в звездах"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка новой цены в звездах"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    try:
-        new_price = int(message.text.strip())
-        if not 1 <= new_price <= 100000:
-            raise ValueError("Цена должна быть в диапазоне 1..100000")
+ try:
+ new_price = int(message.text.strip())
+ if not 1 <= new_price <= 100000:
+ raise ValueError("Цена должна быть в диапазоне 1..100000")
 
-        set_subscription_price(new_price)
+ set_subscription_price(new_price)
 
-        await message.answer(
-            f"✔️ <b>Цена в звездах изменена!</b>\n\n"
-            f"Новая цена: {new_price} ⭐/мес",
-            reply_markup=get_admin_keyboard(),
-            parse_mode="HTML"
-        )
-    except ValueError:
-        await message.answer(
-            "✖️ Неверный формат. Введите целое число больше 0:",
-            reply_markup=get_cancel_keyboard("admin_menu")
-        )
-        return
+ await message.answer(
+ f"<b>Цена в звездах изменена!</b>\n\n"
+ f"Новая цена: {new_price} /мес",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
+ except ValueError:
+ await message.answer(
+ "Неверный формат. Введите целое число больше 0:",
+ reply_markup=get_cancel_keyboard("admin_menu")
+ )
+ return
 
-    await state.clear()
+ await state.clear()
 
 
 @dp.message(AdminStates.waiting_for_price_crypto)
 async def process_new_price_crypto(message: Message, state: FSMContext):
-    """Обработка новой цены в USD"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка новой цены в USD"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    try:
-        new_price = float(message.text.strip().replace(',', '.'))
-        if not 0.01 <= new_price <= 10000:
-            raise ValueError("Цена должна быть в диапазоне 0.01..10000")
+ try:
+ new_price = float(message.text.strip().replace(',', '.'))
+ if not 0.01 <= new_price <= 10000:
+ raise ValueError("Цена должна быть в диапазоне 0.01..10000")
 
-        set_subscription_price_usd(new_price)
+ set_subscription_price_usd(new_price)
 
-        await message.answer(
-            f"✔️ <b>Цена в USD изменена!</b>\n\n"
-            f"Новая цена: {new_price} USD/мес",
-            reply_markup=get_admin_keyboard(),
-            parse_mode="HTML"
-        )
-    except ValueError:
-        await message.answer(
-            "✖️ Неверный формат. Введите число больше 0.01:",
-            reply_markup=get_cancel_keyboard("admin_menu")
-        )
-        return
+ await message.answer(
+ f"<b>Цена в USD изменена!</b>\n\n"
+ f"Новая цена: {new_price} USD/мес",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
+ except ValueError:
+ await message.answer(
+ "Неверный формат. Введите число больше 0.01:",
+ reply_markup=get_cancel_keyboard("admin_menu")
+ )
+ return
 
-    await state.clear()
+ await state.clear()
 
 
 @dp.callback_query(F.data == "admin_grant")
 async def callback_admin_grant(callback: CallbackQuery, state: FSMContext):
-    """Выдача подписки"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Выдача подписки"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    await safe_edit_or_send(
-        callback,
-        "✔️ <b>Выдача подписки</b>\n\n"
-        "Введите ID пользователя или @username:",
-        get_cancel_keyboard("admin_menu")
-    )
+ await safe_edit_or_send(
+ callback,
+ "<b>Выдача подписки</b>\n\n"
+ "Введите ID пользователя или @username:",
+ get_cancel_keyboard("admin_menu")
+ )
 
-    await state.set_state(AdminStates.waiting_for_user_id_grant)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_user_id_grant)
+ await callback.answer()
 
 
 @dp.message(AdminStates.waiting_for_user_id_grant)
 async def process_grant_user_id(message: Message, state: FSMContext):
-    """Получение ID/username пользователя для выдачи подписки"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Получение ID/username пользователя для выдачи подписки"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    input_text = message.text.strip()
-    user_id = None
+ input_text = message.text.strip()
+ user_id = None
 
-    # Проверяем, это @username или ID
-    if input_text.startswith('@'):
-        user = get_user_by_username(input_text)
-        if user:
-            user_id = user["user_id"]
-        else:
-            await message.answer(
-                "✖️ Пользователь с таким username не найден.\n"
-                "Введите ID или @username:",
-                reply_markup=get_cancel_keyboard("admin_menu")
-            )
-            return
-    else:
-        try:
-            user_id = int(input_text)
-        except ValueError:
-            await message.answer(
-                "✖️ Неверный формат. Введите ID (число) или @username:",
-                reply_markup=get_cancel_keyboard("admin_menu")
-            )
-            return
+ # Проверяем, это @username или ID
+ if input_text.startswith('@'):
+ user = get_user_by_username(input_text)
+ if user:
+ user_id = user["user_id"]
+ else:
+ await message.answer(
+ "Пользователь с таким username не найден.\n"
+ "Введите ID или @username:",
+ reply_markup=get_cancel_keyboard("admin_menu")
+ )
+ return
+ else:
+ try:
+ user_id = int(input_text)
+ except ValueError:
+ await message.answer(
+ "Неверный формат. Введите ID (число) или @username:",
+ reply_markup=get_cancel_keyboard("admin_menu")
+ )
+ return
 
-    await state.update_data(grant_user_id=user_id)
+ await state.update_data(grant_user_id=user_id)
 
-    await message.answer(
-        f"👤 Пользователь: <code>{user_id}</code>\n\n"
-        "📅 Введите количество дней подписки:",
-        reply_markup=get_cancel_keyboard("admin_menu"),
-        parse_mode="HTML"
-    )
+ await message.answer(
+ f"Пользователь: <code>{user_id}</code>\n\n"
+ "📅 Введите количество дней подписки:",
+ reply_markup=get_cancel_keyboard("admin_menu"),
+ parse_mode="HTML"
+ )
 
-    await state.set_state(AdminStates.waiting_for_grant_days)
+ await state.set_state(AdminStates.waiting_for_grant_days)
 
 
 @dp.message(AdminStates.waiting_for_grant_days)
 async def process_grant_days(message: Message, state: FSMContext):
-    """Обработка количества дней подписки"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка количества дней подписки"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    try:
-        days = int(message.text.strip())
-        if not 1 <= days <= 3650:
-            raise ValueError("Days must be in range 1..3650")
-    except ValueError:
-        await message.answer(
-            "✖️ Введите целое число дней (больше 0):",
-            reply_markup=get_cancel_keyboard("admin_menu")
-        )
-        return
+ try:
+ days = int(message.text.strip())
+ if not 1 <= days <= 3650:
+ raise ValueError("Days must be in range 1..3650")
+ except ValueError:
+ await message.answer(
+ "Введите целое число дней (больше 0):",
+ reply_markup=get_cancel_keyboard("admin_menu")
+ )
+ return
 
-    data = await state.get_data()
-    user_id = data.get("grant_user_id")
+ data = await state.get_data()
+ user_id = data.get("grant_user_id")
 
-    grant_subscription(user_id, days=days)
+ grant_subscription(user_id, days=days)
 
-    # Уведомляем пользователя
-    try:
-        await bot.send_message(
-            user_id,
-            f"🎁 <b>Вам выдана подписка!</b>\n\n"
-            f"Подписка активна на {days} дней. Наслаждайтесь!",
-            parse_mode="HTML"
-        )
-    except:
-        pass
+ # Уведомляем пользователя
+ try:
+ await bot.send_message(
+ user_id,
+ f"🎁 <b>Вам выдана подписка!</b>\n\n"
+ f"Подписка активна на {days} дней. Наслаждайтесь!",
+ parse_mode="HTML"
+ )
+ except:
+ pass
 
-    await message.answer(
-        f"✔️ <b>Подписка выдана!</b>\n\n"
-        f"Пользователь: <code>{user_id}</code>\n"
-        f"Срок: {days} дней",
-        reply_markup=get_admin_keyboard(),
-        parse_mode="HTML"
-    )
+ await message.answer(
+ f"<b>Подписка выдана!</b>\n\n"
+ f"Пользователь: <code>{user_id}</code>\n"
+ f"Срок: {days} дней",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
 
-    await state.clear()
+ await state.clear()
 
 
 @dp.callback_query(F.data == "admin_revoke")
 async def callback_admin_revoke(callback: CallbackQuery, state: FSMContext):
-    """Отбор подписки"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Отбор подписки"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    await safe_edit_or_send(
-        callback,
-        "✖️ <b>Отбор подписки</b>\n\n"
-        "Введите ID пользователя или @username:",
-        get_cancel_keyboard("admin_menu")
-    )
+ await safe_edit_or_send(
+ callback,
+ "<b>Отбор подписки</b>\n\n"
+ "Введите ID пользователя или @username:",
+ get_cancel_keyboard("admin_menu")
+ )
 
-    await state.set_state(AdminStates.waiting_for_user_id_revoke)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_user_id_revoke)
+ await callback.answer()
 
 
 @dp.message(AdminStates.waiting_for_user_id_revoke)
 async def process_revoke_subscription(message: Message, state: FSMContext):
-    """Обработка отбора подписки"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка отбора подписки"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    input_text = message.text.strip()
-    user_id = None
+ input_text = message.text.strip()
+ user_id = None
 
-    # Проверяем, это @username или ID
-    if input_text.startswith('@'):
-        user = get_user_by_username(input_text)
-        if user:
-            user_id = user["user_id"]
-        else:
-            await message.answer(
-                "✖️ Пользователь с таким username не найден.\n"
-                "Введите ID или @username:",
-                reply_markup=get_cancel_keyboard("admin_menu")
-            )
-            return
-    else:
-        try:
-            user_id = int(input_text)
-        except ValueError:
-            await message.answer(
-                "✖️ Неверный формат. Введите ID (число) или @username:",
-                reply_markup=get_cancel_keyboard("admin_menu")
-            )
-            return
+ # Проверяем, это @username или ID
+ if input_text.startswith('@'):
+ user = get_user_by_username(input_text)
+ if user:
+ user_id = user["user_id"]
+ else:
+ await message.answer(
+ "Пользователь с таким username не найден.\n"
+ "Введите ID или @username:",
+ reply_markup=get_cancel_keyboard("admin_menu")
+ )
+ return
+ else:
+ try:
+ user_id = int(input_text)
+ except ValueError:
+ await message.answer(
+ "Неверный формат. Введите ID (число) или @username:",
+ reply_markup=get_cancel_keyboard("admin_menu")
+ )
+ return
 
-    revoke_subscription(user_id)
+ revoke_subscription(user_id)
 
-    await message.answer(
-        f"✔️ <b>Подписка отобрана!</b>\n\n"
-        f"Пользователь: <code>{user_id}</code>",
-        reply_markup=get_admin_keyboard(),
-        parse_mode="HTML"
-    )
+ await message.answer(
+ f"<b>Подписка отобрана!</b>\n\n"
+ f"Пользователь: <code>{user_id}</code>",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
 
-    await state.clear()
+ await state.clear()
 
 
 @dp.callback_query(F.data == "admin_broadcast")
 async def callback_admin_broadcast(callback: CallbackQuery, state: FSMContext):
-    """Рассылка"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Рассылка"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    users = get_all_users()
+ users = get_all_users()
 
-    await safe_edit_or_send(
-        callback,
-        f"📢 <b>Рассылка</b>\n\n"
-        f"Получателей: {len(users)} пользователей\n\n"
-        "Отправьте сообщение для рассылки:",
-        get_cancel_keyboard("admin_menu")
-    )
+ await safe_edit_or_send(
+ callback,
+ f"<b>Рассылка</b>\n\n"
+ f"Получателей: {len(users)} пользователей\n\n"
+ "Отправьте сообщение для рассылки:",
+ get_cancel_keyboard("admin_menu")
+ )
 
-    await state.set_state(AdminStates.waiting_for_broadcast)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_broadcast)
+ await callback.answer()
 
 
 @dp.message(AdminStates.waiting_for_broadcast)
 async def process_broadcast_message(message: Message, state: FSMContext):
-    """Получение сообщения для рассылки"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Получение сообщения для рассылки"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    await state.update_data(broadcast_text=message.text, broadcast_msg_id=message.message_id)
+ await state.update_data(broadcast_text=message.text, broadcast_msg_id=message.message_id)
 
-    users = get_all_users()
+ users = get_all_users()
 
-    await message.answer(
-        f"📢 <b>Подтверждение рассылки</b>\n\n"
-        f"Сообщение:\n<blockquote>{message.text[:500]}</blockquote>\n\n"
-        f"Получателей: {len(users)}\n\n"
-        "Отправить?",
-        reply_markup=get_broadcast_confirm_keyboard(),
-        parse_mode="HTML"
-    )
+ await message.answer(
+ f"<b>Подтверждение рассылки</b>\n\n"
+ f"Сообщение:\n<blockquote>{message.text[:500]}</blockquote>\n\n"
+ f"Получателей: {len(users)}\n\n"
+ "Отправить?",
+ reply_markup=get_broadcast_confirm_keyboard(),
+ parse_mode="HTML"
+ )
 
-    await state.set_state(AdminStates.waiting_for_broadcast_confirm)
+ await state.set_state(AdminStates.waiting_for_broadcast_confirm)
 
 
 @dp.callback_query(F.data == "broadcast_confirm", AdminStates.waiting_for_broadcast_confirm)
 async def callback_broadcast_confirm(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение рассылки"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Подтверждение рассылки"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    data = await state.get_data()
-    broadcast_text = data.get("broadcast_text", "")
+ data = await state.get_data()
+ broadcast_text = data.get("broadcast_text", "")
 
-    users = get_all_users()
-    success = 0
-    failed = 0
+ users = get_all_users()
+ success = 0
+ failed = 0
 
-    await safe_edit_or_send(callback, "📤 Отправка рассылки...")
+ await safe_edit_or_send(callback, "📤 Отправка рассылки...")
 
-    for user in users:
-        try:
-            await bot.send_message(user["user_id"], broadcast_text)
-            success += 1
-            await asyncio.sleep(0.05)  # Защита от флуда
-        except Exception as e:
-            logging.warning(f"Не удалось отправить сообщение {user['user_id']}: {e}")
-            failed += 1
+ for user in users:
+ try:
+ await bot.send_message(user["user_id"], broadcast_text)
+ success += 1
+ await asyncio.sleep(0.05) # Защита от флуда
+ except Exception as e:
+ logging.warning(f"Не удалось отправить сообщение {user['user_id']}: {e}")
+ failed += 1
 
-    await bot.send_message(
-        chat_id=callback.message.chat.id,
-        text=f"✔️ <b>Рассылка завершена!</b>\n\n"
-             f"✉️ Успешно: {success}\n"
-             f"✖️ Ошибки: {failed}",
-        reply_markup=get_admin_keyboard(),
-        parse_mode="HTML"
-    )
+ await bot.send_message(
+ chat_id=callback.message.chat.id,
+ text=f"<b>Рассылка завершена!</b>\n\n"
+ f"✉️ Успешно: {success}\n"
+ f"Ошибки: {failed}",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
 
-    await state.clear()
-    await callback.answer()
+ await state.clear()
+ await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("admin_users_"))
 async def callback_admin_users(callback: CallbackQuery):
-    """Список всех пользователей с пагинацией"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Список всех пользователей с пагинацией"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    page = int(callback.data.split("_")[-1])
-    all_users = get_all_users()
+ page = int(callback.data.split("_")[-1])
+ all_users = get_all_users()
 
-    if not all_users:
-        await safe_edit_or_send(
-            callback,
-            "👥 <b>Пользователи</b>\n\nПользователей нет.",
-            InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")]
-            ])
-        )
-        await callback.answer()
-        return
+ if not all_users:
+ await safe_edit_or_send(
+ callback,
+ "<b>Пользователи</b>\n\nПользователей нет.",
+ InlineKeyboardMarkup(inline_keyboard=[
+ [InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")]
+ ])
+ )
+ await callback.answer()
+ return
 
-    # Пагинация
-    per_page = 10
-    total_pages = (len(all_users) + per_page - 1) // per_page
-    start_idx = page * per_page
-    end_idx = start_idx + per_page
-    page_users = all_users[start_idx:end_idx]
+ # Пагинация
+ per_page = 10
+ total_pages = (len(all_users) + per_page - 1) // per_page
+ start_idx = page * per_page
+ end_idx = start_idx + per_page
+ page_users = all_users[start_idx:end_idx]
 
-    buttons = []
-    for user in page_users:
-        user_id = user["user_id"]
-        name = user.get("full_name") or user.get("username") or str(user_id)
-        # Добавляем ⭐️ если есть подписка
-        has_sub = has_active_subscription(user_id)
-        star = " ⭐️" if has_sub else ""
-        buttons.append([InlineKeyboardButton(
-            text=f"👤 {name}{star}",
-            callback_data=f"viewuser_{user_id}"
-        )])
+ buttons = []
+ for user in page_users:
+ user_id = user["user_id"]
+ name = user.get("full_name") or user.get("username") or str(user_id)
+ # Добавляем ️ если есть подписка
+ has_sub = has_active_subscription(user_id)
+ star = " ️" if has_sub else ""
+ buttons.append([InlineKeyboardButton(
+ text=f"{name}{star}",
+ callback_data=f"viewuser_{user_id}"
+ )])
 
-    # Навигация (показываем только если больше 10 пользователей)
-    nav_buttons = []
-    if len(all_users) > per_page:
-        if page > 0:
-            nav_buttons.append(InlineKeyboardButton(text="◀️", callback_data=f"admin_users_{page - 1}"))
-        if page < total_pages - 1:
-            nav_buttons.append(InlineKeyboardButton(text="▶️", callback_data=f"admin_users_{page + 1}"))
-    if nav_buttons:
-        buttons.append(nav_buttons)
+ # Навигация (показываем только если больше 10 пользователей)
+ nav_buttons = []
+ if len(all_users) > per_page:
+ if page > 0:
+ nav_buttons.append(InlineKeyboardButton(text="", callback_data=f"admin_users_{page - 1}"))
+ if page < total_pages - 1:
+ nav_buttons.append(InlineKeyboardButton(text="", callback_data=f"admin_users_{page + 1}"))
+ if nav_buttons:
+ buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+ buttons.append([InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")])
 
-    await safe_edit_or_send(
-        callback,
-        f"👥 <b>Пользователи:</b>",
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback,
+ f"<b>Пользователи:</b>",
+ InlineKeyboardMarkup(inline_keyboard=buttons)
+ )
+ await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("viewuser_"))
 async def callback_view_user(callback: CallbackQuery):
-    """Просмотр информации о пользователе"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Просмотр информации о пользователе"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    user_id = int(callback.data.split("_")[1])
-    user_data = load_user_data(user_id)
+ user_id = int(callback.data.split("_")[1])
+ user_data = load_user_data(user_id)
 
-    name = user_data.get("full_name") or "Без имени"
-    username = f"@{user_data.get('username')}" if user_data.get('username') else "Нет"
-    sub_end = get_subscription_end(user_id)
+ name = user_data.get("full_name") or "Без имени"
+ username = f"@{user_data.get('username')}" if user_data.get('username') else "Нет"
+ sub_end = get_subscription_end(user_id)
 
-    if sub_end and sub_end > datetime.now():
-        time_left = sub_end - datetime.now()
-        days = time_left.days
-        hours = time_left.seconds // 3600
-        minutes = (time_left.seconds % 3600) // 60
-        sub_status = f"Активна - {days}д {hours}ч {minutes}м"
-    else:
-        sub_status = "Не активна"
+ if sub_end and sub_end > datetime.now():
+ time_left = sub_end - datetime.now()
+ days = time_left.days
+ hours = time_left.seconds // 3600
+ minutes = (time_left.seconds % 3600) // 60
+ sub_status = f"Активна - {days}д {hours}ч {minutes}м"
+ else:
+ sub_status = "Не активна"
 
-    text = (
-        f"👤 <b>{name}</b>\n\n"
-        f"🏷 <b>ID:</b> <code>{user_id}</code>\n"
-        f"📱 <b>Username:</b> {username}\n"
-        f"⭐ <b>Подписка:</b> {sub_status}"
-    )
+ text = (
+ f"<b>{name}</b>\n\n"
+ f"🏷 <b>ID:</b> <code>{user_id}</code>\n"
+ f"📱 <b>Username:</b> {username}\n"
+ f"<b>Подписка:</b> {sub_status}"
+ )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_users_0")]
-    ])
+ keyboard = InlineKeyboardMarkup(inline_keyboard=[
+ [InlineKeyboardButton(text="Назад Назад", callback_data="admin_users_0")]
+ ])
 
-    # Удаляем текущее сообщение
-    try:
-        await callback.message.delete()
-    except:
-        pass
+ # Удаляем текущее сообщение
+ try:
+ await callback.message.delete()
+ except:
+ pass
 
-    # Пытаемся получить фото профиля
-    try:
-        photos = await bot.get_user_profile_photos(user_id, limit=1)
+ # Пытаемся получить фото профиля
+ try:
+ photos = await bot.get_user_profile_photos(user_id, limit=1)
 
-        if photos.total_count > 0:
-            photo = photos.photos[0][-1]
-            await bot.send_photo(
-                chat_id=callback.message.chat.id,
-                photo=photo.file_id,
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=keyboard
-            )
-        else:
-            await bot.send_message(
-                chat_id=callback.message.chat.id,
-                text=text,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
-    except Exception as e:
-        logging.warning(f"Ошибка получения фото: {e}")
-        await bot.send_message(
-            chat_id=callback.message.chat.id,
-            text=text,
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
+ if photos.total_count > 0:
+ photo = photos.photos[0][-1]
+ await bot.send_photo(
+ chat_id=callback.message.chat.id,
+ photo=photo.file_id,
+ caption=text,
+ parse_mode="HTML",
+ reply_markup=keyboard
+ )
+ else:
+ await bot.send_message(
+ chat_id=callback.message.chat.id,
+ text=text,
+ reply_markup=keyboard,
+ parse_mode="HTML"
+ )
+ except Exception as e:
+ logging.warning(f"Ошибка получения фото: {e}")
+ await bot.send_message(
+ chat_id=callback.message.chat.id,
+ text=text,
+ reply_markup=keyboard,
+ parse_mode="HTML"
+ )
 
-    await callback.answer()
+ await callback.answer()
 
 
 # ==================== MEDIA MANAGEMENT ====================
 @dp.callback_query(F.data == "admin_media")
 async def callback_admin_media(callback: CallbackQuery):
-    """Управление медиа"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Управление медиа"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    start_media = get_start_media()
-    channel_media = get_channel_media()
+ start_media = get_start_media()
+ channel_media = get_channel_media()
 
-    start_status = "✔️" if start_media else "✖️"
-    channel_status = "✔️" if channel_media else "✖️"
+ start_status = "" if start_media else ""
+ channel_status = "" if channel_media else ""
 
-    buttons = [
-        [InlineKeyboardButton(text=f"🏠 /start {start_status}", callback_data="media_start")],
-        [InlineKeyboardButton(text=f"📺 Подписка на канал {channel_status}", callback_data="media_channel")]
-    ]
+ buttons = [
+ [InlineKeyboardButton(text=f"/start {start_status}", callback_data="media_start")],
+ [InlineKeyboardButton(text=f"Подписка на канал {channel_status}", callback_data="media_channel")]
+ ]
 
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+ buttons.append([InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")])
 
-    await safe_edit_or_send(
-        callback,
-        f"🖼 <b>Управление медиа</b>\n\n"
-        f"📌 /start: {start_status}\n"
-        f"📌 Подписка на канал: {channel_status}",
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback,
+ f"<b>Управление медиа</b>\n\n"
+ f"📌 /start: {start_status}\n"
+ f"📌 Подписка на канал: {channel_status}",
+ InlineKeyboardMarkup(inline_keyboard=buttons)
+ )
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "media_start")
 async def callback_media_start(callback: CallbackQuery, state: FSMContext):
-    """Установка медиа для /start"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Установка медиа для /start"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    start_media = get_start_media()
+ start_media = get_start_media()
 
-    buttons = []
-    if start_media:
-        buttons.append([InlineKeyboardButton(text="🗑️ Удалить", callback_data="media_start_delete")])
+ buttons = []
+ if start_media:
+ buttons.append([InlineKeyboardButton(text="Удалить", callback_data="media_start_delete")])
 
-    buttons.append([InlineKeyboardButton(text="✖️ Отмена", callback_data="admin_media")])
+ buttons.append([InlineKeyboardButton(text="Отмена", callback_data="admin_media")])
 
-    await safe_edit_or_send(
-        callback,
-        "🖼 <b>Медиа для /start</b>\n\n"
-        "Отправьте фото, видео или GIF:",
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
+ await safe_edit_or_send(
+ callback,
+ "<b>Медиа для /start</b>\n\n"
+ "Отправьте фото, видео или GIF:",
+ InlineKeyboardMarkup(inline_keyboard=buttons)
+ )
 
-    await state.set_state(AdminStates.waiting_for_start_media)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_start_media)
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "media_channel")
 async def callback_media_channel(callback: CallbackQuery, state: FSMContext):
-    """Установка медиа для сообщения о подписке на канал"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Установка медиа для сообщения о подписке на канал"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    channel_media = get_channel_media()
+ channel_media = get_channel_media()
 
-    buttons = []
-    if channel_media:
-        buttons.append([InlineKeyboardButton(text="🗑️ Удалить", callback_data="media_channel_delete")])
+ buttons = []
+ if channel_media:
+ buttons.append([InlineKeyboardButton(text="Удалить", callback_data="media_channel_delete")])
 
-    buttons.append([InlineKeyboardButton(text="✖️ Отмена", callback_data="admin_media")])
+ buttons.append([InlineKeyboardButton(text="Отмена", callback_data="admin_media")])
 
-    await safe_edit_or_send(
-        callback,
-        "🖼 <b>Медиа для подписки на канал</b>\n\n"
-        "Отправьте фото, видео или GIF:",
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
+ await safe_edit_or_send(
+ callback,
+ "<b>Медиа для подписки на канал</b>\n\n"
+ "Отправьте фото, видео или GIF:",
+ InlineKeyboardMarkup(inline_keyboard=buttons)
+ )
 
-    await state.set_state(AdminStates.waiting_for_channel_media)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_channel_media)
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "media_channel_delete")
 async def callback_media_channel_delete(callback: CallbackQuery):
-    """Удаление медиа для канала"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Удаление медиа для канала"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    set_channel_media(None, None)
-    await callback.answer("✔️ Медиа удалено!")
+ set_channel_media(None, None)
+ await callback.answer("Медиа удалено!")
 
-    # Возвращаемся в меню медиа
-    await callback_admin_media(callback)
+ # Возвращаемся в меню медиа
+ await callback_admin_media(callback)
 
 
 @dp.message(AdminStates.waiting_for_start_media, F.photo)
 async def process_start_media_photo(message: Message, state: FSMContext):
-    """Обработка фото для /start"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка фото для /start"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    photo = message.photo[-1]
-    set_start_media("photo", photo.file_id)
+ photo = message.photo[-1]
+ set_start_media("photo", photo.file_id)
 
-    await message.answer(
-        "✔️ Фото для /start установлено!",
-        reply_markup=get_admin_keyboard()
-    )
-    await state.clear()
+ await message.answer(
+ "Фото для /start установлено!",
+ reply_markup=get_admin_keyboard()
+ )
+ await state.clear()
 
 
 @dp.message(AdminStates.waiting_for_start_media, F.video)
 async def process_start_media_video(message: Message, state: FSMContext):
-    """Обработка видео для /start"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка видео для /start"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    set_start_media("video", message.video.file_id)
+ set_start_media("video", message.video.file_id)
 
-    await message.answer(
-        "✔️ Видео для /start установлено!",
-        reply_markup=get_admin_keyboard()
-    )
-    await state.clear()
+ await message.answer(
+ "Видео для /start установлено!",
+ reply_markup=get_admin_keyboard()
+ )
+ await state.clear()
 
 
 @dp.message(AdminStates.waiting_for_start_media, F.animation)
 async def process_start_media_gif(message: Message, state: FSMContext):
-    """Обработка GIF для /start"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка GIF для /start"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    set_start_media("animation", message.animation.file_id)
+ set_start_media("animation", message.animation.file_id)
 
-    await message.answer(
-        "✔️ GIF для /start установлено!",
-        reply_markup=get_admin_keyboard()
-    )
-    await state.clear()
+ await message.answer(
+ "GIF для /start установлено!",
+ reply_markup=get_admin_keyboard()
+ )
+ await state.clear()
 
 
 @dp.callback_query(F.data == "media_start_delete")
 async def callback_media_start_delete(callback: CallbackQuery):
-    """Удаление медиа для /start"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Удаление медиа для /start"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    set_start_media(None, None)
-    await callback.answer("✔️ Медиа удалено!")
-    await callback_admin_media(callback)
+ set_start_media(None, None)
+ await callback.answer("Медиа удалено!")
+ await callback_admin_media(callback)
 
 
 # Обработчики медиа для канала
 @dp.message(AdminStates.waiting_for_channel_media, F.photo)
 async def process_channel_media_photo(message: Message, state: FSMContext):
-    """Обработка фото для канала"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка фото для канала"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    photo = message.photo[-1]
-    set_channel_media("photo", photo.file_id)
+ photo = message.photo[-1]
+ set_channel_media("photo", photo.file_id)
 
-    await message.answer(
-        "✔️ Фото для подписки на канал установлено!",
-        reply_markup=get_admin_keyboard()
-    )
-    await state.clear()
+ await message.answer(
+ "Фото для подписки на канал установлено!",
+ reply_markup=get_admin_keyboard()
+ )
+ await state.clear()
 
 
 @dp.message(AdminStates.waiting_for_channel_media, F.video)
 async def process_channel_media_video(message: Message, state: FSMContext):
-    """Обработка видео для канала"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка видео для канала"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    set_channel_media("video", message.video.file_id)
+ set_channel_media("video", message.video.file_id)
 
-    await message.answer(
-        "✔️ Видео для подписки на канал установлено!",
-        reply_markup=get_admin_keyboard()
-    )
-    await state.clear()
+ await message.answer(
+ "Видео для подписки на канал установлено!",
+ reply_markup=get_admin_keyboard()
+ )
+ await state.clear()
 
 
 @dp.message(AdminStates.waiting_for_channel_media, F.animation)
 async def process_channel_media_gif(message: Message, state: FSMContext):
-    """Обработка GIF для канала"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка GIF для канала"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    set_channel_media("animation", message.animation.file_id)
+ set_channel_media("animation", message.animation.file_id)
 
-    await message.answer(
-        "✔️ GIF для подписки на канал установлено!",
-        reply_markup=get_admin_keyboard()
-    )
-    await state.clear()
+ await message.answer(
+ "GIF для подписки на канал установлено!",
+ reply_markup=get_admin_keyboard()
+ )
+ await state.clear()
 
 
 # ==================== INFO HANDLER ====================
 @dp.callback_query(F.data.in_(["settings", "info"]))
 async def callback_info(callback: CallbackQuery):
-    """Настройки и информация о боте."""
-    user_id = callback.from_user.id
-    user_data = load_user_data(user_id)
-    current_model = user_data.get("model", DEFAULT_MODEL)
-    model_mode = "изображения" if current_model in IMAGE_MODELS else "текст"
-    text = (
-        f"{text_emoji('info')} <b>Настройки</b>\n\n"
-        f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code> ({model_mode})\n"
-        "Бот сам выбирает режим (текст/картинка) по вашему запросу.\n\n"
-        "📌 <b>Возможности:</b>\n"
-        "• Генерация изображений\n"
-        "• Анализ фото\n"
-        "• Голосовые сообщения\n"
-        "• Настройка стиля общения\n\n"
-        "❓ <b>Вопросы и ошибки:</b>\n"
-        f"Обращайтесь к администратору: {ADMIN_USERNAME}"
-    )
+ """Настройки и информация о боте."""
+ user_id = callback.from_user.id
+ user_data = load_user_data(user_id)
+ current_model = user_data.get("model", DEFAULT_MODEL)
+ model_mode = "изображения" if current_model in IMAGE_MODELS else "текст"
+ text = (
+ f"{text_emoji('info')} <b>Настройки</b>\n\n"
+ f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code> ({model_mode})\n"
+ "Бот сам выбирает режим (текст или картинка) по вашему запросу.\n\n"
+ f"{text_emoji('note')} <b>Что доступно:</b>\n"
+ "• тексты, идеи, рецепты и планы\n"
+ "• генерация и разбор изображений\n"
+ "• работа с голосовыми сообщениями\n"
+ "• настройка стиля ответов\n\n"
+ f"{text_emoji('chat')} <b>Если нужна помощь:</b>\n"
+ f"напишите администратору {ADMIN_USERNAME}"
+ )
 
-    # Извлекаем username без @
-    admin_username = ADMIN_USERNAME.lstrip('@')
+ # Извлекаем username без @
+ admin_username = ADMIN_USERNAME.lstrip('@')
 
-    buttons = [
-        [make_inline_button(text="Модели AI", callback_data="models_0", button_key="models", style="primary")],
-        [make_inline_button(text="Связаться", url=f"https://t.me/{admin_username}", button_key="contact_admin", style="primary")],
-        [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
-    ]
-    await safe_edit_or_send(
-        callback, text,
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
-    await callback.answer()
+ buttons = [
+ [make_inline_button(text="Модели AI", callback_data="models_0", button_key="models", style="primary")],
+ [make_inline_button(text="Связаться", url=f"https://t.me/{admin_username}", button_key="contact_admin", style="primary")],
+ [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
+ ]
+ await safe_edit_or_send_screen(
+ callback, text,
+ "settings",
+ InlineKeyboardMarkup(inline_keyboard=buttons)
+ )
+ await callback.answer()
 
 
 # ==================== EXTEND SUBSCRIPTION ====================
@@ -3012,1393 +3213,1435 @@ async def callback_info(callback: CallbackQuery):
 # ==================== ADMIN CHANNELS MANAGEMENT ====================
 @dp.callback_query(F.data == "admin_channels")
 async def callback_admin_channels(callback: CallbackQuery):
-    """Управление обязательными каналами"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Управление обязательными каналами"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    channels = get_required_channels()
+ channels = get_required_channels()
 
-    buttons = []
+ buttons = []
 
-    if channels:
-        for ch in channels:
-            buttons.append([InlineKeyboardButton(
-                text=f"✖️ {ch['name']}",
-                callback_data=f"delchannel_{ch['id']}"
-            )])
+ if channels:
+ for ch in channels:
+ buttons.append([InlineKeyboardButton(
+ text=f"{ch['name']}",
+ callback_data=f"delchannel_{ch['id']}"
+ )])
 
-    buttons.append([InlineKeyboardButton(text="➕ Добавить канал", callback_data="add_channel")])
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+ buttons.append([InlineKeyboardButton(text="Добавить канал", callback_data="add_channel")])
+ buttons.append([InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")])
 
-    status = f"Каналов: {len(channels)}" if channels else "Нет обязательных каналов"
+ status = f"Каналов: {len(channels)}" if channels else "Нет обязательных каналов"
 
-    await safe_edit_or_send(
-        callback,
-        f"📺 <b>Подписка на канал</b>\n\n"
-        f"{status}\n\n"
-        "Нажмите на канал чтобы удалить его.",
-        InlineKeyboardMarkup(inline_keyboard=buttons)
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback,
+ f"<b>Подписка на канал</b>\n\n"
+ f"{status}\n\n"
+ "Нажмите на канал чтобы удалить его.",
+ InlineKeyboardMarkup(inline_keyboard=buttons)
+ )
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "add_channel")
 async def callback_add_channel(callback: CallbackQuery, state: FSMContext):
-    """Добавление канала"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Добавление канала"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    await safe_edit_or_send(
-        callback,
-        "📺 <b>Добавление канала</b>\n\n"
-        "Перешлите любое сообщение из канала или введите данные в формате:\n\n"
-        "<code>@channel_username | Название канала</code>\n\n"
-        "Например:\n"
-        "<code>@mychannel | Мой канал</code>\n\n"
-        "⚠️ Бот должен быть администратором канала с правом 'Приглашение пользователей'!",
-        get_cancel_keyboard("admin_channels")
-    )
+ await safe_edit_or_send(
+ callback,
+ "<b>Добавление канала</b>\n\n"
+ "Перешлите любое сообщение из канала или введите данные в формате:\n\n"
+ "<code>@channel_username | Название канала</code>\n\n"
+ "Например:\n"
+ "<code>@mychannel | Мой канал</code>\n\n"
+ "Бот должен быть администратором канала с правом 'Приглашение пользователей'!",
+ get_cancel_keyboard("admin_channels")
+ )
 
-    await state.set_state(AdminStates.waiting_for_channel)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_channel)
+ await callback.answer()
 
 
 @dp.message(AdminStates.waiting_for_channel)
 async def process_add_channel(message: Message, state: FSMContext):
-    """Обработка добавления канала"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка добавления канала"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    # Проверяем, переслано ли сообщение из канала
-    if message.forward_from_chat and message.forward_from_chat.type == "channel":
-        channel = message.forward_from_chat
-        channel_id = str(channel.id)
-        channel_name = channel.title
-    else:
-        # Парсим текст
-        try:
-            parts = message.text.split("|")
-            if len(parts) < 2:
-                raise ValueError("Неверный формат")
+ # Проверяем, переслано ли сообщение из канала
+ if message.forward_from_chat and message.forward_from_chat.type == "channel":
+ channel = message.forward_from_chat
+ channel_id = str(channel.id)
+ channel_name = channel.title
+ else:
+ # Парсим текст
+ try:
+ parts = message.text.split("|")
+ if len(parts) < 2:
+ raise ValueError("Неверный формат")
 
-            channel_id = parts[0].strip()
-            channel_name = parts[1].strip()
-        except:
-            await message.answer(
-                "✖️ Неверный формат. Перешлите сообщение из канала или используйте формат:\n"
-                "<code>@channel | Название</code>",
-                reply_markup=get_cancel_keyboard("admin_channels"),
-                parse_mode="HTML"
-            )
-            return
+ channel_id = parts[0].strip()
+ channel_name = parts[1].strip()
+ except:
+ await message.answer(
+ "Неверный формат. Перешлите сообщение из канала или используйте формат:\n"
+ "<code>@channel | Название</code>",
+ reply_markup=get_cancel_keyboard("admin_channels"),
+ parse_mode="HTML"
+ )
+ return
 
-    # Проверяем доступ к каналу и создаем пригласительную ссылку
-    try:
-        chat = await bot.get_chat(channel_id)
-        channel_id = str(chat.id)
-        channel_name = chat.title or channel_name
+ # Проверяем доступ к каналу и создаем пригласительную ссылку
+ try:
+ chat = await bot.get_chat(channel_id)
+ channel_id = str(chat.id)
+ channel_name = chat.title or channel_name
 
-        # Создаем вечную пригласительную ссылку
-        invite_link = await bot.create_chat_invite_link(
-            chat_id=channel_id,
-            name=f"Invite from AI Bot - {datetime.now().strftime('%d.%m.%Y')}",
-            creates_join_request=False  # Автоматическое одобрение
-        )
-        channel_link = invite_link.invite_link
+ # Создаем вечную пригласительную ссылку
+ invite_link = await bot.create_chat_invite_link(
+ chat_id=channel_id,
+ name=f"Invite from AI Bot - {datetime.now().strftime('%d.%m.%Y')}",
+ creates_join_request=False # Автоматическое одобрение
+ )
+ channel_link = invite_link.invite_link
 
-    except Exception as e:
-        logging.warning(f"Ошибка создания ссылки для канала: {e}")
-        await message.answer(
-            "⚠️ Не удалось создать пригласительную ссылку.\n\n"
-            "Убедитесь что:\n"
-            "• Бот добавлен в канал как администратор\n"
-            "• У бота есть право 'Приглашение пользователей'\n\n"
-            "Попробуйте еще раз или обратитесь к документации.",
-            reply_markup=get_cancel_keyboard("admin_channels")
-        )
-        await state.clear()
-        return
+ except Exception as e:
+ logging.warning(f"Ошибка создания ссылки для канала: {e}")
+ await message.answer(
+ "Не удалось создать пригласительную ссылку.\n\n"
+ "Убедитесь что:\n"
+ "• Бот добавлен в канал как администратор\n"
+ "• У бота есть право 'Приглашение пользователей'\n\n"
+ "Попробуйте еще раз или обратитесь к документации.",
+ reply_markup=get_cancel_keyboard("admin_channels")
+ )
+ await state.clear()
+ return
 
-    if add_required_channel(channel_id, channel_name, channel_link):
-        await message.answer(
-            f"✔️ Канал <b>{channel_name}</b> добавлен!\n\n"
-            f"🔗 Создана пригласительная ссылка:\n"
-            f"<code>{channel_link}</code>",
-            reply_markup=get_admin_keyboard(),
-            parse_mode="HTML"
-        )
-    else:
-        await message.answer(
-            "✖️ Этот канал уже добавлен!",
-            reply_markup=get_admin_keyboard()
-        )
+ if add_required_channel(channel_id, channel_name, channel_link):
+ await message.answer(
+ f"Канал <b>{channel_name}</b> добавлен!\n\n"
+ f"🔗 Создана пригласительная ссылка:\n"
+ f"<code>{channel_link}</code>",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
+ else:
+ await message.answer(
+ "Этот канал уже добавлен!",
+ reply_markup=get_admin_keyboard()
+ )
 
-    await state.clear()
+ await state.clear()
 
 
 @dp.callback_query(F.data.startswith("delchannel_"))
 async def callback_delete_channel(callback: CallbackQuery):
-    """Удаление канала"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Удаление канала"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    channel_id = callback.data.replace("delchannel_", "")
-    remove_required_channel(channel_id)
+ channel_id = callback.data.replace("delchannel_", "")
+ remove_required_channel(channel_id)
 
-    await callback.answer("✔️ Канал удалён!")
-    await callback_admin_channels(callback)
+ await callback.answer("Канал удалён!")
+ await callback_admin_channels(callback)
 
 
 # ==================== ADMIN BLACKLIST MANAGEMENT ====================
 @dp.callback_query(F.data == "admin_blacklist")
 async def callback_admin_blacklist(callback: CallbackQuery):
-    """Управление черным списком"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Управление черным списком"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    blacklist = load_blacklist()
+ blacklist = load_blacklist()
 
-    text = f"🚫 <b>Чёрный список</b>\n\n"
+ text = f"<b>Чёрный список</b>\n\n"
 
-    if blacklist:
-        text += f"Заблокировано: {len(blacklist)} пользователей\n\n"
-        for user_id in blacklist[:10]:
-            user_data = load_user_data(user_id)
-            name = user_data.get("full_name") or user_data.get("username") or str(user_id)
-            text += f"• <code>{user_id}</code> - {name}\n"
+ if blacklist:
+ text += f"Заблокировано: {len(blacklist)} пользователей\n\n"
+ for user_id in blacklist[:10]:
+ user_data = load_user_data(user_id)
+ name = user_data.get("full_name") or user_data.get("username") or str(user_id)
+ text += f"• <code>{user_id}</code> - {name}\n"
 
-        if len(blacklist) > 10:
-            text += f"\n... и ещё {len(blacklist) - 10}"
-    else:
-        text += "Список пуст"
+ if len(blacklist) > 10:
+ text += f"\n... и ещё {len(blacklist) - 10}"
+ else:
+ text += "Список пуст"
 
-    await safe_edit_or_send(
-        callback, text,
-        InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Заблокировать", callback_data="blacklist_add")],
-            [InlineKeyboardButton(text="➖ Разблокировать", callback_data="blacklist_remove")],
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")]
-        ])
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback, text,
+ InlineKeyboardMarkup(inline_keyboard=[
+ [InlineKeyboardButton(text="Заблокировать", callback_data="blacklist_add")],
+ [InlineKeyboardButton(text="Разблокировать", callback_data="blacklist_remove")],
+ [InlineKeyboardButton(text="Назад Назад", callback_data="admin_menu")]
+ ])
+ )
+ await callback.answer()
 
 
 @dp.callback_query(F.data == "blacklist_add")
 async def callback_blacklist_add(callback: CallbackQuery, state: FSMContext):
-    """Добавление в черный список"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Добавление в черный список"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    await safe_edit_or_send(
-        callback,
-        "🚫 <b>Заблокировать пользователя</b>\n\n"
-        "Введите ID пользователя или @username:",
-        get_cancel_keyboard("admin_blacklist")
-    )
+ await safe_edit_or_send(
+ callback,
+ "<b>Заблокировать пользователя</b>\n\n"
+ "Введите ID пользователя или @username:",
+ get_cancel_keyboard("admin_blacklist")
+ )
 
-    await state.set_state(AdminStates.waiting_for_blacklist_add)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_blacklist_add)
+ await callback.answer()
 
 
 @dp.message(AdminStates.waiting_for_blacklist_add)
 async def process_blacklist_add(message: Message, state: FSMContext):
-    """Обработка добавления в черный список"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка добавления в черный список"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    input_text = message.text.strip()
-    user_id = None
+ input_text = message.text.strip()
+ user_id = None
 
-    if input_text.startswith('@'):
-        user = get_user_by_username(input_text)
-        if user:
-            user_id = user["user_id"]
-        else:
-            await message.answer(
-                "✖️ Пользователь не найден.\n"
-                "Введите ID или @username:",
-                reply_markup=get_cancel_keyboard("admin_blacklist")
-            )
-            return
-    else:
-        try:
-            user_id = int(input_text)
-        except ValueError:
-            await message.answer(
-                "✖️ Неверный формат. Введите ID или @username:",
-                reply_markup=get_cancel_keyboard("admin_blacklist")
-            )
-            return
+ if input_text.startswith('@'):
+ user = get_user_by_username(input_text)
+ if user:
+ user_id = user["user_id"]
+ else:
+ await message.answer(
+ "Пользователь не найден.\n"
+ "Введите ID или @username:",
+ reply_markup=get_cancel_keyboard("admin_blacklist")
+ )
+ return
+ else:
+ try:
+ user_id = int(input_text)
+ except ValueError:
+ await message.answer(
+ "Неверный формат. Введите ID или @username:",
+ reply_markup=get_cancel_keyboard("admin_blacklist")
+ )
+ return
 
-    if user_id in ADMIN_IDS:
-        await message.answer(
-            "✖️ Нельзя заблокировать администратора!",
-            reply_markup=get_admin_keyboard()
-        )
-        await state.clear()
-        return
+ if user_id in ADMIN_IDS:
+ await message.answer(
+ "Нельзя заблокировать администратора!",
+ reply_markup=get_admin_keyboard()
+ )
+ await state.clear()
+ return
 
-    add_to_blacklist(user_id)
+ add_to_blacklist(user_id)
 
-    await message.answer(
-        f"✔️ Пользователь <code>{user_id}</code> заблокирован!",
-        reply_markup=get_admin_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.clear()
+ await message.answer(
+ f"Пользователь <code>{user_id}</code> заблокирован!",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
+ await state.clear()
 
 
 @dp.callback_query(F.data == "blacklist_remove")
 async def callback_blacklist_remove(callback: CallbackQuery, state: FSMContext):
-    """Удаление из черного списка"""
-    if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("✖️ Доступ запрещен", show_alert=True)
-        return
+ """Удаление из черного списка"""
+ if callback.from_user.id not in ADMIN_IDS:
+ await callback.answer("Доступ запрещен", show_alert=True)
+ return
 
-    await safe_edit_or_send(
-        callback,
-        "🚫 <b>Разблокировать пользователя</b>\n\n"
-        "Введите ID пользователя или @username:",
-        get_cancel_keyboard("admin_blacklist")
-    )
+ await safe_edit_or_send(
+ callback,
+ "<b>Разблокировать пользователя</b>\n\n"
+ "Введите ID пользователя или @username:",
+ get_cancel_keyboard("admin_blacklist")
+ )
 
-    await state.set_state(AdminStates.waiting_for_blacklist_remove)
-    await callback.answer()
+ await state.set_state(AdminStates.waiting_for_blacklist_remove)
+ await callback.answer()
 
 
 @dp.message(AdminStates.waiting_for_blacklist_remove)
 async def process_blacklist_remove(message: Message, state: FSMContext):
-    """Обработка удаления из черного списка"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
+ """Обработка удаления из черного списка"""
+ if message.from_user.id not in ADMIN_IDS:
+ return
 
-    input_text = message.text.strip()
-    user_id = None
+ input_text = message.text.strip()
+ user_id = None
 
-    if input_text.startswith('@'):
-        user = get_user_by_username(input_text)
-        if user:
-            user_id = user["user_id"]
-        else:
-            await message.answer(
-                "✖️ Пользователь не найден.\n"
-                "Введите ID или @username:",
-                reply_markup=get_cancel_keyboard("admin_blacklist")
-            )
-            return
-    else:
-        try:
-            user_id = int(input_text)
-        except ValueError:
-            await message.answer(
-                "✖️ Неверный формат. Введите ID или @username:",
-                reply_markup=get_cancel_keyboard("admin_blacklist")
-            )
-            return
+ if input_text.startswith('@'):
+ user = get_user_by_username(input_text)
+ if user:
+ user_id = user["user_id"]
+ else:
+ await message.answer(
+ "Пользователь не найден.\n"
+ "Введите ID или @username:",
+ reply_markup=get_cancel_keyboard("admin_blacklist")
+ )
+ return
+ else:
+ try:
+ user_id = int(input_text)
+ except ValueError:
+ await message.answer(
+ "Неверный формат. Введите ID или @username:",
+ reply_markup=get_cancel_keyboard("admin_blacklist")
+ )
+ return
 
-    if not is_blacklisted(user_id):
-        await message.answer(
-            "✖️ Этот пользователь не в чёрном списке!",
-            reply_markup=get_admin_keyboard()
-        )
-        await state.clear()
-        return
+ if not is_blacklisted(user_id):
+ await message.answer(
+ "Этот пользователь не в чёрном списке!",
+ reply_markup=get_admin_keyboard()
+ )
+ await state.clear()
+ return
 
-    remove_from_blacklist(user_id)
+ remove_from_blacklist(user_id)
 
-    await message.answer(
-        f"✔️ Пользователь <code>{user_id}</code> разблокирован!",
-        reply_markup=get_admin_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.clear()
+ await message.answer(
+ f"Пользователь <code>{user_id}</code> разблокирован!",
+ reply_markup=get_admin_keyboard(),
+ parse_mode="HTML"
+ )
+ await state.clear()
 
 
 # ==================== THINKING PREFERENCES ====================
 @dp.callback_query(F.data == "thinking_menu")
 async def callback_thinking_menu(callback: CallbackQuery):
-    """Меню настройки мышления"""
-    user_id = callback.from_user.id
+ """Меню настройки мышления"""
+ user_id = callback.from_user.id
 
-    # Проверки
-    if is_blacklisted(user_id):
-        await callback.answer()
-        return
+ # Проверки
+ if is_blacklisted(user_id):
+ await callback.answer()
+ return
 
-    if user_id not in ADMIN_IDS and get_required_channels():
-        if not await check_channel_subscription(user_id):
-            await callback.answer("✖️ Подпишитесь на каналы!", show_alert=True)
-            return
+ if user_id not in ADMIN_IDS and get_required_channels():
+ if not await check_channel_subscription(user_id):
+ await callback.answer("Сначала подпишитесь на каналы из списка.", show_alert=True)
+ return
 
-    current_pref = get_thinking_preference(user_id)
-    current_preset = get_response_style_preset(user_id)
-    preset_human = STYLE_PRESET_LABELS.get(current_preset, "Нейтральный")
-    preset_desc = STYLE_PRESET_DESCRIPTIONS.get(current_preset, "")
-    preset_block = (
-        f"{text_emoji('style')} <b>Стиль ответа</b>\n"
-        "Выберите, как ИИ будет отвечать:\n"
-        "• <b>Серьезный</b> — коротко и по делу\n"
-        "• <b>Нейтральный</b> — спокойно и универсально\n"
-        "• <b>Веселый</b> — легко, с уместным юмором\n"
-        "• <b>Друг</b> — просто и по-человечески\n\n"
-        f"Сейчас: <b>{preset_human}</b>\n"
-        f"<i>{preset_desc}</i>\n"
-    )
+ current_pref = get_thinking_preference(user_id)
+ current_preset = get_response_style_preset(user_id)
+ preset_human = STYLE_PRESET_LABELS.get(current_preset, "Нейтральный")
+ preset_desc = STYLE_PRESET_DESCRIPTIONS.get(current_preset, "")
+ preset_block = (
+ f"{text_emoji('style')} <b>Стиль ответа</b>\n"
+ "Выберите, как ИИ будет отвечать:\n"
+ "• <b>Серьезный</b> — коротко и по делу\n"
+ "• <b>Нейтральный</b> — спокойно и универсально\n"
+ "• <b>Веселый</b> — легко, с уместным юмором\n"
+ "• <b>Друг</b> — просто и по-человечески\n\n"
+ f"Сейчас: <b>{preset_human}</b>\n"
+ f"<i>{preset_desc}</i>\n"
+ )
 
-    if current_pref:
-        # Проверяем, это JSON или обычный текст
-        try:
-            pref_json = json.loads(current_pref)
+ if current_pref:
+ # Проверяем, это JSON или обычный текст
+ try:
+ pref_json = json.loads(current_pref)
 
-            # Для JSON показываем краткую информацию
-            top_keys = list(pref_json.keys())
-            keys_display = ", ".join(top_keys[:5])
-            if len(top_keys) > 5:
-                keys_display += f" +{len(top_keys) - 5}"
+ # Для JSON показываем краткую информацию
+ top_keys = list(pref_json.keys())
+ keys_display = ", ".join(top_keys[:5])
+ if len(top_keys) > 5:
+ keys_display += f" +{len(top_keys) - 5}"
 
-            # Считаем общее количество параметров
-            def count_params(obj):
-                if isinstance(obj, dict):
-                    return sum(count_params(v) for v in obj.values()) + len(obj)
-                elif isinstance(obj, list):
-                    return sum(count_params(item) for item in obj) + 1
-                return 1
+ # Считаем общее количество параметров
+ def count_params(obj):
+ if isinstance(obj, dict):
+ return sum(count_params(v) for v in obj.values()) + len(obj)
+ elif isinstance(obj, list):
+ return sum(count_params(item) for item in obj) + 1
+ return 1
 
-            total_params = count_params(pref_json)
+ total_params = count_params(pref_json)
 
-            text = (
-                f"{text_emoji('style')} <b>Мышление</b>\n\n"
-                f"{preset_block}\n"
-                f"{text_emoji('note')} <b>JSON конфиг загружен</b>\n"
-                f"🔑 Секций: {len(top_keys)}\n"
-                f"📊 Параметров: {total_params}\n"
-                f"📝 Ключи: <code>{keys_display}</code>"
-            )
-        except:
-            # Обычный текст
-            pref_display = f"<blockquote>{current_pref[:200]}{'...' if len(current_pref) > 200 else ''}</blockquote>"
-            text = (
-                f"{text_emoji('style')} <b>Мышление</b>\n\n"
-                f"{preset_block}\n"
-                f"{text_emoji('note')} <b>Текущие предпочтения:</b>\n"
-                f"{pref_display}"
-            )
+ text = (
+ f"{text_emoji('style')} <b>Мышление</b>\n\n"
+ f"{preset_block}\n"
+ f"{text_emoji('note')} <b>JSON конфиг загружен</b>\n"
+ f"🔑 Секций: {len(top_keys)}\n"
+ f"Параметров: {total_params}\n"
+ f"📝 Ключи: <code>{keys_display}</code>"
+ )
+ except:
+ # Обычный текст
+ pref_display = f"<blockquote>{current_pref[:200]}{'...' if len(current_pref) > 200 else ''}</blockquote>"
+ text = (
+ f"{text_emoji('style')} <b>Мышление</b>\n\n"
+ f"{preset_block}\n"
+ f"{text_emoji('note')} <b>Текущие предпочтения:</b>\n"
+ f"{pref_display}"
+ )
 
-        buttons = [
-            [
-                make_inline_button("Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
-                make_inline_button("Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
-            ],
-            [
-                make_inline_button("Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
-                make_inline_button("Друг", callback_data="stylepreset_friend", button_key="preset_friend")
-            ],
-            [make_inline_button("Изменить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
-            [make_inline_button("Удалить", callback_data="thinking_delete", button_key="thinking_delete", style="danger")],
-            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
-        ]
-    else:
-        text = (
-            f"{text_emoji('style')} <b>Мышление</b>\n\n"
-            f"{preset_block}\n"
-            "Хотите тоньше настроить стиль?\n"
-            "Нажмите <b>«Настроить»</b> и отправьте:\n"
-            "• обычный текст (например: <i>«пиши кратко и просто»</i>)\n"
-            "• или JSON-файл"
-        )
-        buttons = [
-            [
-                make_inline_button("Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
-                make_inline_button("Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
-            ],
-            [
-                make_inline_button("Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
-                make_inline_button("Друг", callback_data="stylepreset_friend", button_key="preset_friend")
-            ],
-            [make_inline_button("Настроить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
-            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
-        ]
+ buttons = [
+ [
+ make_inline_button("Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
+ make_inline_button("Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
+ ],
+ [
+ make_inline_button("Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
+ make_inline_button("Друг", callback_data="stylepreset_friend", button_key="preset_friend")
+ ],
+ [make_inline_button("Изменить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
+ [make_inline_button("Удалить", callback_data="thinking_delete", button_key="thinking_delete", style="danger")],
+ [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+ ]
+ else:
+ text = (
+ f"{text_emoji('style')} <b>Мышление</b>\n\n"
+ f"{preset_block}\n"
+ "Хотите тоньше настроить стиль?\n"
+ "Нажмите <b>«Настроить»</b> и отправьте:\n"
+ "• обычный текст (например: <i>«пиши кратко и просто»</i>)\n"
+ "• или JSON-файл"
+ )
+ buttons = [
+ [
+ make_inline_button("Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
+ make_inline_button("Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
+ ],
+ [
+ make_inline_button("Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
+ make_inline_button("Друг", callback_data="stylepreset_friend", button_key="preset_friend")
+ ],
+ [make_inline_button("Настроить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
+ [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+ ]
 
-    # Проверяем подписку
-    if not has_active_subscription(user_id):
-        buttons = [
-            [make_inline_button("Оформить подписку", callback_data="subscription", button_key="subscription", style="success")],
-            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
-        ]
-        text = (
-            f"{text_emoji('style')} <b>Мышление</b>\n\n"
-            f"{preset_block}\n"
-            f"{text_emoji('star')} Для настройки мышления необходима подписка."
-        )
+ # Проверяем подписку
+ if not has_active_subscription(user_id):
+ buttons = [
+ [make_inline_button("Оформить подписку", callback_data="subscription", button_key="subscription", style="success")],
+ [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+ ]
+ text = (
+ f"{text_emoji('style')} <b>Мышление</b>\n\n"
+ f"{preset_block}\n"
+ f"{text_emoji('star')} Для настройки мышления необходима подписка."
+ )
 
-    await safe_edit_or_send(callback, text, InlineKeyboardMarkup(inline_keyboard=buttons))
-    await callback.answer()
+ await safe_edit_or_send_screen(callback, text, "thinking", InlineKeyboardMarkup(inline_keyboard=buttons))
+ await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("stylepreset_"))
 async def callback_style_preset(callback: CallbackQuery):
-    """Установить пресет стиля ответа."""
-    user_id = callback.from_user.id
-    preset = callback.data.replace("stylepreset_", "").strip()
+ """Установить пресет стиля ответа."""
+ user_id = callback.from_user.id
+ preset = callback.data.replace("stylepreset_", "").strip()
 
-    if not has_active_subscription(user_id):
-        await callback.answer("⭐ Для смены стиля ответа нужна подписка PRO", show_alert=True)
-        return
+ if not has_active_subscription(user_id):
+ await callback.answer("Для смены стиля ответа нужна подписка PRO", show_alert=True)
+ return
 
-    if preset not in STYLE_PRESET_PROMPTS:
-        await callback.answer("✖️ Неизвестный пресет", show_alert=True)
-        return
+ if preset not in STYLE_PRESET_PROMPTS:
+ await callback.answer("Неизвестный пресет", show_alert=True)
+ return
 
-    set_response_style_preset(user_id, preset)
-    await callback_thinking_menu(callback)
+ set_response_style_preset(user_id, preset)
+ await callback_thinking_menu(callback)
 
 
 @dp.callback_query(F.data == "thinking_edit")
 async def callback_thinking_edit(callback: CallbackQuery, state: FSMContext):
-    """Редактирование предпочтений мышления"""
-    user_id = callback.from_user.id
+ """Редактирование предпочтений мышления"""
+ user_id = callback.from_user.id
 
-    if not has_active_subscription(user_id):
-        await callback.answer("⭐ Необходима подписка!", show_alert=True)
-        return
+ if not has_active_subscription(user_id):
+ await callback.answer("Необходима подписка!", show_alert=True)
+ return
 
-    await safe_edit_or_send(
-        callback,
-        "🧠 <b>Настройка мышления</b>\n\n"
-        "Отправьте настройки в одном из форматов:\n\n"
-        "<b>📝 Текст:</b>\n"
-        "<i>«общайся со мной как друг, пиши с маленькой буквы, используй эмодзи»</i>\n\n"
-        "<b>⚙️ JSON:</b>\n"
-        "<code>{\n"
-        '  "tone": "friendly",\n'
-        '  "style": "informal",\n'
-        '  "lowercase": true,\n'
-        '  "emoji": true,\n'
-        '  "personality": "веселый помощник",\n'
-        '  "response_length": "short"\n'
-        "}</code>",
-        get_cancel_keyboard("thinking_menu")
-    )
+ await safe_edit_or_send(
+ callback,
+ "🧠 <b>Настройка мышления</b>\n\n"
+ "Отправьте настройки в одном из форматов:\n\n"
+ "<b>📝 Текст:</b>\n"
+ "<i>«общайся со мной как друг, пиши с маленькой буквы, используй эмодзи»</i>\n\n"
+ "<b>JSON:</b>\n"
+ "<code>{\n"
+ ' "tone": "friendly",\n'
+ ' "style": "informal",\n'
+ ' "lowercase": true,\n'
+ ' "emoji": true,\n'
+ ' "personality": "веселый помощник",\n'
+ ' "response_length": "short"\n'
+ "}</code>",
+ get_cancel_keyboard("thinking_menu")
+ )
 
-    await state.set_state(UserStates.waiting_for_thinking)
-    await callback.answer()
+ await state.set_state(UserStates.waiting_for_thinking)
+ await callback.answer()
 
 
 @dp.message(UserStates.waiting_for_thinking, F.text)
 async def process_thinking_preference(message: Message, state: FSMContext):
-    """Сохранение предпочтений мышления"""
-    user_id = message.from_user.id
+ """Сохранение предпочтений мышления"""
+ user_id = message.from_user.id
 
-    if not has_active_subscription(user_id):
-        await state.clear()
-        return
+ if not has_active_subscription(user_id):
+ await state.clear()
+ return
 
-    # Проверка на наличие текста
-    if not message.text:
-        await message.answer(
-            "✖️ Отправьте текстовое сообщение:",
-            reply_markup=get_cancel_keyboard("thinking_menu")
-        )
-        return
+ # Проверка на наличие текста
+ if not message.text:
+ await message.answer(
+ "Отправьте текстовое сообщение:",
+ reply_markup=get_cancel_keyboard("thinking_menu")
+ )
+ return
 
-    preference = message.text.strip()
+ preference = message.text.strip()
 
-    if len(preference) < 5:
-        await message.answer(
-            "✖️ Слишком короткое описание. Попробуйте подробнее:",
-            reply_markup=get_cancel_keyboard("thinking_menu")
-        )
-        return
+ if len(preference) < 5:
+ await message.answer(
+ "Слишком короткое описание. Попробуйте подробнее:",
+ reply_markup=get_cancel_keyboard("thinking_menu")
+ )
+ return
 
-    if len(preference) > 10000:
-        await message.answer(
-            "✖️ Слишком длинный конфиг (макс. 10000 символов). Сократите:",
-            reply_markup=get_cancel_keyboard("thinking_menu")
-        )
-        return
+ if len(preference) > 10000:
+ await message.answer(
+ "Слишком длинный конфиг (макс. 10000 символов). Сократите:",
+ reply_markup=get_cancel_keyboard("thinking_menu")
+ )
+ return
 
-    # Проверяем, это JSON или обычный текст
-    is_json = False
-    json_config = None
+ # Проверяем, это JSON или обычный текст
+ is_json = False
+ json_config = None
 
-    if preference.strip().startswith('{'):
-        try:
-            json_config = json.loads(preference)
-            is_json = True
+ if preference.strip().startswith('{'):
+ try:
+ json_config = json.loads(preference)
+ is_json = True
 
-            # Валидация: проверяем что это словарь
-            if not isinstance(json_config, dict):
-                raise ValueError("JSON должен быть объектом")
+ # Валидация: проверяем что это словарь
+ if not isinstance(json_config, dict):
+ raise ValueError("JSON должен быть объектом")
 
-            # Проверяем размер JSON
-            json_str = json.dumps(json_config, ensure_ascii=False, indent=2)
-            if len(json_str) > 10000:
-                raise ValueError("JSON слишком большой (макс. 10000 символов)")
+ # Проверяем размер JSON
+ json_str = json.dumps(json_config, ensure_ascii=False, indent=2)
+ if len(json_str) > 10000:
+ raise ValueError("JSON слишком большой (макс. 10000 символов)")
 
-        except json.JSONDecodeError as e:
-            await message.answer(
-                f"✖️ Ошибка в JSON:\n<code>{str(e)}</code>\n\n"
-                "Проверьте синтаксис и попробуйте снова:",
-                reply_markup=get_cancel_keyboard("thinking_menu"),
-                parse_mode="HTML"
-            )
-            return
-        except ValueError as e:
-            await message.answer(
-                f"✖️ {str(e)}\n\nПопробуйте снова:",
-                reply_markup=get_cancel_keyboard("thinking_menu")
-            )
-            return
+ except json.JSONDecodeError as e:
+ await message.answer(
+ f"Ошибка в JSON:\n<code>{str(e)}</code>\n\n"
+ "Проверьте синтаксис и попробуйте снова:",
+ reply_markup=get_cancel_keyboard("thinking_menu"),
+ parse_mode="HTML"
+ )
+ return
+ except ValueError as e:
+ await message.answer(
+ f"{str(e)}\n\nПопробуйте снова:",
+ reply_markup=get_cancel_keyboard("thinking_menu")
+ )
+ return
 
-    set_thinking_preference(user_id, preference)
+ set_thinking_preference(user_id, preference)
 
-    if is_json:
-        # Подсчитываем ключи верхнего уровня
-        top_keys = list(json_config.keys())
-        keys_display = ", ".join(top_keys[:5])
-        if len(top_keys) > 5:
-            keys_display += f" и ещё {len(top_keys) - 5}"
+ if is_json:
+ # Подсчитываем ключи верхнего уровня
+ top_keys = list(json_config.keys())
+ keys_display = ", ".join(top_keys[:5])
+ if len(top_keys) > 5:
+ keys_display += f" и ещё {len(top_keys) - 5}"
 
-        await message.answer(
-            "✔️ <b>JSON конфиг сохранён!</b>\n\n"
-            f"📦 Секций: {len(top_keys)}\n"
-            f"🔑 Ключи: {keys_display}\n\n"
-            "ИИ будет использовать эти настройки при общении.",
-            reply_markup=get_main_keyboard(),
-            parse_mode="HTML"
-        )
-    else:
-        await message.answer(
-            "✔️ <b>Предпочтения сохранены!</b>\n\n"
-            "ИИ будет учитывать ваши пожелания при общении.",
-            reply_markup=get_main_keyboard(),
-            parse_mode="HTML"
-        )
+ await message.answer(
+ "<b>JSON конфиг сохранён!</b>\n\n"
+ f"📦 Секций: {len(top_keys)}\n"
+ f"🔑 Ключи: {keys_display}\n\n"
+ "ИИ будет использовать эти настройки при общении.",
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
+ else:
+ await message.answer(
+ "<b>Предпочтения сохранены!</b>\n\n"
+ "ИИ будет учитывать ваши пожелания при общении.",
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
 
-    await state.clear()
+ await state.clear()
 
 
 @dp.message(UserStates.waiting_for_thinking, F.document)
 async def process_thinking_document(message: Message, state: FSMContext):
-    """Обработка JSON файла для настройки мышления"""
-    user_id = message.from_user.id
+ """Обработка JSON файла для настройки мышления"""
+ user_id = message.from_user.id
 
-    if not has_active_subscription(user_id):
-        await state.clear()
-        return
+ if not has_active_subscription(user_id):
+ await state.clear()
+ return
 
-    # Проверяем расширение файла
-    if not message.document.file_name.endswith('.json'):
-        await message.answer(
-            "✖️ Отправьте файл формата .json",
-            reply_markup=get_cancel_keyboard("thinking_menu")
-        )
-        return
+ # Проверяем расширение файла
+ if not message.document.file_name.endswith('.json'):
+ await message.answer(
+ "Отправьте файл формата .json",
+ reply_markup=get_cancel_keyboard("thinking_menu")
+ )
+ return
 
-    # Проверяем размер файла (макс 1 МБ)
-    if message.document.file_size > 1024 * 1024:
-        await message.answer(
-            "✖️ Файл слишком большой (макс. 1 МБ)",
-            reply_markup=get_cancel_keyboard("thinking_menu")
-        )
-        return
+ # Проверяем размер файла (макс 1 МБ)
+ if message.document.file_size > 1024 * 1024:
+ await message.answer(
+ "Файл слишком большой (макс. 1 МБ)",
+ reply_markup=get_cancel_keyboard("thinking_menu")
+ )
+ return
 
-    try:
-        # Скачиваем файл
-        file = await bot.get_file(message.document.file_id)
-        file_bytes = await bot.download_file(file.file_path)
+ try:
+ # Скачиваем файл
+ file = await bot.get_file(message.document.file_id)
+ file_bytes = await bot.download_file(file.file_path)
 
-        # Читаем JSON
-        json_text = file_bytes.read().decode('utf-8')
-        json_config = json.loads(json_text)
+ # Читаем JSON
+ json_text = file_bytes.read().decode('utf-8')
+ json_config = json.loads(json_text)
 
-        # Валидация
-        if not isinstance(json_config, dict):
-            raise ValueError("JSON должен быть объектом")
+ # Валидация
+ if not isinstance(json_config, dict):
+ raise ValueError("JSON должен быть объектом")
 
-        if len(json_text) > 10000:
-            raise ValueError("JSON слишком большой (макс. 10000 символов)")
+ if len(json_text) > 10000:
+ raise ValueError("JSON слишком большой (макс. 10000 символов)")
 
-        validate_json_structure(json_config)
+ validate_json_structure(json_config)
 
-        # Сохраняем
-        set_thinking_preference(user_id, json_text)
+ # Сохраняем
+ set_thinking_preference(user_id, json_text)
 
-        # Подсчитываем ключи верхнего уровня
-        top_keys = list(json_config.keys())
-        keys_display = ", ".join(top_keys[:5])
-        if len(top_keys) > 5:
-            keys_display += f" и ещё {len(top_keys) - 5}"
+ # Подсчитываем ключи верхнего уровня
+ top_keys = list(json_config.keys())
+ keys_display = ", ".join(top_keys[:5])
+ if len(top_keys) > 5:
+ keys_display += f" и ещё {len(top_keys) - 5}"
 
-        await message.answer(
-            "✔️ <b>JSON конфиг загружен из файла!</b>\n\n"
-            f"📦 Секций: {len(top_keys)}\n"
-            f"🔑 Ключи: {keys_display}\n\n"
-            "ИИ будет использовать эти настройки при общении.",
-            reply_markup=get_main_keyboard(),
-            parse_mode="HTML"
-        )
+ await message.answer(
+ "<b>JSON конфиг загружен из файла!</b>\n\n"
+ f"📦 Секций: {len(top_keys)}\n"
+ f"🔑 Ключи: {keys_display}\n\n"
+ "ИИ будет использовать эти настройки при общении.",
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
 
-        await state.clear()
+ await state.clear()
 
-    except json.JSONDecodeError as e:
-        await message.answer(
-            f"✖️ Ошибка в JSON файле:\n<code>{str(e)}</code>\n\n"
-            "Проверьте синтаксис и попробуйте снова:",
-            reply_markup=get_cancel_keyboard("thinking_menu"),
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        logging.error(f"Ошибка загрузки JSON: {e}")
-        await message.answer(
-            f"✖️ Ошибка: {str(e)}",
-            reply_markup=get_cancel_keyboard("thinking_menu")
-        )
+ except json.JSONDecodeError as e:
+ await message.answer(
+ f"Ошибка в JSON файле:\n<code>{str(e)}</code>\n\n"
+ "Проверьте синтаксис и попробуйте снова:",
+ reply_markup=get_cancel_keyboard("thinking_menu"),
+ parse_mode="HTML"
+ )
+ except Exception as e:
+ logging.error(f"Ошибка загрузки JSON: {e}")
+ await message.answer(
+ f"Ошибка: {str(e)}",
+ reply_markup=get_cancel_keyboard("thinking_menu")
+ )
 
 @dp.callback_query(F.data == "thinking_delete")
 async def callback_thinking_delete(callback: CallbackQuery):
-    """Удаление предпочтений мышления"""
-    user_id = callback.from_user.id
+ """Удаление предпочтений мышления"""
+ user_id = callback.from_user.id
 
-    set_thinking_preference(user_id, None)
+ set_thinking_preference(user_id, None)
 
-    await safe_edit_or_send(
-        callback,
-        "✔️ Предпочтения удалены!\n\n"
-        "ИИ будет общаться в стандартном режиме.",
-        get_main_keyboard()
-    )
-    await callback.answer()
+ await safe_edit_or_send(
+ callback,
+ "Предпочтения удалены!\n\n"
+ "ИИ будет общаться в стандартном режиме.",
+ get_main_keyboard()
+ )
+ await callback.answer()
 
 
 # ==================== AI FUNCTIONS ====================
 def _messages_to_deepseek_format(messages: list) -> list:
-    """Преобразовать сообщения в формат DeepSeek: content только строка."""
-    result = []
-    for m in messages:
-        role = m.get("role")
-        content = m.get("content")
-        if isinstance(content, list):
-            parts = []
-            for part in content:
-                if isinstance(part, dict):
-                    if part.get("type") == "text":
-                        parts.append(part.get("text", ""))
-                    elif part.get("type") == "image_url":
-                        parts.append("[Пользователь приложил изображение]")
-            content = " ".join(parts) if parts else "[Медиа]"
-        result.append({"role": role, "content": content or ""})
-    return result
+ """Преобразовать сообщения в формат DeepSeek: content только строка."""
+ result = []
+ for m in messages:
+ role = m.get("role")
+ content = m.get("content")
+ if isinstance(content, list):
+ parts = []
+ for part in content:
+ if isinstance(part, dict):
+ if part.get("type") == "text":
+ parts.append(part.get("text", ""))
+ elif part.get("type") == "image_url":
+ parts.append("[Пользователь приложил изображение]")
+ content = " ".join(parts) if parts else "[Медиа]"
+ result.append({"role": role, "content": content or ""})
+ return result
 
 
 def _deepseek_model(user_model: str) -> str:
-    """Маппинг модели бота на модель DeepSeek API."""
-    if user_model == "deepseek-r1":
-        return "deepseek-reasoner"
-    return "deepseek-chat"
+ """Маппинг модели бота на модель DeepSeek API."""
+ if user_model == "deepseek-r1":
+ return "deepseek-reasoner"
+ return "deepseek-chat"
 
 
 async def get_ai_response(user_id: int, user_message: str, photo_base64: str = None) -> str:
-    """Получить ответ от AI"""
-    user_message = sanitize_user_input(user_message)
+ """Получить ответ от AI"""
+ user_message = sanitize_user_input(user_message)
 
-    # Получаем предпочтения мышления
-    thinking_pref = get_thinking_preference(user_id)
+ # Получаем предпочтения мышления
+ thinking_pref = get_thinking_preference(user_id)
 
-    # Формируем историю с системным сообщением если есть предпочтения
-    messages = []
-    messages.append({
-        "role": "system",
-        "content": RESPONSE_STYLE_SYSTEM_PROMPT
-    })
+ # Формируем историю с системным сообщением если есть предпочтения
+ messages = []
+ messages.append({
+ "role": "system",
+ "content": RESPONSE_STYLE_SYSTEM_PROMPT
+ })
 
-    style_preset = get_response_style_preset(user_id)
-    messages.append({
-        "role": "system",
-        "content": STYLE_PRESET_PROMPTS.get(style_preset, STYLE_PRESET_PROMPTS["neutral"])
-    })
+ style_preset = get_response_style_preset(user_id)
+ messages.append({
+ "role": "system",
+ "content": STYLE_PRESET_PROMPTS.get(style_preset, STYLE_PRESET_PROMPTS["neutral"])
+ })
 
-    if thinking_pref:
-        # Проверяем, это JSON или текст
-        try:
-            pref_json = json.loads(thinking_pref)
+ if thinking_pref:
+ # Проверяем, это JSON или текст
+ try:
+ pref_json = json.loads(thinking_pref)
 
-            # Формируем промпт для ролевой игры - ИИ становится персонажем из JSON
-            system_msg = "Ты - это персонаж, описанный в следующем профиле. Общайся от первого лица, будто это твоя настоящая личность.\n\n"
-            system_msg += "=== ТВОЙ ПРОФИЛЬ ===\n\n"
+ # Формируем промпт для ролевой игры - ИИ становится персонажем из JSON
+ system_msg = "Ты - это персонаж, описанный в следующем профиле. Общайся от первого лица, будто это твоя настоящая личность.\n\n"
+ system_msg += "=== ТВОЙ ПРОФИЛЬ ===\n\n"
 
-            # Рекурсивно формируем описание из JSON
-            def format_json_to_text(obj, indent=0):
-                result = ""
-                prefix = "  " * indent
+ # Рекурсивно формируем описание из JSON
+ def format_json_to_text(obj, indent=0):
+ result = ""
+ prefix = " " * indent
 
-                if isinstance(obj, dict):
-                    for key, value in obj.items():
-                        if isinstance(value, (dict, list)):
-                            result += f"{prefix}{key}:\n"
-                            result += format_json_to_text(value, indent + 1)
-                        else:
-                            result += f"{prefix}{key}: {value}\n"
-                elif isinstance(obj, list):
-                    for item in obj:
-                        if isinstance(item, (dict, list)):
-                            result += format_json_to_text(item, indent)
-                        else:
-                            result += f"{prefix}• {item}\n"
-                return result
+ if isinstance(obj, dict):
+ for key, value in obj.items():
+ if isinstance(value, (dict, list)):
+ result += f"{prefix}{key}:\n"
+ result += format_json_to_text(value, indent + 1)
+ else:
+ result += f"{prefix}{key}: {value}\n"
+ elif isinstance(obj, list):
+ for item in obj:
+ if isinstance(item, (dict, list)):
+ result += format_json_to_text(item, indent)
+ else:
+ result += f"{prefix}• {item}\n"
+ return result
 
-            system_msg += format_json_to_text(pref_json)
-            system_msg += "\n=== ИНСТРУКЦИИ ===\n"
-            system_msg += "• Общайся от первого лица ('я', 'мне', 'мой')\n"
-            system_msg += "• Используй стиль речи и сленг из профиля\n"
-            system_msg += "• Веди себя естественно, как реальный человек\n"
-            system_msg += "• Если в профиле указано использование мата - используй его естественно\n"
-            system_msg += "• Отвечай на основе фактов из профиля\n"
-            system_msg += "• Не упоминай, что ты ИИ или бот"
+ system_msg += format_json_to_text(pref_json)
+ system_msg += "\n=== ИНСТРУКЦИИ ===\n"
+ system_msg += "• Общайся от первого лица ('я', 'мне', 'мой')\n"
+ system_msg += "• Используй стиль речи и сленг из профиля\n"
+ system_msg += "• Веди себя естественно, как реальный человек\n"
+ system_msg += "• Если в профиле указано использование мата - используй его естественно\n"
+ system_msg += "• Отвечай на основе фактов из профиля\n"
+ system_msg += "• Не упоминай, что ты ИИ или бот"
 
-            messages.append({
-                "role": "system",
-                "content": system_msg
-            })
-        except:
-            # Обычный текст - старая логика
-            messages.append({
-                "role": "system",
-                "content": f"Следуй этим указаниям при общении: {thinking_pref}"
-            })
+ messages.append({
+ "role": "system",
+ "content": system_msg
+ })
+ except:
+ # Обычный текст - старая логика
+ messages.append({
+ "role": "system",
+ "content": f"Следуй этим указаниям при общении: {thinking_pref}"
+ })
 
-    # Добавляем историю
-    history = get_history_for_api(user_id, limit=20)
-    messages.extend(history)
+ # Добавляем историю
+ history = get_history_for_api(user_id, limit=20)
+ messages.extend(history)
 
-    # Формируем сообщение пользователя
-    if photo_base64:
-        user_content = [
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{photo_base64}"}},
-            {"type": "text", "text": user_message}
-        ]
-    else:
-        user_content = user_message
+ # Формируем сообщение пользователя
+ if photo_base64:
+ user_content = [
+ {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{photo_base64}"}},
+ {"type": "text", "text": user_message}
+ ]
+ else:
+ user_content = user_message
 
-    messages.append({"role": "user", "content": user_content})
+ messages.append({"role": "user", "content": user_content})
 
-    user_data = load_user_data(user_id)
-    user_model = user_data.get("model", DEFAULT_MODEL)
-    # Для текстового/мультимодального чата не используем image-only модели.
-    if user_model in IMAGE_MODELS:
-        user_model = DEFAULT_MODEL
+ user_data = load_user_data(user_id)
+ user_model = user_data.get("model", DEFAULT_MODEL)
+ # Для текстового/мультимодального чата не используем image-only модели.
+ if user_model in IMAGE_MODELS:
+ user_model = DEFAULT_MODEL
 
-    try:
-        if _get_deepseek_key():
-            # Чат через DeepSeek API — Bearer = твой ключ DeepSeek (sk-...)
-            ds_messages = _messages_to_deepseek_format(messages)
-            ds_model = _deepseek_model(user_model)
-            send = {"model": ds_model, "messages": ds_messages}
-            headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
-            url = DEEPSEEK_API_URL
-        else:
-            # Чат через onlysq.ru — нужен API_BEARER_TOKEN от их сервиса
-            send = {"model": user_model, "request": {"messages": messages}}
-            headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
-            url = API_URL
+ try:
+ if _get_deepseek_key():
+ # Чат через DeepSeek API — Bearer = твой ключ DeepSeek (sk-...)
+ ds_messages = _messages_to_deepseek_format(messages)
+ ds_model = _deepseek_model(user_model)
+ send = {"model": ds_model, "messages": ds_messages}
+ headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
+ url = DEEPSEEK_API_URL
+ else:
+ # Чат через onlysq.ru — нужен API_BEARER_TOKEN от их сервиса
+ send = {"model": user_model, "request": {"messages": messages}}
+ headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
+ url = API_URL
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=send, headers=headers, timeout=60) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    ai_reply = data['choices'][0]['message']['content']
+ async with aiohttp.ClientSession() as session:
+ async with session.post(url, json=send, headers=headers, timeout=60) as response:
+ if response.status == 200:
+ data = await response.json()
+ ai_reply = data['choices'][0]['message']['content']
 
-                    # Сохраняем в историю
-                    text_msg = user_message if not photo_base64 else f"[Фото] {user_message}"
-                    add_message_to_history(user_id, "user", text_msg)
-                    add_message_to_history(user_id, "assistant", ai_reply)
+ # Сохраняем в историю
+ text_msg = user_message if not photo_base64 else f"[Фото] {user_message}"
+ add_message_to_history(user_id, "user", text_msg)
+ add_message_to_history(user_id, "assistant", ai_reply)
 
-                    # Обновляем статистику
-                    increment_stat("total_messages")
+ # Обновляем статистику
+ increment_stat("total_messages")
 
-                    return ai_reply
-                else:
-                    return "✖️ Ошибка API"
-    except asyncio.TimeoutError:
-        return "✖️ Превышено время ожидания ответа"
-    except Exception as e:
-        logging.error(f"Ошибка AI: {e}")
-        return "✖️ Ошибка соединения"
+ return ai_reply
+ else:
+ return "Сервис временно недоступен. Попробуйте чуть позже."
+ except asyncio.TimeoutError:
+ return "Ответ занял слишком много времени. Попробуйте еще раз."
+ except Exception as e:
+ logging.error(f"Ошибка AI: {e}")
+ return "Проблема с соединением. Попробуйте снова через минуту."
 
 
 async def get_business_ai_response(bot_owner_id: int, business_connection_id: str, client_chat_id: int,
-                                   user_message: str, photo_base64: str = None) -> str:
-    """Получить ответ от AI для бизнес-чата"""
-    user_message = sanitize_user_input(user_message)
+ user_message: str, photo_base64: str = None) -> str:
+ """Получить ответ от AI для бизнес-чата"""
+ user_message = sanitize_user_input(user_message)
 
-    # Получаем предпочтения мышления владельца
-    thinking_pref = get_thinking_preference(bot_owner_id)
+ # Получаем предпочтения мышления владельца
+ thinking_pref = get_thinking_preference(bot_owner_id)
 
-    # Формируем историю
-    messages = []
-    messages.append({
-        "role": "system",
-        "content": RESPONSE_STYLE_SYSTEM_PROMPT
-    })
+ # Формируем историю
+ messages = []
+ messages.append({
+ "role": "system",
+ "content": RESPONSE_STYLE_SYSTEM_PROMPT
+ })
 
-    style_preset = get_response_style_preset(bot_owner_id)
-    messages.append({
-        "role": "system",
-        "content": STYLE_PRESET_PROMPTS.get(style_preset, STYLE_PRESET_PROMPTS["neutral"])
-    })
+ style_preset = get_response_style_preset(bot_owner_id)
+ messages.append({
+ "role": "system",
+ "content": STYLE_PRESET_PROMPTS.get(style_preset, STYLE_PRESET_PROMPTS["neutral"])
+ })
 
-    if thinking_pref:
-        # Проверяем, это JSON или текст
-        try:
-            pref_json = json.loads(thinking_pref)
+ if thinking_pref:
+ # Проверяем, это JSON или текст
+ try:
+ pref_json = json.loads(thinking_pref)
 
-            # Формируем промпт для ролевой игры - ИИ становится персонажем из JSON
-            system_msg = "Ты - это персонаж, описанный в следующем профиле. Общайся от первого лица, будто это твоя настоящая личность.\n\n"
-            system_msg += "=== ТВОЙ ПРОФИЛЬ ===\n\n"
+ # Формируем промпт для ролевой игры - ИИ становится персонажем из JSON
+ system_msg = "Ты - это персонаж, описанный в следующем профиле. Общайся от первого лица, будто это твоя настоящая личность.\n\n"
+ system_msg += "=== ТВОЙ ПРОФИЛЬ ===\n\n"
 
-            # Рекурсивно формируем описание из JSON
-            def format_json_to_text(obj, indent=0):
-                result = ""
-                prefix = "  " * indent
+ # Рекурсивно формируем описание из JSON
+ def format_json_to_text(obj, indent=0):
+ result = ""
+ prefix = " " * indent
 
-                if isinstance(obj, dict):
-                    for key, value in obj.items():
-                        if isinstance(value, (dict, list)):
-                            result += f"{prefix}{key}:\n"
-                            result += format_json_to_text(value, indent + 1)
-                        else:
-                            result += f"{prefix}{key}: {value}\n"
-                elif isinstance(obj, list):
-                    for item in obj:
-                        if isinstance(item, (dict, list)):
-                            result += format_json_to_text(item, indent)
-                        else:
-                            result += f"{prefix}• {item}\n"
-                return result
+ if isinstance(obj, dict):
+ for key, value in obj.items():
+ if isinstance(value, (dict, list)):
+ result += f"{prefix}{key}:\n"
+ result += format_json_to_text(value, indent + 1)
+ else:
+ result += f"{prefix}{key}: {value}\n"
+ elif isinstance(obj, list):
+ for item in obj:
+ if isinstance(item, (dict, list)):
+ result += format_json_to_text(item, indent)
+ else:
+ result += f"{prefix}• {item}\n"
+ return result
 
-            system_msg += format_json_to_text(pref_json)
-            system_msg += "\n=== ИНСТРУКЦИИ ===\n"
-            system_msg += "• Общайся от первого лица ('я', 'мне', 'мой')\n"
-            system_msg += "• Используй стиль речи и сленг из профиля\n"
-            system_msg += "• Веди себя естественно, как реальный человек\n"
-            system_msg += "• Если в профиле указано использование мата - используй его естественно\n"
-            system_msg += "• Отвечай на основе фактов из профиля\n"
-            system_msg += "• Не упоминай, что ты ИИ или бот"
+ system_msg += format_json_to_text(pref_json)
+ system_msg += "\n=== ИНСТРУКЦИИ ===\n"
+ system_msg += "• Общайся от первого лица ('я', 'мне', 'мой')\n"
+ system_msg += "• Используй стиль речи и сленг из профиля\n"
+ system_msg += "• Веди себя естественно, как реальный человек\n"
+ system_msg += "• Если в профиле указано использование мата - используй его естественно\n"
+ system_msg += "• Отвечай на основе фактов из профиля\n"
+ system_msg += "• Не упоминай, что ты ИИ или бот"
 
-            messages.append({
-                "role": "system",
-                "content": system_msg
-            })
-        except:
-            # Обычный текст - старая логика
-            messages.append({
-                "role": "system",
-                "content": f"Следуй этим указаниям при общении: {thinking_pref}"
-            })
+ messages.append({
+ "role": "system",
+ "content": system_msg
+ })
+ except:
+ # Обычный текст - старая логика
+ messages.append({
+ "role": "system",
+ "content": f"Следуй этим указаниям при общении: {thinking_pref}"
+ })
 
-    # Добавляем историю ЭТОГО КОНКРЕТНОГО клиента
-    history = get_business_history_for_api(business_connection_id, client_chat_id, limit=20)
-    messages.extend(history)
+ # Добавляем историю ЭТОГО КОНКРЕТНОГО клиента
+ history = get_business_history_for_api(business_connection_id, client_chat_id, limit=20)
+ messages.extend(history)
 
-    # Формируем сообщение пользователя
-    if photo_base64:
-        user_content = [
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{photo_base64}"}},
-            {"type": "text", "text": user_message}
-        ]
-    else:
-        user_content = user_message
+ # Формируем сообщение пользователя
+ if photo_base64:
+ user_content = [
+ {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{photo_base64}"}},
+ {"type": "text", "text": user_message}
+ ]
+ else:
+ user_content = user_message
 
-    messages.append({"role": "user", "content": user_content})
+ messages.append({"role": "user", "content": user_content})
 
-    user_data = load_user_data(bot_owner_id)
-    user_model = user_data.get("model", DEFAULT_MODEL)
-    if user_model in IMAGE_MODELS:
-        user_model = DEFAULT_MODEL
+ user_data = load_user_data(bot_owner_id)
+ user_model = user_data.get("model", DEFAULT_MODEL)
+ if user_model in IMAGE_MODELS:
+ user_model = DEFAULT_MODEL
 
-    if _get_deepseek_key():
-        ds_messages = _messages_to_deepseek_format(messages)
-        ds_model = _deepseek_model(user_model)
-        send = {"model": ds_model, "messages": ds_messages}
-        headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
-        url = DEEPSEEK_API_URL
-    else:
-        send = {"model": user_model, "request": {"messages": messages}}
-        headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
-        url = API_URL
+ if _get_deepseek_key():
+ ds_messages = _messages_to_deepseek_format(messages)
+ ds_model = _deepseek_model(user_model)
+ send = {"model": ds_model, "messages": ds_messages}
+ headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
+ url = DEEPSEEK_API_URL
+ else:
+ send = {"model": user_model, "request": {"messages": messages}}
+ headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
+ url = API_URL
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=send, headers=headers, timeout=60) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    ai_reply = data['choices'][0]['message']['content']
+ try:
+ async with aiohttp.ClientSession() as session:
+ async with session.post(url, json=send, headers=headers, timeout=60) as response:
+ if response.status == 200:
+ data = await response.json()
+ ai_reply = data['choices'][0]['message']['content']
 
-                    # Сохраняем в историю ЭТОГО клиента
-                    text_msg = user_message if not photo_base64 else f"[Фото] {user_message}"
-                    add_message_to_business_history(business_connection_id, client_chat_id, "user", text_msg)
-                    add_message_to_business_history(business_connection_id, client_chat_id, "assistant", ai_reply)
+ # Сохраняем в историю ЭТОГО клиента
+ text_msg = user_message if not photo_base64 else f"[Фото] {user_message}"
+ add_message_to_business_history(business_connection_id, client_chat_id, "user", text_msg)
+ add_message_to_business_history(business_connection_id, client_chat_id, "assistant", ai_reply)
 
-                    # Обновляем статистику
-                    increment_stat("total_messages")
+ # Обновляем статистику
+ increment_stat("total_messages")
 
-                    return ai_reply
-                else:
-                    return "✖️ Ошибка API"
-    except asyncio.TimeoutError:
-        return "✖️ Превышено время ожидания ответа"
-    except Exception as e:
-        logging.error(f"Ошибка AI: {e}")
-        return "✖️ Ошибка соединения"
+ return ai_reply
+ else:
+ return "Сервис временно недоступен. Попробуйте чуть позже."
+ except asyncio.TimeoutError:
+ return "Ответ занял слишком много времени. Попробуйте еще раз."
+ except Exception as e:
+ logging.error(f"Ошибка AI: {e}")
+ return "Проблема с соединением. Попробуйте снова через минуту."
 
 async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
-    """Сгенерировать изображение"""
-    headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
+ """Сгенерировать изображение"""
+ headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
 
-    send = {"model": model, "prompt": sanitize_user_input(prompt, max_length=1500), "n": 1}
+ send = {"model": model, "prompt": sanitize_user_input(prompt, max_length=1500), "n": 1}
 
-    try:
-        connector = aiohttp.TCPConnector()
-        async with aiohttp.ClientSession(connector=connector) as session:
-            async with session.post(IMAGE_API_URL, json=send, headers=headers, timeout=90) as response:
-                if response.status == 200:
-                    data = await response.json()
+ try:
+ connector = aiohttp.TCPConnector()
+ async with aiohttp.ClientSession(connector=connector) as session:
+ async with session.post(IMAGE_API_URL, json=send, headers=headers, timeout=90) as response:
+ if response.status == 200:
+ data = await response.json()
 
-                    if 'files' in data and isinstance(data['files'], list) and len(data['files']) > 0:
-                        try:
-                            image_bytes = base64.b64decode(data['files'][0])
-                            increment_stat("total_messages")
-                            return True, image_bytes
-                        except:
-                            return False, "✖️ Ошибка декодирования изображения"
+ if 'files' in data and isinstance(data['files'], list) and len(data['files']) > 0:
+ try:
+ image_bytes = base64.b64decode(data['files'][0])
+ increment_stat("total_messages")
+ return True, image_bytes
+ except:
+ return False, "Не удалось обработать сгенерированное изображение."
 
-                    return False, "✖️ API не вернул изображение"
-                else:
-                    return False, f"✖️ Ошибка API ({response.status})"
-    except asyncio.TimeoutError:
-        return False, "✖️ Превышено время ожидания (90 сек)"
-    except Exception as e:
-        logging.error(f"Ошибка генерации: {e}")
-        return False, f"✖️ Ошибка: {str(e)}"
+ return False, "Сервис не вернул изображение. Попробуйте другой запрос."
+ else:
+ return False, f"Ошибка сервиса изображений ({response.status})."
+ except asyncio.TimeoutError:
+ return False, "Генерация заняла слишком много времени (более 90 сек)."
+ except Exception as e:
+ logging.error(f"Ошибка генерации: {e}")
+ return False, f"Ошибка генерации: {str(e)}"
 
 
 async def transcribe_voice(voice_file_path: str) -> str:
-    """Распознать голосовое сообщение через Google Speech Recognition"""
-    if sr is None:
-        logging.warning("Распознавание голоса недоступно: SpeechRecognition не установлен")
-        return None
+ """Распознать голосовое сообщение через Google Speech Recognition"""
+ if sr is None:
+ logging.warning("Распознавание голоса недоступно: SpeechRecognition не установлен")
+ return None
 
-    wav_path = voice_file_path.replace('.ogg', '.wav')
-    try:
-        # Конвертируем OGG в WAV через ffmpeg
-        process = await asyncio.create_subprocess_exec(
-            'ffmpeg', '-i', voice_file_path, '-acodec', 'pcm_s16le',
-            '-ar', '16000', '-ac', '1', wav_path, '-y',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        await process.communicate()
+ wav_path = voice_file_path.replace('.ogg', '.wav')
+ try:
+ # Конвертируем OGG в WAV через ffmpeg
+ process = await asyncio.create_subprocess_exec(
+ 'ffmpeg', '-i', voice_file_path, '-acodec', 'pcm_s16le',
+ '-ar', '16000', '-ac', '1', wav_path, '-y',
+ stdout=asyncio.subprocess.PIPE,
+ stderr=asyncio.subprocess.PIPE
+ )
+ await process.communicate()
 
-        # Используем speech_recognition
-        recognizer = sr.Recognizer()
+ # Используем speech_recognition
+ recognizer = sr.Recognizer()
 
-        with sr.AudioFile(wav_path) as source:
-            audio_data = recognizer.record(source)
-            # Google Speech API - бесплатный и точный
-            text = recognizer.recognize_google(audio_data, language='ru-RU')
+ with sr.AudioFile(wav_path) as source:
+ audio_data = recognizer.record(source)
+ # Google Speech API - бесплатный и точный
+ text = recognizer.recognize_google(audio_data, language='ru-RU')
 
-        return text
+ return text
 
-    except sr.UnknownValueError:
-        logging.error("Google Speech Recognition не смог распознать речь")
-        return None
-    except sr.RequestError as e:
-        logging.error(f"Ошибка Google Speech Recognition: {e}")
-        return None
-    except Exception as e:
-        logging.error(f"Ошибка распознавания: {e}")
-        return None
-    finally:
-        for temp_path in (wav_path, voice_file_path):
-            try:
-                if temp_path and os.path.exists(temp_path):
-                    os.remove(temp_path)
-            except Exception:
-                pass
+ except sr.UnknownValueError:
+ logging.error("Google Speech Recognition не смог распознать речь")
+ return None
+ except sr.RequestError as e:
+ logging.error(f"Ошибка Google Speech Recognition: {e}")
+ return None
+ except Exception as e:
+ logging.error(f"Ошибка распознавания: {e}")
+ return None
+ finally:
+ for temp_path in (wav_path, voice_file_path):
+ try:
+ if temp_path and os.path.exists(temp_path):
+ os.remove(temp_path)
+ except Exception:
+ pass
 
 
 # ==================== MESSAGE HANDLERS ====================
+@dp.message(UserStates.waiting_for_onboarding_test, F.text)
+async def process_onboarding_test_question(message: Message, state: FSMContext):
+ """Шаг 3 онбординга: тестовый вопрос пользователя."""
+ user_id = message.from_user.id
+ question = (message.text or "").strip()
+ if not question:
+ await message.answer("Напишите вопрос текстом одним сообщением.")
+ return
+
+ await bot.send_chat_action(message.chat.id, "typing")
+ try:
+ if is_image_generation_request(question):
+ image_model = pick_image_model(user_id)
+ if not image_model:
+ await message.answer("Сейчас нет доступной модели для генерации картинок.")
+ else:
+ success, result = await generate_image(user_id, question, image_model)
+ if success:
+ photo = BufferedInputFile(result, filename="generated_image.jpg")
+ await message.answer_photo(
+ photo=photo,
+ caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {question[:100]}{'...' if len(question) > 100 else ''}",
+ parse_mode="HTML"
+ )
+ else:
+ await message.answer(result)
+ else:
+ ai_response = await get_ai_response(user_id, question)
+ await send_long_message(message, ai_response)
+ except Exception as e:
+ logging.error(f"Ошибка онбординга: {e}")
+ await message.answer("Не удалось обработать тестовый запрос. Попробуйте еще раз.")
+ return
+
+ user_data = load_user_data(user_id)
+ user_data["onboarding_completed"] = True
+ user_data["onboarding_started"] = False
+ save_user_data(user_id, user_data)
+ await state.clear()
+
+ await send_system_message(
+ chat_id=message.chat.id,
+ text=(
+ f"{text_emoji('check')} <b>Готово!</b>\n\n"
+ f"Онбординг завершен. Вам доступно <b>{FREE_REQUESTS_LIMIT}</b> бесплатных запросов.\n"
+ "После этого можно перейти на PRO."
+ ),
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
+
+
 def split_message(text: str, max_length: int = MAX_MESSAGE_LENGTH) -> list:
-    """Разбить длинное сообщение"""
-    if len(text) <= max_length:
-        return [text]
+ """Разбить длинное сообщение"""
+ if len(text) <= max_length:
+ return [text]
 
-    parts = []
-    while text:
-        if len(text) <= max_length:
-            parts.append(text)
-            break
+ parts = []
+ while text:
+ if len(text) <= max_length:
+ parts.append(text)
+ break
 
-        split_pos = text.rfind('\n', 0, max_length)
-        if split_pos == -1:
-            split_pos = text.rfind(' ', 0, max_length)
-        if split_pos == -1:
-            split_pos = max_length
+ split_pos = text.rfind('\n', 0, max_length)
+ if split_pos == -1:
+ split_pos = text.rfind(' ', 0, max_length)
+ if split_pos == -1:
+ split_pos = max_length
 
-        parts.append(text[:split_pos])
-        text = text[split_pos:].lstrip()
+ parts.append(text[:split_pos])
+ text = text[split_pos:].lstrip()
 
-    return parts
+ return parts
 
 def markdown_to_html(text: str) -> str:
-    """Конвертировать markdown в HTML"""
-    escaped = html.escape(text or "")
-    escaped = re.sub(r'(?m)^#{1,3}\s+(.+)$', r'<b>\1</b>', escaped)
-    escaped = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped)
-    escaped = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'<i>\1</i>', escaped)
-    escaped = re.sub(r'`([^`\n]+)`', r'<code>\1</code>', escaped)
-    escaped = re.sub(r'(?m)^>\s?(.*)$', r'<blockquote>\1</blockquote>', escaped)
-    escaped = re.sub(r'(?m)^-\s+', '• ', escaped)
-    return escaped
+ """Конвертировать markdown в HTML"""
+ escaped = html.escape(text or "")
+ escaped = re.sub(r'(?m)^#{1,3}\s+(.+)$', r'<b>\1</b>', escaped)
+ escaped = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped)
+ escaped = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'<i>\1</i>', escaped)
+ escaped = re.sub(r'`([^`\n]+)`', r'<code>\1</code>', escaped)
+ escaped = re.sub(r'(?m)^>\s?(.*)$', r'<blockquote>\1</blockquote>', escaped)
+ escaped = re.sub(r'(?m)^-\s+', '• ', escaped)
+ return escaped
 
 async def send_long_message(message: Message, text: str):
-    """Отправить длинное сообщение"""
-    text = markdown_to_html(text)
+ """Отправить длинное сообщение"""
+ text = markdown_to_html(text)
 
-    parts = split_message(text)
+ parts = split_message(text)
 
-    for i, part in enumerate(parts):
-        if i > 0:
-            await asyncio.sleep(0.5)
-        try:
-            await message.answer(part, parse_mode="HTML")
-        except:
-            await message.answer(part)
+ for i, part in enumerate(parts):
+ if i > 0:
+ await asyncio.sleep(0.5)
+ try:
+ await message.answer(part, parse_mode="HTML")
+ except:
+ await message.answer(part)
 
 
 @dp.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото"""
-    current_state = await state.get_state()
-    if current_state:
-        return
+ """Обработка фото"""
+ current_state = await state.get_state()
+ if current_state:
+ return
 
-    user_id = message.from_user.id
+ user_id = message.from_user.id
 
-    # Проверка черного списка
-    if is_blacklisted(user_id):
-        return
+ # Проверка черного списка
+ if is_blacklisted(user_id):
+ return
 
-    # Проверка подписки на каналы
-    if user_id not in ADMIN_IDS and get_required_channels():
-        if not await check_channel_subscription(user_id):
-            await send_channel_subscription_message(message.chat.id, user_id)
-            return
+ # Проверка подписки на каналы
+ if user_id not in ADMIN_IDS and get_required_channels():
+ if not await check_channel_subscription(user_id):
+ await send_channel_subscription_message(message.chat.id, user_id)
+ return
 
-    if not has_active_subscription(user_id):
-        await send_system_message(
-            chat_id=message.chat.id,
-            text="✖️ Для использования бота необходима подписка!",
-            reply_markup=get_subscription_keyboard(user_id)
-        )
-        return
+ if not await ensure_request_access(message.chat.id, user_id):
+ return
 
-    user_text = message.caption if message.caption else "Что изображено на этом фото?"
+ user_text = message.caption if message.caption else "Что изображено на этом фото?"
 
-    await bot.send_chat_action(message.chat.id, "typing")
+ await bot.send_chat_action(message.chat.id, "typing")
 
-    try:
-        photo = message.photo[-1]
-        file = await bot.get_file(photo.file_id)
-        photo_bytes = await bot.download_file(file.file_path)
-        photo_base64 = base64.b64encode(photo_bytes.read()).decode('utf-8')
+ try:
+ photo = message.photo[-1]
+ file = await bot.get_file(photo.file_id)
+ photo_bytes = await bot.download_file(file.file_path)
+ photo_base64 = base64.b64encode(photo_bytes.read()).decode('utf-8')
 
-        ai_response = await get_ai_response(user_id, user_text, photo_base64)
+ ai_response = await get_ai_response(user_id, user_text, photo_base64)
 
-        await send_long_message(message, ai_response)
-    except Exception as e:
-        logging.error(f"Ошибка фото: {e}")
-        await message.answer("✖️ Ошибка при обработке фото")
+ await send_long_message(message, ai_response)
+ consume_free_request(user_id)
+ except Exception as e:
+ logging.error(f"Ошибка фото: {e}")
+ await message.answer("Не получилось обработать фото. Попробуйте еще раз.")
 
 
 @dp.message(F.voice)
 async def handle_voice(message: Message, state: FSMContext):
-    """Обработка голосовых сообщений"""
-    current_state = await state.get_state()
-    if current_state:
-        return
+ """Обработка голосовых сообщений"""
+ current_state = await state.get_state()
+ if current_state:
+ return
 
-    user_id = message.from_user.id
+ user_id = message.from_user.id
 
-    # Проверка черного списка
-    if is_blacklisted(user_id):
-        return
+ # Проверка черного списка
+ if is_blacklisted(user_id):
+ return
 
-    # Проверка подписки на каналы
-    if user_id not in ADMIN_IDS and get_required_channels():
-        if not await check_channel_subscription(user_id):
-            await send_channel_subscription_message(message.chat.id, user_id)
-            return
+ # Проверка подписки на каналы
+ if user_id not in ADMIN_IDS and get_required_channels():
+ if not await check_channel_subscription(user_id):
+ await send_channel_subscription_message(message.chat.id, user_id)
+ return
 
-    if not has_active_subscription(user_id):
-        await send_system_message(
-            chat_id=message.chat.id,
-            text="✖️ Для использования бота необходима подписка!",
-            reply_markup=get_subscription_keyboard(user_id)
-        )
-        return
+ if not await ensure_request_access(message.chat.id, user_id):
+ return
 
-    await bot.send_chat_action(message.chat.id, "typing")
+ await bot.send_chat_action(message.chat.id, "typing")
 
-    try:
-        # Скачиваем голосовое сообщение
-        voice = message.voice
-        file = await bot.get_file(voice.file_id)
+ try:
+ # Скачиваем голосовое сообщение
+ voice = message.voice
+ file = await bot.get_file(voice.file_id)
 
-        # Создаем временный файл
-        voice_path = f"/tmp/voice_{user_id}_{voice.file_id}.ogg"
-        await bot.download_file(file.file_path, voice_path)
+ # Создаем временный файл
+ voice_path = f"/tmp/voice_{user_id}_{voice.file_id}.ogg"
+ await bot.download_file(file.file_path, voice_path)
 
-        # Распознаем голос
-        transcribed_text = await transcribe_voice(voice_path)
+ # Распознаем голос
+ transcribed_text = await transcribe_voice(voice_path)
 
-        if not transcribed_text:
-            await message.answer("✖️ Не удалось распознать голосовое сообщение. Попробуйте еще раз.")
-            return
+ if not transcribed_text:
+ await message.answer("Не удалось распознать голос. Запишите чуть четче и попробуйте снова.")
+ return
 
-        if is_image_generation_request(transcribed_text):
-            image_model = pick_image_model(user_id)
-            if not image_model:
-                await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
-                return
+ if is_image_generation_request(transcribed_text):
+ image_model = pick_image_model(user_id)
+ if not image_model:
+ await message.answer("Сейчас нет доступной модели для генерации картинок.")
+ return
 
-            await bot.send_chat_action(message.chat.id, "upload_photo")
-            success, result = await generate_image(user_id, transcribed_text, image_model)
+ await bot.send_chat_action(message.chat.id, "upload_photo")
+ success, result = await generate_image(user_id, transcribed_text, image_model)
 
-            if success:
-                photo = BufferedInputFile(result, filename="generated_image.jpg")
-                await message.answer_photo(
-                    photo=photo,
-                    caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {transcribed_text[:100]}{'...' if len(transcribed_text) > 100 else ''}",
-                    parse_mode="HTML"
-                )
-            else:
-                await message.answer(result)
-            return
+ if success:
+ photo = BufferedInputFile(result, filename="generated_image.jpg")
+ await message.answer_photo(
+ photo=photo,
+ caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {transcribed_text[:100]}{'...' if len(transcribed_text) > 100 else ''}",
+ parse_mode="HTML"
+ )
+ consume_free_request(user_id)
+ else:
+ await message.answer(result)
+ return
 
-        ai_response = await get_ai_response(user_id, transcribed_text)
-        await send_long_message(message, ai_response)
+ ai_response = await get_ai_response(user_id, transcribed_text)
+ await send_long_message(message, ai_response)
+ consume_free_request(user_id)
 
-    except Exception as e:
-        logging.error(f"Ошибка голоса: {e}")
-        await message.answer("✖️ Ошибка при обработке голосового сообщения")
+ except Exception as e:
+ logging.error(f"Ошибка голоса: {e}")
+ await message.answer("Не получилось обработать голосовое сообщение. Попробуйте еще раз.")
 
 
 @dp.message(F.text)
 async def handle_message(message: Message, state: FSMContext):
-    """Обработка текстовых сообщений"""
-    current_state = await state.get_state()
-    if current_state:
-        return
+ """Обработка текстовых сообщений"""
+ current_state = await state.get_state()
+ if current_state:
+ return
 
-    if message.text.startswith('/'):
-        return
+ if message.text.startswith('/'):
+ return
 
-    user_id = message.from_user.id
+ user_id = message.from_user.id
 
-    # Проверка черного списка
-    if is_blacklisted(user_id):
-        return
+ # Проверка черного списка
+ if is_blacklisted(user_id):
+ return
 
-    # Проверка подписки на каналы
-    if user_id not in ADMIN_IDS and get_required_channels():
-        if not await check_channel_subscription(user_id):
-            await send_channel_subscription_message(message.chat.id, user_id)
-            return
+ # Проверка подписки на каналы
+ if user_id not in ADMIN_IDS and get_required_channels():
+ if not await check_channel_subscription(user_id):
+ await send_channel_subscription_message(message.chat.id, user_id)
+ return
 
-    if not has_active_subscription(user_id):
-        await send_system_message(
-            chat_id=message.chat.id,
-            text="✖️ Для использования бота необходима подписка!",
-            reply_markup=get_subscription_keyboard(user_id)
-        )
-        return
+ if not await ensure_request_access(message.chat.id, user_id):
+ return
 
-    if is_image_generation_request(message.text):
-        image_model = pick_image_model(user_id)
-        if not image_model:
-            await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
-            return
+ if is_image_generation_request(message.text):
+ image_model = pick_image_model(user_id)
+ if not image_model:
+ await message.answer("Сейчас нет доступной модели для генерации картинок.")
+ return
 
-        await bot.send_chat_action(message.chat.id, "upload_photo")
+ await bot.send_chat_action(message.chat.id, "upload_photo")
 
-        success, result = await generate_image(user_id, message.text, image_model)
+ success, result = await generate_image(user_id, message.text, image_model)
 
-        if success:
-            try:
-                photo = BufferedInputFile(result, filename="generated_image.jpg")
-                await message.answer_photo(
-                    photo=photo,
-                    caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {message.text[:100]}{'...' if len(message.text) > 100 else ''}",
-                    parse_mode="HTML"
-                )
-            except Exception as e:
-                await message.answer(f"✖️ Ошибка отправки: {str(e)}")
-        else:
-            await message.answer(result)
-        return
+ if success:
+ try:
+ photo = BufferedInputFile(result, filename="generated_image.jpg")
+ await message.answer_photo(
+ photo=photo,
+ caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {message.text[:100]}{'...' if len(message.text) > 100 else ''}",
+ parse_mode="HTML"
+ )
+ consume_free_request(user_id)
+ except Exception as e:
+ await message.answer(f"Не удалось отправить изображение: {str(e)}")
+ else:
+ await message.answer(result)
+ return
 
-    await bot.send_chat_action(message.chat.id, "typing")
-    ai_response = await get_ai_response(user_id, message.text)
-    await send_long_message(message, ai_response)
+ await bot.send_chat_action(message.chat.id, "typing")
+ ai_response = await get_ai_response(user_id, message.text)
+ await send_long_message(message, ai_response)
+ consume_free_request(user_id)
 
 
 # ==================== SUBSCRIPTION REMINDER ====================
 async def check_subscription_reminders():
-    """Проверка и отправка напоминаний о подписке"""
-    while True:
-        try:
-            users = get_all_users()
-            now = datetime.now()
+ """Проверка и отправка напоминаний о подписке"""
+ while True:
+ try:
+ users = get_all_users()
+ now = datetime.now()
 
-            for user in users:
-                user_id = user["user_id"]
+ for user in users:
+ user_id = user["user_id"]
 
-                # Пропускаем админов и заблокированных
-                if user_id in ADMIN_IDS or is_blacklisted(user_id):
-                    continue
+ # Пропускаем админов и заблокированных
+ if user_id in ADMIN_IDS or is_blacklisted(user_id):
+ continue
 
-                sub_end = get_subscription_end(user_id)
-                if not sub_end:
-                    continue
+ sub_end = get_subscription_end(user_id)
+ if not sub_end:
+ continue
 
-                time_left = sub_end - now
-                hours_left = time_left.total_seconds() / 3600
+ time_left = sub_end - now
+ hours_left = time_left.total_seconds() / 3600
 
-                # Напоминание за 24 часа
-                if 23 < hours_left < 25:
-                    if should_send_reminder(user_id, "24h"):
-                        try:
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=(
-                                    "⏰ <b>Напоминание!</b>\n\n"
-                                    "Ваша подписка истекает через 24 часа.\n"
-                                    "Не забудьте продлить её!"
-                                ),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
-                            set_last_reminder(user_id, "24h")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить напоминание 24ч для {user_id}: {e}")
+ # Напоминание за 24 часа
+ if 23 < hours_left < 25:
+ if should_send_reminder(user_id, "24h"):
+ try:
+ await send_system_message(
+ chat_id=user_id,
+ text=(
+ f"{text_emoji('clock')} <b>Напоминание о подписке</b>\n\n"
+ "До окончания подписки осталось около 24 часов.\n"
+ "<blockquote>Продлите заранее, чтобы доступ не прерывался.</blockquote>"
+ ),
+ reply_markup=get_subscription_keyboard(user_id),
+ parse_mode="HTML"
+ )
+ set_last_reminder(user_id, "24h")
+ except Exception as e:
+ logging.warning(f"Не удалось отправить напоминание 24ч для {user_id}: {e}")
 
-                # Напоминание за 2 часа
-                elif 1.5 < hours_left < 2.5:
-                    if should_send_reminder(user_id, "2h"):
-                        try:
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=(
-                                    "⚠️ <b>Внимание!</b>\n\n"
-                                    "Ваша подписка истекает через 2 часа!\n"
-                                    "Продлите подписку, чтобы не потерять доступ."
-                                ),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
-                            set_last_reminder(user_id, "2h")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить напоминание 2ч для {user_id}: {e}")
+ # Напоминание за 2 часа
+ elif 1.5 < hours_left < 2.5:
+ if should_send_reminder(user_id, "2h"):
+ try:
+ await send_system_message(
+ chat_id=user_id,
+ text=(
+ f"{text_emoji('clock')} <b>Подписка скоро закончится</b>\n\n"
+ "Осталось около 2 часов.\n"
+ "<blockquote>Продлите подписку сейчас, чтобы не потерять доступ.</blockquote>"
+ ),
+ reply_markup=get_subscription_keyboard(user_id),
+ parse_mode="HTML"
+ )
+ set_last_reminder(user_id, "2h")
+ except Exception as e:
+ logging.warning(f"Не удалось отправить напоминание 2ч для {user_id}: {e}")
 
-        except Exception as e:
-            logging.error(f"Ошибка проверки напоминаний: {e}")
+ except Exception as e:
+ logging.error(f"Ошибка проверки напоминаний: {e}")
 
-        # Проверяем каждые 30 минут
-        await asyncio.sleep(1800)
+ # Проверяем каждые 30 минут
+ await asyncio.sleep(1800)
 
 
 async def check_pending_invoices():
-    """Проверка ожидающих инвойсов CryptoBot"""
-    while True:
-        try:
-            invoices = load_pending_invoices()
+ """Проверка ожидающих инвойсов CryptoBot"""
+ while True:
+ try:
+ invoices = load_pending_invoices()
 
-            for invoice_id, data in list(invoices.items()):
-                user_id = data["user_id"]
+ for invoice_id, data in list(invoices.items()):
+ user_id = data["user_id"]
 
-                # Проверяем статус
-                invoice_status = await check_crypto_invoice(invoice_id)
+ # Проверяем статус
+ invoice_status = await check_crypto_invoice(invoice_id)
 
-                if invoice_status:
-                    if invoice_status["status"] == "paid":
-                        # Активируем подписку
-                        grant_subscription(user_id, days=30)
+ if invoice_status:
+ if invoice_status["status"] == "paid":
+ # Активируем подписку
+ grant_subscription(user_id, days=30)
 
-                        # Обновляем статистику
-                        price_usd = get_subscription_price_usd()
-                        increment_stat("total_revenue", int(price_usd * 100))  # Конвертируем в условные единицы
+ # Обновляем статистику
+ price_usd = get_subscription_price_usd()
+ increment_stat("total_revenue", int(price_usd * 100)) # Конвертируем в условные единицы
 
-                        # Уведомляем пользователя
-                        try:
-                            sub_end = get_subscription_end(user_id)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=(
-                                    "✅ <b>Оплата получена!</b>\n\n"
-                                    "💎 Подписка активирована через CryptoBot\n"
-                                    f"📅 Действует до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
-                                    "Спасибо за покупку! 🎉"
-                                ),
-                                reply_markup=get_main_keyboard(),
-                                parse_mode="HTML"
-                            )
-                        except Exception as e:
-                            logging.warning(f"Не удалось уведомить пользователя {user_id}: {e}")
+ # Уведомляем пользователя
+ try:
+ sub_end = get_subscription_end(user_id)
+ await send_system_message(
+ chat_id=user_id,
+ text=(
+ f"{text_emoji('check')} <b>Оплата получена!</b>\n\n"
+ f"{text_emoji('star')} Подписка PRO активирована через CryptoBot\n"
+ f"{text_emoji('clock')} Действует до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
+ "Спасибо за поддержку!"
+ ),
+ reply_markup=get_main_keyboard(),
+ parse_mode="HTML"
+ )
+ except Exception as e:
+ logging.warning(f"Не удалось уведомить пользователя {user_id}: {e}")
 
-                        # Удаляем инвойс из ожидающих
-                        remove_pending_invoice(invoice_id)
-                        logging.info(f"✅ Подписка активирована для {user_id} через CryptoBot")
+ # Удаляем инвойс из ожидающих
+ remove_pending_invoice(invoice_id)
+ logging.info(f"Подписка активирована для {user_id} через CryptoBot")
 
-                    elif invoice_status["status"] in ["expired", "cancelled"]:
-                        # Удаляем просроченный инвойс
-                        remove_pending_invoice(invoice_id)
-                        logging.info(f"⏰ Инвойс {invoice_id} истек или отменен")
+ elif invoice_status["status"] in ["expired", "cancelled"]:
+ # Удаляем просроченный инвойс
+ remove_pending_invoice(invoice_id)
+ logging.info(f"Инвойс {invoice_id} истек или отменен")
 
-                await asyncio.sleep(1)  # Задержка между проверками инвойсов
+ await asyncio.sleep(1) # Задержка между проверками инвойсов
 
-        except Exception as e:
-            logging.error(f"Ошибка проверки инвойсов: {e}")
+ except Exception as e:
+ logging.error(f"Ошибка проверки инвойсов: {e}")
 
-        # Проверяем каждые 30 секунд
-        await asyncio.sleep(30)
+ # Проверяем каждые 30 секунд
+ await asyncio.sleep(30)
 
 # ==================== MAIN ====================
 async def main():
-    global business_connections
-    business_connections = load_business_connections()
+ global business_connections
+ business_connections = load_business_connections()
 
-    logging.info("🚀 AI Chat Bot запущен!")
+ logging.info("🚀 AI Chat Bot запущен!")
 
-    # Устанавливаем команды
-    await set_bot_commands()
+ # Устанавливаем команды
+ await set_bot_commands()
 
-    # Запускаем проверку напоминаний
-    asyncio.create_task(check_subscription_reminders())
+ # Запускаем проверку напоминаний
+ asyncio.create_task(check_subscription_reminders())
 
-    # Запускаем проверку CryptoBot инвойсов
-    asyncio.create_task(check_pending_invoices())  # НОВОЕ
+ # Запускаем проверку CryptoBot инвойсов
+ asyncio.create_task(check_pending_invoices()) # НОВОЕ
 
-    await dp.start_polling(bot)
+ await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logging.info("👋 Бот остановлен")
+ try:
+ asyncio.run(main())
+ except KeyboardInterrupt:
+ logging.info("👋 Бот остановлен")
