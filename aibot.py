@@ -4297,18 +4297,42 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
         try:
             encoded_prompt = quote(clean_prompt, safe="")
             url = f"{FREE_IMAGE_API_URL}/{encoded_prompt}"
-            params = {"model": "flux", "nologo": "true", "width": "1024", "height": "1024"}
+            retry_statuses = {429, 500, 502, 503, 504, 520, 522, 524, 530}
+            # Для бесплатного API делаем несколько попыток, так как он часто нестабилен.
+            attempts = [
+                {"model": "flux", "nologo": "true", "width": "1024", "height": "1024"},
+                {"model": "flux", "nologo": "true", "width": "1024", "height": "1024", "enhance": "true"},
+                {"model": "turbo", "nologo": "true", "width": "1024", "height": "1024"},
+            ]
+            last_status = None
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=90) as response:
-                    if response.status == 200:
-                        image_bytes = await response.read()
-                        if image_bytes:
-                            increment_stat("total_messages")
-                            return True, image_bytes
-                        return False, "✖️ Бесплатный API вернул пустое изображение."
-                    body = (await response.text())[:500]
-                    logging.warning(f"Free image API error {response.status}: {body}")
-                    return False, f"✖️ Ошибка бесплатного API ({response.status})"
+                for i, params in enumerate(attempts):
+                    params = dict(params)
+                    params["seed"] = str(random.randint(1, 10_000_000))
+                    async with session.get(url, params=params, timeout=90) as response:
+                        if response.status == 200:
+                            image_bytes = await response.read()
+                            if image_bytes:
+                                increment_stat("total_messages")
+                                return True, image_bytes
+                            last_status = 200
+                        else:
+                            body = (await response.text())[:500]
+                            last_status = response.status
+                            logging.warning(
+                                f"Free image API error {response.status} on attempt {i + 1}: {body}"
+                            )
+
+                        if i < len(attempts) - 1 and (last_status in retry_statuses or last_status == 200):
+                            await asyncio.sleep(1.2 + i * 0.8)
+                            continue
+                        break
+
+            if last_status:
+                if last_status in retry_statuses:
+                    return False, "✖️ Бесплатный API временно перегружен. Попробуйте через 10-30 секунд."
+                return False, f"✖️ Ошибка бесплатного API ({last_status})"
+            return False, "✖️ Бесплатный API не вернул изображение."
         except asyncio.TimeoutError:
             return False, "✖️ Бесплатный API: превышено время ожидания (90 сек)"
         except Exception as e:
