@@ -20,6 +20,11 @@ import re
 import html
 import random
 
+try:
+    from emoji_to_custom_id import EMOJI_TO_CUSTOM_ID
+except Exception:
+    EMOJI_TO_CUSTOM_ID = {}
+
 # ==================== КОНФИГУРАЦИЯ ====================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CRYPTO_BOT_TOKEN = os.getenv("CRYPTO_BOT_TOKEN")
@@ -217,6 +222,42 @@ def text_emoji(name: str) -> str:
     return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
 
 
+def _unicode_to_custom_emoji_tag(emoji_char: str) -> str:
+    """Конвертировать обычный emoji в тег custom emoji."""
+    emoji_id = EMOJI_TO_CUSTOM_ID.get(emoji_char)
+    if not emoji_id:
+        return emoji_char
+    return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
+
+
+def normalize_system_text(text: str) -> str:
+    """
+    Нормализовать системный текст:
+    1) заменить обычные emoji на custom emoji, если есть id в паке,
+    2) добавить анимодзи в начало каждой строки-заголовка.
+    """
+    if not text:
+        return text
+
+    normalized = text
+
+    # Сначала заменяем обычные emoji на custom-теги.
+    if EMOJI_TO_CUSTOM_ID:
+        for emoji_char in sorted(EMOJI_TO_CUSTOM_ID.keys(), key=len, reverse=True):
+            if emoji_char in normalized:
+                normalized = normalized.replace(emoji_char, _unicode_to_custom_emoji_tag(emoji_char))
+
+    # Добавляем анимодзи в начало строки с заголовком <b>...</b>, если там его еще нет.
+    header_prefix = f"{text_emoji('info')} "
+    normalized = re.sub(
+        r'(?m)^(?!\s*<tg-emoji)(\s*<b>[^<].*?</b>)',
+        rf'{header_prefix}\1',
+        normalized
+    )
+
+    return normalized
+
+
 def is_image_generation_request(text: str) -> bool:
     """Определить, просит ли пользователь сгенерировать изображение."""
     if not text:
@@ -293,6 +334,7 @@ def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items
 
 async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_mode: str = "HTML"):
     """Отправить системное сообщение с GIF/анимацией в caption, если задана."""
+    text = normalize_system_text(text)
     gif_pool = []
     env_gif_urls = os.getenv("SYSTEM_GIF_URLS", "").strip()
     if env_gif_urls:
@@ -336,6 +378,7 @@ async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_
 
 async def send_section_media_message(chat_id: int, text: str, reply_markup, section: str, parse_mode: str = "HTML") -> bool:
     """Отправить сообщение с локальным медиа (gif/photo) для конкретного экрана."""
+    text = normalize_system_text(text)
     media_path = SECTION_MEDIA_PATHS.get(section)
     if not media_path or not os.path.exists(media_path):
         return False
