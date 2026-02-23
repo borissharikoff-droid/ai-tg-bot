@@ -25,6 +25,12 @@ try:
 except Exception:
     EMOJI_TO_CUSTOM_ID = {}
 
+# Обратный маппинг custom_emoji_id -> unicode emoji (для fallback внутри <tg-emoji>).
+CUSTOM_ID_TO_EMOJI = {}
+for _emoji_char, _emoji_id in EMOJI_TO_CUSTOM_ID.items():
+    if _emoji_id not in CUSTOM_ID_TO_EMOJI:
+        CUSTOM_ID_TO_EMOJI[_emoji_id] = _emoji_char
+
 # ==================== КОНФИГУРАЦИЯ ====================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CRYPTO_BOT_TOKEN = os.getenv("CRYPTO_BOT_TOKEN")
@@ -215,12 +221,22 @@ def sanitize_user_input(text: str, max_length: int = 4000) -> str:
     return ''.join(ch for ch in text if ch.isprintable() or ch in '\n\t').strip()
 
 
+def _custom_emoji_tag(emoji_id: str, fallback_emoji: str = "✨") -> str:
+    """
+    Сформировать tg-emoji тег с fallback символом.
+    Некоторые клиенты не показывают custom emoji без содержимого внутри тега.
+    """
+    fallback = fallback_emoji or "✨"
+    return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
+
+
 def text_emoji(name: str) -> str:
     """Вернуть HTML-тег custom emoji для текста."""
     emoji_id = TEXT_EMOJI_IDS.get(name)
     if not emoji_id:
         return ""
-    return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
+    fallback_emoji = CUSTOM_ID_TO_EMOJI.get(emoji_id, "✨")
+    return _custom_emoji_tag(emoji_id, fallback_emoji)
 
 
 def button_emoji_tag(button_key: str) -> str:
@@ -228,7 +244,8 @@ def button_emoji_tag(button_key: str) -> str:
     emoji_id = get_button_emoji_pack().get(button_key)
     if not emoji_id:
         return ""
-    return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
+    fallback_emoji = CUSTOM_ID_TO_EMOJI.get(emoji_id, "✨")
+    return _custom_emoji_tag(emoji_id, fallback_emoji)
 
 
 def _unicode_to_custom_emoji_tag(emoji_char: str) -> str:
@@ -236,7 +253,7 @@ def _unicode_to_custom_emoji_tag(emoji_char: str) -> str:
     emoji_id = EMOJI_TO_CUSTOM_ID.get(emoji_char)
     if not emoji_id:
         return emoji_char
-    return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
+    return _custom_emoji_tag(emoji_id, emoji_char)
 
 
 def normalize_text_emojis(text: str) -> str:
