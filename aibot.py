@@ -222,6 +222,14 @@ def text_emoji(name: str) -> str:
     return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
 
 
+def button_emoji_tag(button_key: str) -> str:
+    """Вернуть HTML-тег custom emoji из того же пака, что и у кнопок."""
+    emoji_id = get_button_emoji_pack().get(button_key)
+    if not emoji_id:
+        return ""
+    return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
+
+
 def _unicode_to_custom_emoji_tag(emoji_char: str) -> str:
     """Конвертировать обычный emoji в тег custom emoji."""
     emoji_id = EMOJI_TO_CUSTOM_ID.get(emoji_char)
@@ -248,7 +256,7 @@ def normalize_system_text(text: str) -> str:
                 normalized = normalized.replace(emoji_char, _unicode_to_custom_emoji_tag(emoji_char))
 
     # Добавляем анимодзи в начало строки с заголовком <b>...</b>, если там его еще нет.
-    header_prefix = f"{text_emoji('info')} "
+    header_prefix = f"{button_emoji_tag('info') or text_emoji('info')} "
     normalized = re.sub(
         r'(?m)^(?!\s*<tg-emoji)(\s*<b>[^<].*?</b>)',
         rf'{header_prefix}\1',
@@ -1802,7 +1810,7 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     has_sub = has_active_subscription(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
-    text = f"{text_emoji('wave')} {text_emoji('robot')} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
+    text = f"{button_emoji_tag('models')} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
     text += (
         "<b>Могу помочь с чем угодно:</b>\n"
         "— написать пост, поздравление или идею\n"
@@ -3465,13 +3473,13 @@ async def callback_thinking_menu(callback: CallbackQuery):
     preset_human = STYLE_PRESET_LABELS.get(current_preset, "Нейтральный")
     preset_desc = STYLE_PRESET_DESCRIPTIONS.get(current_preset, "")
     preset_block = (
-        f"{text_emoji('style')} <b>Стиль ответа</b>\n"
+        f"<b>Стиль ответа</b>\n"
         "Выберите, как ИИ будет отвечать:\n"
         "• <b>Серьезный</b> — коротко и по делу\n"
         "• <b>Нейтральный</b> — спокойно и универсально\n"
         "• <b>Веселый</b> — легко, с уместным юмором\n"
         "• <b>Друг</b> — просто и по-человечески\n\n"
-        f"Сейчас: <b>{preset_human}</b>\n"
+        f"<b>Сейчас: {preset_human}</b>\n"
         f"<i>{preset_desc}</i>\n"
     )
 
@@ -3531,10 +3539,9 @@ async def callback_thinking_menu(callback: CallbackQuery):
         text = (
             f"{text_emoji('style')} <b>Мышление</b>\n\n"
             f"{preset_block}\n"
-            "Хотите тоньше настроить стиль?\n"
-            "Нажмите <b>«Настроить»</b> и отправьте:\n"
-            "• обычный текст (например: <i>«пиши кратко и просто»</i>)\n"
-            "• или JSON-файл"
+            "<blockquote expandable><b>Хотите тоньше настроить стиль?</b>\n"
+            "Нажмите «Настроить» и отправьте:\n"
+            "• обычный текст (например: «пиши кратко и просто»)</blockquote>"
         )
         buttons = [
             [
