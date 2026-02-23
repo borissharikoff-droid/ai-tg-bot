@@ -18,6 +18,7 @@ import base64
 import subprocess
 import re
 import html
+import random
 
 # ==================== КОНФИГУРАЦИЯ ====================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -34,6 +35,40 @@ DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
+
+STYLE_PRESET_PROMPTS = {
+    "serious": (
+        "Стиль ответа: серьезный и деловой. "
+        "Минимум эмоций, четкая структура, точные формулировки, без разговорного сленга."
+    ),
+    "neutral": (
+        "Стиль ответа: нейтральный и дружелюбно-деловой. "
+        "Понятно и спокойно, без лишней эмоциональности."
+    ),
+    "funny": (
+        "Стиль ответа: веселый и легкий. "
+        "Добавляй уместный юмор, но сохраняй пользу и корректность."
+    ),
+    "friend": (
+        "Стиль ответа: как близкий друг. "
+        "Тепло, просто и поддерживающе, можно немного разговорного стиля."
+    )
+}
+
+STYLE_PRESET_LABELS = {
+    "serious": "Серьезный",
+    "neutral": "Нейтральный",
+    "funny": "Веселый",
+    "friend": "Друг"
+}
+
+START_EXAMPLES = [
+    "«Сделай 5 идей смешной открытки про понедельник для коллег»",
+    "«Придумай короткий текст для поздравления друга с днем рождения»",
+    "«Сгенерируй идею мем-картинки про удаленку и дедлайны»",
+    "«Объясни простыми словами, как составить план на неделю»",
+    "«Придумай подпись к фото для сторис в веселом стиле»"
+]
 
 RESPONSE_STYLE_SYSTEM_PROMPT = (
     "Ты — полезный ассистент. Отвечай максимально по делу, без воды и повторов. "
@@ -124,12 +159,29 @@ def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items
 
 
 async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_mode: str = "HTML"):
-    """Отправить системное сообщение с GIF, если задан SYSTEM_GIF_URL."""
+    """Отправить системное сообщение с GIF/анимацией в caption, если задана."""
+    gif_pool = []
+    env_gif_urls = os.getenv("SYSTEM_GIF_URLS", "").strip()
+    if env_gif_urls:
+        gif_pool.extend([u.strip() for u in env_gif_urls.split(",") if u.strip()])
     if SYSTEM_GIF_URL:
+        gif_pool.append(SYSTEM_GIF_URL)
+
+    # Берем пул из config, если задан
+    try:
+        config = load_config()
+        cfg_urls = config.get("system_gif_urls")
+        if isinstance(cfg_urls, list):
+            gif_pool = [str(u).strip() for u in cfg_urls if str(u).strip()]
+    except Exception:
+        pass
+
+    if gif_pool:
+        chosen_gif = random.choice(gif_pool)
         try:
             await bot.send_animation(
                 chat_id=chat_id,
-                animation=SYSTEM_GIF_URL,
+                animation=chosen_gif,
                 caption=text,
                 reply_markup=reply_markup,
                 parse_mode=parse_mode
@@ -284,7 +336,9 @@ def load_config():
             return json.load(f)
     return {
         "subscription_price": 100,  # Цена в звездах
-        "subscription_price_usd": 5  # Цена в USD для CryptoBot
+        "subscription_price_usd": 5,  # Цена в USD для CryptoBot
+        "system_gif_urls": [],
+        "button_emoji_pack": {}
     }
 
 
@@ -698,6 +752,98 @@ def set_thinking_preference(user_id: int, preference: Optional[str]):
     save_user_data(user_id, user_data)
 
 
+def get_response_style_preset(user_id: int) -> str:
+    """Получить preset стиля ответа (serious|neutral|funny|friend)."""
+    user_data = load_user_data(user_id)
+    preset = user_data.get("style_preset", "neutral")
+    return preset if preset in STYLE_PRESET_PROMPTS else "neutral"
+
+
+def set_response_style_preset(user_id: int, preset: str):
+    """Установить preset стиля ответа."""
+    if preset not in STYLE_PRESET_PROMPTS:
+        return
+    user_data = load_user_data(user_id)
+    user_data["style_preset"] = preset
+    save_user_data(user_id, user_data)
+
+
+def get_start_example(user_id: int, rotate: bool = False) -> str:
+    """Вернуть пример для стартового экрана; при rotate меняет пример."""
+    user_data = load_user_data(user_id)
+    last_idx = user_data.get("start_example_idx", -1)
+
+    if not START_EXAMPLES:
+        return "«Сделай смешную картинку про работу и кофе»"
+
+    if rotate or last_idx not in range(len(START_EXAMPLES)):
+        idx = random.randrange(len(START_EXAMPLES))
+        if len(START_EXAMPLES) > 1:
+            while idx == last_idx:
+                idx = random.randrange(len(START_EXAMPLES))
+        user_data["start_example_idx"] = idx
+        save_user_data(user_id, user_data)
+        return START_EXAMPLES[idx]
+
+    return START_EXAMPLES[last_idx]
+
+
+def get_button_emoji_pack() -> dict:
+    """
+    Получить маппинг button_key -> custom emoji id.
+    Источники: config.button_emoji_pack или env BUTTON_EMOJI_PACK_JSON.
+    """
+    config = load_config()
+    from_config = config.get("button_emoji_pack")
+    if isinstance(from_config, dict):
+        return {str(k): str(v) for k, v in from_config.items() if str(v).strip()}
+
+    raw = os.getenv("BUTTON_EMOJI_PACK_JSON", "").strip()
+    if not raw:
+        return {}
+
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return {str(k): str(v) for k, v in parsed.items() if str(v).strip()}
+    except Exception:
+        pass
+    return {}
+
+
+def make_inline_button(
+    text: str,
+    callback_data: Optional[str] = None,
+    url: Optional[str] = None,
+    button_key: Optional[str] = None,
+    style: Optional[str] = None
+) -> InlineKeyboardButton:
+    """Создать кнопку с поддержкой цвета и custom emoji (если API/библиотека поддерживают)."""
+    kwargs = {"text": text}
+    if callback_data is not None:
+        kwargs["callback_data"] = callback_data
+    if url is not None:
+        kwargs["url"] = url
+
+    emoji_pack = get_button_emoji_pack()
+    custom_emoji_id = emoji_pack.get(button_key) if button_key else None
+    if custom_emoji_id:
+        kwargs["icon_custom_emoji_id"] = custom_emoji_id
+    if style in {"primary", "success", "danger"}:
+        kwargs["style"] = style
+
+    try:
+        return InlineKeyboardButton(**kwargs)
+    except TypeError:
+        # Совместимость со старыми версиями aiogram/Bot API
+        kwargs.pop("style", None)
+        try:
+            return InlineKeyboardButton(**kwargs)
+        except TypeError:
+            kwargs.pop("icon_custom_emoji_id", None)
+            return InlineKeyboardButton(**kwargs)
+
+
 def get_start_media() -> Optional[dict]:
     """Получить медиа для /start"""
     config = load_config()
@@ -894,12 +1040,12 @@ def get_main_keyboard():
     """Главная клавиатура"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🧬 Модели AI", callback_data="models_0"),
-            InlineKeyboardButton(text="🧠 Стиль ответа", callback_data="thinking_menu")
+            make_inline_button("🧬 Модели AI", callback_data="models_0", button_key="models", style="primary"),
+            make_inline_button("🧠 Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")
         ],
         [
-            InlineKeyboardButton(text="⭐ Подписка PRO", callback_data="subscription"),
-            InlineKeyboardButton(text="ℹ️ Помощь", callback_data="info")
+            make_inline_button("⭐ Подписка PRO", callback_data="subscription", button_key="subscription", style="success"),
+            make_inline_button("ℹ️ Помощь", callback_data="info", button_key="info")
         ]
     ])
 
@@ -921,19 +1067,19 @@ def get_models_keyboard(page: int, user_id: int):
         # Добавляем эмодзи для моделей генерации изображений
         display_name = f"🖼 {model}" if model in IMAGE_MODELS else model
         callback_data = f"setmodel_{model}" if has_sub else f"needsub_{model}"
-        buttons.append([InlineKeyboardButton(text=display_name, callback_data=callback_data)])
+        buttons.append([make_inline_button(display_name, callback_data=callback_data, button_key="model_item")])
 
     # Навигация
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(InlineKeyboardButton(text="◀️", callback_data=f"models_{page - 1}"))
+        nav_buttons.append(make_inline_button("◀️", callback_data=f"models_{page - 1}", button_key="nav_prev"))
     if end_idx < len(available):
-        nav_buttons.append(InlineKeyboardButton(text="▶️", callback_data=f"models_{page + 1}"))
+        nav_buttons.append(make_inline_button("▶️", callback_data=f"models_{page + 1}", button_key="nav_next"))
 
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")])
+    buttons.append([make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -948,20 +1094,40 @@ def get_subscription_keyboard(user_id: int):
 
     if has_sub:
         # Если подписка активна - показываем кнопки продления
-        buttons.append([InlineKeyboardButton(text=f"⭐ Продлить звездами ({price_stars} ⭐)", callback_data="extend_stars")])
-        buttons.append([InlineKeyboardButton(text=f"💎 Продлить через CryptoBot ({price_usd} USD)", callback_data="extend_crypto")])
+        buttons.append([make_inline_button(
+            f"⭐ Продлить звездами ({price_stars} ⭐)",
+            callback_data="extend_stars",
+            button_key="extend_stars",
+            style="success"
+        )])
+        buttons.append([make_inline_button(
+            f"💎 Продлить через CryptoBot ({price_usd} USD)",
+            callback_data="extend_crypto",
+            button_key="extend_crypto",
+            style="primary"
+        )])
     else:
-        buttons.append([InlineKeyboardButton(text=f"⭐ Купить звездами ({price_stars} ⭐)", callback_data="buy_stars")])
-        buttons.append([InlineKeyboardButton(text=f"💎 Купить через CryptoBot ({price_usd} USD)", callback_data="buy_crypto")])
+        buttons.append([make_inline_button(
+            f"⭐ Купить звездами ({price_stars} ⭐)",
+            callback_data="buy_stars",
+            button_key="buy_stars",
+            style="success"
+        )])
+        buttons.append([make_inline_button(
+            f"💎 Купить через CryptoBot ({price_usd} USD)",
+            callback_data="buy_crypto",
+            button_key="buy_crypto",
+            style="primary"
+        )])
 
-    buttons.append([InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")])
+    buttons.append([make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_cancel_keyboard(callback_data: str = "admin_menu"):
     """Клавиатура отмены"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✖️ Отмена", callback_data=callback_data)]
+        [make_inline_button("✖️ Отмена", callback_data=callback_data, button_key="cancel", style="danger")]
     ])
 
 
@@ -990,41 +1156,18 @@ def get_broadcast_confirm_keyboard():
 
 
 async def safe_edit_or_send(callback: CallbackQuery, text: str, reply_markup=None, parse_mode="HTML"):
-    """Безопасное редактирование или отправка нового сообщения"""
+    """Безопасно отправить новое системное сообщение (с GIF при наличии)."""
     try:
-        # Проверяем, есть ли медиа в сообщении
-        if callback.message.photo or callback.message.video or callback.message.animation:
-            # Удаляем сообщение с медиа и отправляем новое
-            try:
-                await callback.message.delete()
-            except:
-                pass
-            await send_system_message(
-                chat_id=callback.message.chat.id,
-                text=text,
-                reply_markup=reply_markup,
-                parse_mode=parse_mode
-            )
-        else:
-            # Пробуем отредактировать текстовое сообщение
-            try:
-                await callback.message.edit_text(
-                    text=text,
-                    reply_markup=reply_markup,
-                    parse_mode=parse_mode
-                )
-            except Exception as e:
-                # Если не получилось - удаляем и отправляем новое
-                try:
-                    await callback.message.delete()
-                except:
-                    pass
-                await send_system_message(
-                    chat_id=callback.message.chat.id,
-                    text=text,
-                    reply_markup=reply_markup,
-                    parse_mode=parse_mode
-                )
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await send_system_message(
+            chat_id=callback.message.chat.id,
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode
+        )
     except Exception as e:
         logging.warning(f"Ошибка safe_edit_or_send: {e}")
         # Последняя попытка - просто отправить новое сообщение
@@ -1364,7 +1507,7 @@ async def cmd_start(message: Message):
             await send_channel_subscription_message(message.chat.id, user_id)
             return
 
-    await send_start_message(message.chat.id, user_id)
+    await send_start_message(message.chat.id, user_id, rotate_example=True)
 
 
 async def send_channel_subscription_message(chat_id: int, user_id: int):
@@ -1379,9 +1522,19 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
 
     buttons = []
     for ch in channels:
-        buttons.append([InlineKeyboardButton(text=f"📢 {ch['name']}", url=ch['link'])])
+        buttons.append([make_inline_button(
+            text=f"📢 {ch['name']}",
+            url=ch['link'],
+            button_key="required_channel",
+            style="primary"
+        )])
 
-    buttons.append([InlineKeyboardButton(text="✔️ Продолжить", callback_data="check_channels")])
+    buttons.append([make_inline_button(
+        text="✔️ Продолжить",
+        callback_data="check_channels",
+        button_key="check_channels",
+        style="success"
+    )])
 
     channel_media = get_channel_media()
 
@@ -1415,7 +1568,7 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
                     parse_mode="HTML"
                 )
             else:
-                await bot.send_message(
+                await send_system_message(
                     chat_id=chat_id,
                     text=text,
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
@@ -1423,7 +1576,7 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
                 )
         except Exception as e:
             logging.error(f"Ошибка отправки медиа каналов: {e}")
-            await bot.send_message(
+            await send_system_message(
                 chat_id=chat_id,
                 text=text,
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
@@ -1438,13 +1591,20 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
         )
 
 
-async def send_start_message(chat_id: int, user_id: int):
+async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = False):
     """Отправить приветственное сообщение"""
     user_data = load_user_data(user_id)
     has_sub = has_active_subscription(user_id)
     sub_end = get_subscription_end(user_id)
+    start_example = get_start_example(user_id, rotate=rotate_example)
 
     text = "🤖 <b>Добро пожаловать в AI Chat Bot!</b>\n\n"
+    text += (
+        "Здесь можно <b>быстро решать бытовые задачи</b>: написать текст, придумать идеи, "
+        "обработать фото, расшифровать голос и сгенерировать смешные картинки.\n\n"
+        "<b>Короткий пример:</b>\n"
+        f"<blockquote>{start_example}</blockquote>\n"
+    )
 
     if has_sub:
         if user_id in ADMIN_IDS:
@@ -1452,9 +1612,12 @@ async def send_start_message(chat_id: int, user_id: int):
         else:
             text += f"⭐ <b>Подписка активна до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
         text += f"🧬 <b>Текущая модель:</b> <code>{user_data.get('model', DEFAULT_MODEL)}</code>\n\n"
-        text += "💬 Просто отправьте сообщение, чтобы начать общение!"
+        text += "💬 <b>Как пользоваться:</b> просто напишите задачу обычными словами."
     else:
-        text += "⭐ Для использования бота необходимо оформить подписку."
+        text += (
+            "⭐ <b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
+            "Нажмите кнопку ниже: там есть сравнение и преимущества."
+        )
 
     start_media = get_start_media()
 
@@ -1506,7 +1669,7 @@ async def callback_check_channels(callback: CallbackQuery):
             await callback.message.delete()
         except:
             pass
-        await send_start_message(callback.message.chat.id, user_id)
+        await send_start_message(callback.message.chat.id, user_id, rotate_example=False)
         await callback.answer()
     else:
         await callback.answer("✖️ Вы не подписались на все каналы!", show_alert=True)
@@ -1515,12 +1678,15 @@ async def callback_check_channels(callback: CallbackQuery):
 @dp.message(Command("clear"))
 async def cmd_clear(message: Message):
     """Команда /clear"""
-    await message.answer(
-        "🗑️ <b>Очистить историю чата?</b>\n\n"
-        "Все сообщения будут удалены безвозвратно.",
+    await send_system_message(
+        chat_id=message.chat.id,
+        text=(
+            "🗑️ <b>Очистить историю чата?</b>\n\n"
+            "Все сообщения будут удалены безвозвратно."
+        ),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✔️ Да, очистить", callback_data="confirm_clear")],
-            [InlineKeyboardButton(text="✖️ Отмена", callback_data="cancel_clear")]
+            [make_inline_button(text="✔️ Да, очистить", callback_data="confirm_clear", button_key="confirm_clear", style="danger")],
+            [make_inline_button(text="✖️ Отмена", callback_data="cancel_clear", button_key="cancel", style="primary")]
         ]),
         parse_mode="HTML"
     )
@@ -1547,8 +1713,9 @@ async def cmd_admin(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         return
 
-    await message.answer(
-        "⚙️ <b>Админ-панель</b>",
+    await send_system_message(
+        chat_id=message.chat.id,
+        text="⚙️ <b>Админ-панель</b>",
         reply_markup=get_admin_keyboard(),
         parse_mode="HTML"
     )
@@ -1561,82 +1728,12 @@ async def callback_main_menu(callback: CallbackQuery, state: FSMContext):
     await state.clear()
 
     user_id = callback.from_user.id
-    user_data = load_user_data(user_id)
-    has_sub = has_active_subscription(user_id)
-    sub_end = get_subscription_end(user_id)
-
-    text = "🤖 <b>AI Chat Bot</b>\n\n"
-
-    if has_sub:
-        if user_id in ADMIN_IDS:
-            text += "👑 <b>Статус:</b> Администратор\n"
-        else:
-            text += f"⭐ <b>Подписка активна до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
-        text += f"🧬 <b>Текущая модель:</b> <code>{user_data.get('model', DEFAULT_MODEL)}</code>\n\n"
-        text += "💬 Просто отправьте сообщение, чтобы начать общение!"
-    else:
-        text += "⭐ Для использования бота необходимо оформить подписку."
-
-    # Проверяем медиа для /start
-    start_media = get_start_media()
-
-    # Удаляем текущее сообщение
     try:
         await callback.message.delete()
-    except:
+    except Exception:
         pass
 
-    if start_media:
-        media_type = start_media.get("type")
-        file_id = start_media.get("file_id")
-
-        try:
-            if media_type == "photo":
-                await bot.send_photo(
-                    chat_id=callback.message.chat.id,
-                    photo=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
-            elif media_type == "video":
-                await bot.send_video(
-                    chat_id=callback.message.chat.id,
-                    video=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
-            elif media_type == "animation":
-                await bot.send_animation(
-                    chat_id=callback.message.chat.id,
-                    animation=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
-            else:
-                await bot.send_message(
-                    chat_id=callback.message.chat.id,
-                    text=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
-        except Exception as e:
-            logging.error(f"Ошибка отправки медиа: {e}")
-            await bot.send_message(
-                chat_id=callback.message.chat.id,
-                text=text,
-                reply_markup=get_main_keyboard(),
-                parse_mode="HTML"
-            )
-    else:
-        await bot.send_message(
-            chat_id=callback.message.chat.id,
-            text=text,
-            reply_markup=get_main_keyboard(),
-            parse_mode="HTML"
-        )
+    await send_start_message(callback.message.chat.id, user_id, rotate_example=False)
 
     await callback.answer()
 
@@ -1695,8 +1792,8 @@ async def callback_set_model(callback: CallbackQuery):
         f"🤖 <b>Новая модель:</b> <code>{model}</code>\n"
         f"<b>Тип:</b> {model_type}",
         InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🧬 Модели", callback_data="models_0")],
-            [InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")]
+            [make_inline_button("🧬 Модели", callback_data="models_0", button_key="models", style="primary")],
+            [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
         ])
     )
 
@@ -1735,7 +1832,14 @@ async def callback_subscription(callback: CallbackQuery):
         text += f"💰 <b>Цена:</b>\n"
         text += f"⭐ {price_stars} звёзд/мес\n"
         text += f"💎 {price_usd} USD/мес\n\n"
-        text += "Оформите подписку для доступа ко всем функциям бота!"
+        text += (
+            "🚀 <b>Что дает PRO:</b>\n"
+            "• Доступ ко <b>всем AI-моделям</b> (текст + генерация изображений)\n"
+            "• <b>Стиль ответа</b>: серьезный / нейтральный / веселый / друг\n"
+            "• Обработка <b>фото и голоса</b>\n"
+            "• Быстрые ответы без ручной рутины\n\n"
+            "Оформите подписку, чтобы использовать бот на максимум."
+        )
 
     await safe_edit_or_send(callback, text, get_subscription_keyboard(user_id))
     await callback.answer()
@@ -1764,10 +1868,7 @@ async def callback_buy_crypto(callback: CallbackQuery):
     user_id = callback.from_user.id
     price_usd = get_subscription_price_usd()
 
-    await callback.message.edit_text(
-        "💎 <b>Создание инвойса...</b>",
-        parse_mode="HTML"
-    )
+    await safe_edit_or_send(callback, "💎 <b>Создание инвойса...</b>", parse_mode="HTML")
 
     invoice_data = await create_crypto_invoice(user_id, price_usd)
 
@@ -1775,19 +1876,23 @@ async def callback_buy_crypto(callback: CallbackQuery):
         # Сохраняем инвойс для отслеживания
         add_pending_invoice(invoice_data["invoice_id"], user_id)
 
-        await callback.message.edit_text(
-            f"💎 <b>Оплата через CryptoBot</b>\n\n"
-            f"💰 Сумма: {price_usd} USD\n"
-            f"⏰ Ссылка действительна 1 час\n\n"
-            f"Нажмите кнопку ниже для оплаты:",
+        await safe_edit_or_send(
+            callback,
+            (
+                "💎 <b>Оплата через CryptoBot</b>\n\n"
+                f"💰 Сумма: {price_usd} USD\n"
+                "⏰ Ссылка действительна 1 час\n\n"
+                "Нажмите кнопку ниже для оплаты:"
+            ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="💎 Оплатить", url=invoice_data["bot_invoice_url"])],
-                [InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")]
+                [make_inline_button("💎 Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
+                [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
             ]),
             parse_mode="HTML"
         )
     else:
-        await callback.message.edit_text(
+        await safe_edit_or_send(
+            callback,
             "✖️ Ошибка создания инвойса. Попробуйте позже.",
             reply_markup=get_main_keyboard()
         )
@@ -1818,10 +1923,7 @@ async def callback_extend_crypto(callback: CallbackQuery):
     user_id = callback.from_user.id
     price_usd = get_subscription_price_usd()
 
-    await callback.message.edit_text(
-        "💎 <b>Создание инвойса...</b>",
-        parse_mode="HTML"
-    )
+    await safe_edit_or_send(callback, "💎 <b>Создание инвойса...</b>", parse_mode="HTML")
 
     invoice_data = await create_crypto_invoice(user_id, price_usd)
 
@@ -1829,19 +1931,23 @@ async def callback_extend_crypto(callback: CallbackQuery):
         # Сохраняем инвойс для отслеживания
         add_pending_invoice(invoice_data["invoice_id"], user_id)
 
-        await callback.message.edit_text(
-            f"💎 <b>Продление через CryptoBot</b>\n\n"
-            f"💰 Сумма: {price_usd} USD\n"
-            f"⏰ Ссылка действительна 1 час\n\n"
-            f"Нажмите кнопку ниже для оплаты:",
+        await safe_edit_or_send(
+            callback,
+            (
+                "💎 <b>Продление через CryptoBot</b>\n\n"
+                f"💰 Сумма: {price_usd} USD\n"
+                "⏰ Ссылка действительна 1 час\n\n"
+                "Нажмите кнопку ниже для оплаты:"
+            ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="💎 Оплатить", url=invoice_data["bot_invoice_url"])],
-                [InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")]
+                [make_inline_button("💎 Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
+                [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
             ]),
             parse_mode="HTML"
         )
     else:
-        await callback.message.edit_text(
+        await safe_edit_or_send(
+            callback,
             "✖️ Ошибка создания инвойса. Попробуйте позже.",
             reply_markup=get_main_keyboard()
         )
@@ -1869,10 +1975,13 @@ async def process_successful_payment(message: Message):
 
     sub_end = get_subscription_end(user_id)
 
-    await message.answer(
-        "🎉 <b>Оплата прошла успешно!</b>\n\n"
-        f"⭐ Подписка активирована до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
-        "Теперь вы можете использовать все функции бота!",
+    await send_system_message(
+        chat_id=message.chat.id,
+        text=(
+            "🎉 <b>Оплата прошла успешно!</b>\n\n"
+            f"⭐ Подписка активирована до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
+            "Теперь вы можете использовать все функции бота!"
+        ),
         reply_markup=get_main_keyboard(),
         parse_mode="HTML"
     )
@@ -2759,26 +2868,13 @@ async def callback_info(callback: CallbackQuery):
     admin_username = ADMIN_USERNAME.lstrip('@')
 
     buttons = [
-        [InlineKeyboardButton(text="💬 Связаться", url=f"https://t.me/{admin_username}")],
-        [InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")]
+        [make_inline_button(text="💬 Связаться", url=f"https://t.me/{admin_username}", button_key="contact_admin", style="primary")],
+        [make_inline_button(text="🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
     ]
-
-    if SYSTEM_GIF_URL:
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        await send_system_message(
-            chat_id=callback.message.chat.id,
-            text=text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-            parse_mode="HTML"
-        )
-    else:
-        await safe_edit_or_send(
-            callback, text,
-            InlineKeyboardMarkup(inline_keyboard=buttons)
-        )
+    await safe_edit_or_send(
+        callback, text,
+        InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
     await callback.answer()
 
 
@@ -3111,6 +3207,16 @@ async def callback_thinking_menu(callback: CallbackQuery):
             return
 
     current_pref = get_thinking_preference(user_id)
+    current_preset = get_response_style_preset(user_id)
+    preset_human = STYLE_PRESET_LABELS.get(current_preset, "Нейтральный")
+    preset_block = (
+        "🎚 <b>Пресеты стиля ответа:</b>\n"
+        "• <b>Серьезный</b> — сухо, строго, по делу\n"
+        "• <b>Нейтральный</b> — спокойно и универсально\n"
+        "• <b>Веселый</b> — с легким юмором\n"
+        "• <b>Друг</b> — тепло и по-простому\n\n"
+        f"Текущий пресет: <b>{preset_human}</b>\n"
+    )
 
     if current_pref:
         # Проверяем, это JSON или обычный текст
@@ -3135,6 +3241,7 @@ async def callback_thinking_menu(callback: CallbackQuery):
 
             text = (
                 "🧠 <b>Мышление</b>\n\n"
+                f"{preset_block}\n"
                 "📦 <b>JSON конфиг загружен</b>\n"
                 f"🔑 Секций: {len(top_keys)}\n"
                 f"📊 Параметров: {total_params}\n"
@@ -3145,47 +3252,85 @@ async def callback_thinking_menu(callback: CallbackQuery):
             pref_display = f"<blockquote>{current_pref[:200]}{'...' if len(current_pref) > 200 else ''}</blockquote>"
             text = (
                 "🧠 <b>Мышление</b>\n\n"
+                f"{preset_block}\n"
                 f"📝 <b>Текущие предпочтения:</b>\n"
                 f"{pref_display}"
             )
 
         buttons = [
-            [InlineKeyboardButton(text="✏️ Изменить", callback_data="thinking_edit")],
-            [InlineKeyboardButton(text="🗑️ Удалить", callback_data="thinking_delete")],
-            [InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")]
+            [
+                make_inline_button("🧷 Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
+                make_inline_button("⚖️ Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
+            ],
+            [
+                make_inline_button("😄 Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
+                make_inline_button("🤝 Друг", callback_data="stylepreset_friend", button_key="preset_friend")
+            ],
+            [make_inline_button("✏️ Изменить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
+            [make_inline_button("🗑️ Удалить", callback_data="thinking_delete", button_key="thinking_delete", style="danger")],
+            [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
         ]
     else:
         text = (
             "🧠 <b>Мышление</b>\n\n"
+            f"{preset_block}\n"
             "Настройте, как ИИ будет общаться с вами.\n\n"
             "<b>Формат 1 - Обычный текст:</b>\n"
-            "<i>«общайся со мной как друг, пиши с маленькой буквы»</i>\n\n"
+            "<i>«пиши кратко и по делу, без сложных слов»</i>\n\n"
             "<b>Формат 2 - JSON конфиг:</b>\n"
             "<code>{\n"
-            '  "personality": "веселый друг",\n'
-            '  "tone": "informal",\n'
+            '  "audience": "обычный пользователь",\n'
+            '  "tone": "simple",\n'
+            '  "response_length": "short",\n'
             '  "emoji": true\n'
             "}</code>\n\n"
             "💡 Можете отправить файл .json или текст"
         )
         buttons = [
-            [InlineKeyboardButton(text="✏️ Настроить", callback_data="thinking_edit")],
-            [InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")]
+            [
+                make_inline_button("🧷 Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
+                make_inline_button("⚖️ Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
+            ],
+            [
+                make_inline_button("😄 Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
+                make_inline_button("🤝 Друг", callback_data="stylepreset_friend", button_key="preset_friend")
+            ],
+            [make_inline_button("✏️ Настроить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
+            [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
         ]
 
     # Проверяем подписку
     if not has_active_subscription(user_id):
         buttons = [
-            [InlineKeyboardButton(text="⭐ Оформить подписку", callback_data="subscription")],
-            [InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")]
+            [make_inline_button("⭐ Оформить подписку", callback_data="subscription", button_key="subscription", style="success")],
+            [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
         ]
         text = (
             "🧠 <b>Мышление</b>\n\n"
+            f"{preset_block}\n"
             "⭐ Для настройки мышления необходима подписка."
         )
 
     await safe_edit_or_send(callback, text, InlineKeyboardMarkup(inline_keyboard=buttons))
     await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("stylepreset_"))
+async def callback_style_preset(callback: CallbackQuery):
+    """Установить пресет стиля ответа."""
+    user_id = callback.from_user.id
+    preset = callback.data.replace("stylepreset_", "").strip()
+
+    if not has_active_subscription(user_id):
+        await callback.answer("⭐ Для смены стиля ответа нужна подписка PRO", show_alert=True)
+        return
+
+    if preset not in STYLE_PRESET_PROMPTS:
+        await callback.answer("✖️ Неизвестный пресет", show_alert=True)
+        return
+
+    set_response_style_preset(user_id, preset)
+    await callback_thinking_menu(callback)
 
 
 @dp.callback_query(F.data == "thinking_edit")
@@ -3447,6 +3592,12 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
         "content": RESPONSE_STYLE_SYSTEM_PROMPT
     })
 
+    style_preset = get_response_style_preset(user_id)
+    messages.append({
+        "role": "system",
+        "content": STYLE_PRESET_PROMPTS.get(style_preset, STYLE_PRESET_PROMPTS["neutral"])
+    })
+
     if thinking_pref:
         # Проверяем, это JSON или текст
         try:
@@ -3565,6 +3716,12 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
     messages.append({
         "role": "system",
         "content": RESPONSE_STYLE_SYSTEM_PROMPT
+    })
+
+    style_preset = get_response_style_preset(bot_owner_id)
+    messages.append({
+        "role": "system",
+        "content": STYLE_PRESET_PROMPTS.get(style_preset, STYLE_PRESET_PROMPTS["neutral"])
     })
 
     if thinking_pref:
@@ -3814,8 +3971,9 @@ async def handle_photo(message: Message, state: FSMContext):
             return
 
     if not has_active_subscription(user_id):
-        await message.answer(
-            "✖️ Для использования бота необходима подписка!",
+        await send_system_message(
+            chat_id=message.chat.id,
+            text="✖️ Для использования бота необходима подписка!",
             reply_markup=get_subscription_keyboard(user_id)
         )
         return
@@ -3858,8 +4016,9 @@ async def handle_voice(message: Message, state: FSMContext):
             return
 
     if not has_active_subscription(user_id):
-        await message.answer(
-            "✖️ Для использования бота необходима подписка!",
+        await send_system_message(
+            chat_id=message.chat.id,
+            text="✖️ Для использования бота необходима подписка!",
             reply_markup=get_subscription_keyboard(user_id)
         )
         return
@@ -3931,8 +4090,9 @@ async def handle_message(message: Message, state: FSMContext):
             return
 
     if not has_active_subscription(user_id):
-        await message.answer(
-            "✖️ Для использования бота необходима подписка!",
+        await send_system_message(
+            chat_id=message.chat.id,
+            text="✖️ Для использования бота необходима подписка!",
             reply_markup=get_subscription_keyboard(user_id)
         )
         return
@@ -3990,11 +4150,13 @@ async def check_subscription_reminders():
                 if 23 < hours_left < 25:
                     if should_send_reminder(user_id, "24h"):
                         try:
-                            await bot.send_message(
-                                user_id,
-                                "⏰ <b>Напоминание!</b>\n\n"
-                                "Ваша подписка истекает через 24 часа.\n"
-                                "Не забудьте продлить её!",
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=(
+                                    "⏰ <b>Напоминание!</b>\n\n"
+                                    "Ваша подписка истекает через 24 часа.\n"
+                                    "Не забудьте продлить её!"
+                                ),
                                 reply_markup=get_subscription_keyboard(user_id),
                                 parse_mode="HTML"
                             )
@@ -4006,11 +4168,13 @@ async def check_subscription_reminders():
                 elif 1.5 < hours_left < 2.5:
                     if should_send_reminder(user_id, "2h"):
                         try:
-                            await bot.send_message(
-                                user_id,
-                                "⚠️ <b>Внимание!</b>\n\n"
-                                "Ваша подписка истекает через 2 часа!\n"
-                                "Продлите подписку, чтобы не потерять доступ.",
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=(
+                                    "⚠️ <b>Внимание!</b>\n\n"
+                                    "Ваша подписка истекает через 2 часа!\n"
+                                    "Продлите подписку, чтобы не потерять доступ."
+                                ),
                                 reply_markup=get_subscription_keyboard(user_id),
                                 parse_mode="HTML"
                             )
@@ -4049,12 +4213,14 @@ async def check_pending_invoices():
                         # Уведомляем пользователя
                         try:
                             sub_end = get_subscription_end(user_id)
-                            await bot.send_message(
-                                user_id,
-                                f"✅ <b>Оплата получена!</b>\n\n"
-                                f"💎 Подписка активирована через CryptoBot\n"
-                                f"📅 Действует до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
-                                f"Спасибо за покупку! 🎉",
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=(
+                                    "✅ <b>Оплата получена!</b>\n\n"
+                                    "💎 Подписка активирована через CryptoBot\n"
+                                    f"📅 Действует до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
+                                    "Спасибо за покупку! 🎉"
+                                ),
                                 reply_markup=get_main_keyboard(),
                                 parse_mode="HTML"
                             )
