@@ -149,6 +149,7 @@ RESPONSE_STYLE_SYSTEM_PROMPT = (
     "Структурируй ответ: короткий вывод, затем 2-6 пунктов по сути. "
     "Разрешенная разметка: **жирный**, *курсив*, `код`, цитаты >, списки через '-'. "
     "Не используй таблицы и markdown-ссылки вида [текст](url). "
+    "Если пользователь просит ссылки/источники/видео, обязательно давай прямые URL (https://...). "
     "Если вопрос простой — дай короткий ответ в 1-3 предложениях."
 )
 
@@ -4250,13 +4251,39 @@ def split_message(text: str, max_length: int = MAX_MESSAGE_LENGTH) -> list:
 
 def markdown_to_html(text: str) -> str:
     """Конвертировать markdown в HTML"""
-    escaped = html.escape(text or "")
+    source = text or ""
+    link_placeholders = {}
+
+    # 1) Сохраняем markdown-ссылки до escaping, чтобы корректно превратить их в <a>.
+    def _store_markdown_link(match):
+        label = match.group(1).strip()
+        url = match.group(2).strip()
+        token = f"__MD_LINK_{len(link_placeholders)}__"
+        safe_url = html.escape(url, quote=True)
+        safe_label = html.escape(label)
+        link_placeholders[token] = f'<a href="{safe_url}">{safe_label}</a>'
+        return token
+
+    source = re.sub(r'\[([^\]\n]+)\]\((https?://[^\s)]+)\)', _store_markdown_link, source)
+
+    escaped = html.escape(source)
     escaped = re.sub(r'(?m)^#{1,3}\s+(.+)$', r'<b>\1</b>', escaped)
     escaped = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped)
     escaped = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'<i>\1</i>', escaped)
     escaped = re.sub(r'`([^`\n]+)`', r'<code>\1</code>', escaped)
     escaped = re.sub(r'(?m)^>\s?(.*)$', r'<blockquote>\1</blockquote>', escaped)
     escaped = re.sub(r'(?m)^-\s+', '• ', escaped)
+
+    # 2) Восстанавливаем markdown-ссылки в виде HTML-гиперссылок.
+    for token, tag in link_placeholders.items():
+        escaped = escaped.replace(token, tag)
+
+    # 3) Делаем bare URLs кликабельными.
+    escaped = re.sub(
+        r'(?<!["\'>])(https?://[^\s<]+)',
+        lambda m: f'<a href="{html.escape(m.group(1), quote=True)}">{html.escape(m.group(1))}</a>',
+        escaped
+    )
     return escaped
 
 async def send_long_message(message: Message, text: str):
