@@ -1686,7 +1686,11 @@ async def handle_business_text_message(message: Message):
             success, result = await generate_image(bot_owner_id, message.text, image_model)
 
             if success:
-                photo = BufferedInputFile(result, filename="generated_image.jpg")
+                photo = (
+                    BufferedInputFile(result, filename="generated_image.jpg")
+                    if isinstance(result, (bytes, bytearray))
+                    else result
+                )
                 await bot.send_photo(
                     chat_id=message.chat.id,
                     photo=photo,
@@ -4296,7 +4300,10 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
             return False, "✖️ Пустой промпт для генерации."
         try:
             encoded_prompt = quote(clean_prompt, safe="")
-            url = f"{FREE_IMAGE_API_URL}/{encoded_prompt}"
+            urls = [
+                f"{FREE_IMAGE_API_URL}/{encoded_prompt}",
+                f"https://pollinations.ai/p/{encoded_prompt}",
+            ]
             retry_statuses = {429, 500, 502, 503, 504, 520, 522, 524, 530}
             # Для бесплатного API делаем несколько попыток, так как он часто нестабилен.
             attempts = [
@@ -4306,31 +4313,38 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
             ]
             last_status = None
             async with aiohttp.ClientSession() as session:
-                for i, params in enumerate(attempts):
-                    params = dict(params)
-                    params["seed"] = str(random.randint(1, 10_000_000))
-                    async with session.get(url, params=params, timeout=90) as response:
-                        if response.status == 200:
-                            image_bytes = await response.read()
-                            if image_bytes:
-                                increment_stat("total_messages")
-                                return True, image_bytes
-                            last_status = 200
-                        else:
-                            body = (await response.text())[:500]
-                            last_status = response.status
-                            logging.warning(
-                                f"Free image API error {response.status} on attempt {i + 1}: {body}"
-                            )
+                for base_url in urls:
+                    for i, params in enumerate(attempts):
+                        params = dict(params)
+                        params["seed"] = str(random.randint(1, 10_000_000))
+                        async with session.get(base_url, params=params, timeout=90) as response:
+                            if response.status == 200:
+                                image_bytes = await response.read()
+                                if image_bytes:
+                                    increment_stat("total_messages")
+                                    return True, image_bytes
+                                last_status = 200
+                            else:
+                                body = (await response.text())[:500]
+                                last_status = response.status
+                                logging.warning(
+                                    f"Free image API error {response.status} on attempt {i + 1} ({base_url}): {body}"
+                                )
 
-                        if i < len(attempts) - 1 and (last_status in retry_statuses or last_status == 200):
-                            await asyncio.sleep(1.2 + i * 0.8)
-                            continue
-                        break
+                            if i < len(attempts) - 1 and (last_status in retry_statuses or last_status == 200):
+                                await asyncio.sleep(1.2 + i * 0.8)
+                                continue
+                            break
 
             if last_status:
+                # Последний шанс: отдаем прямую URL-картинку, Telegram часто успешно тянет её сам.
+                fallback_url = (
+                    f"https://pollinations.ai/p/{encoded_prompt}"
+                    f"?model=flux&nologo=true&width=1024&height=1024&seed={random.randint(1, 10_000_000)}"
+                )
                 if last_status in retry_statuses:
-                    return False, "✖️ Бесплатный API временно перегружен. Попробуйте через 10-30 секунд."
+                    logging.warning("Free API unstable, fallback to direct image URL mode")
+                    return True, fallback_url
                 return False, f"✖️ Ошибка бесплатного API ({last_status})"
             return False, "✖️ Бесплатный API не вернул изображение."
         except asyncio.TimeoutError:
@@ -4595,7 +4609,11 @@ async def handle_voice(message: Message, state: FSMContext):
             success, result = await generate_image(user_id, transcribed_text, image_model)
 
             if success:
-                photo = BufferedInputFile(result, filename="generated_image.jpg")
+                photo = (
+                    BufferedInputFile(result, filename="generated_image.jpg")
+                    if isinstance(result, (bytes, bytearray))
+                    else result
+                )
                 await message.answer_photo(
                     photo=photo,
                     caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {transcribed_text[:100]}{'...' if len(transcribed_text) > 100 else ''}",
@@ -4655,7 +4673,11 @@ async def handle_message(message: Message, state: FSMContext):
 
         if success:
             try:
-                photo = BufferedInputFile(result, filename="generated_image.jpg")
+                photo = (
+                    BufferedInputFile(result, filename="generated_image.jpg")
+                    if isinstance(result, (bytes, bytearray))
+                    else result
+                )
                 await message.answer_photo(
                     photo=photo,
                     caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {message.text[:100]}{'...' if len(message.text) > 100 else ''}",
