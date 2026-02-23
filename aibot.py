@@ -35,12 +35,13 @@ DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SYSTEM_GIF_URLS = []
 SECTION_MEDIA_PATHS = {
-    "start": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/1-d4b0ca75-d840-4459-b269-9c8a0e7336df.png",
-    "subscription": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/3-d2a8f5cc-13a2-429f-a9be-ef90ace4710e.png",
-    "settings": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/4-eadea2c8-d212-4f5a-aaf6-0344edff5121.png",
-    "thinking": "/Users/noname/.cursor/projects/Users-noname-Desktop-dox-ai-bot-ai-tg-bot/assets/2-d506a373-5ac1-4d26-8536-35eee9e7dbb9.png"
+    "start": os.path.join(PROJECT_ROOT, "1.gif"),
+    "subscription": os.path.join(PROJECT_ROOT, "2.gif"),
+    "settings": os.path.join(PROJECT_ROOT, "3.gif"),
+    "thinking": os.path.join(PROJECT_ROOT, "4.gif")
 }
 DEFAULT_BUTTON_EMOJI_PACK = {
     # Main menu
@@ -334,18 +335,28 @@ async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_
 
 
 async def send_section_media_message(chat_id: int, text: str, reply_markup, section: str, parse_mode: str = "HTML") -> bool:
-    """Отправить сообщение с локальной картинкой для конкретного экрана."""
+    """Отправить сообщение с локальным медиа (gif/photo) для конкретного экрана."""
     media_path = SECTION_MEDIA_PATHS.get(section)
     if not media_path or not os.path.exists(media_path):
         return False
     try:
-        await bot.send_photo(
-            chat_id=chat_id,
-            photo=FSInputFile(media_path),
-            caption=text,
-            reply_markup=reply_markup,
-            parse_mode=parse_mode
-        )
+        media_file = FSInputFile(media_path)
+        if media_path.lower().endswith(".gif"):
+            await bot.send_animation(
+                chat_id=chat_id,
+                animation=media_file,
+                caption=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode
+            )
+        else:
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=media_file,
+                caption=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode
+            )
         return True
     except Exception as e:
         logging.warning(f"Не удалось отправить media для секции {section}: {e}")
