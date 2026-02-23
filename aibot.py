@@ -71,6 +71,23 @@ DEFAULT_BUTTON_EMOJI_PACK = {
     "thinking_edit": "6039779802741739617",      # ✏️
     "thinking_delete": "6039522349517115015"     # 🗑
 }
+TEXT_EMOJI_IDS = {
+    "wave": "6041921818896372382",          # 👋
+    "crown": "5805553606635559688",         # 👑
+    "robot": "6030400221232501136",         # 🤖
+    "chat": "6030784887093464891",          # 💬
+    "style": "5864019342873598613",         # 🧠
+    "star": "6028338546736107668",          # ⭐️
+    "info": "6028435952299413210",          # ℹ
+    "home": "6042137469204303531",          # 🏠
+    "money": "5778421276024509124",         # 💰
+    "clock": "5850317551090800862",         # ⏰
+    "rocket": "6041731551845159060",        # 🎉 (ассоц. преимущества/апгрейд)
+    "models": "6030400221232501136",        # 🤖
+    "image": "6030466823290360017",         # 🖼
+    "note": "5920046907782074235",          # 📝
+    "check": "5774022692642492953"          # ✅
+}
 
 STYLE_PRESET_PROMPTS = {
     "serious": (
@@ -187,6 +204,14 @@ def sanitize_user_input(text: str, max_length: int = 4000) -> str:
         return ""
     text = str(text)[:max_length]
     return ''.join(ch for ch in text if ch.isprintable() or ch in '\n\t').strip()
+
+
+def text_emoji(name: str) -> str:
+    """Вернуть HTML-тег custom emoji для текста."""
+    emoji_id = TEXT_EMOJI_IDS.get(name)
+    if not emoji_id:
+        return ""
+    return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
 
 
 def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items: int = 200):
@@ -1093,12 +1118,12 @@ def get_main_keyboard():
     """Главная клавиатура"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            make_inline_button("🧬 Модели AI", callback_data="models_0", button_key="models", style="primary"),
-            make_inline_button("🧠 Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")
+            make_inline_button("Модели AI", callback_data="models_0", button_key="models", style="primary"),
+            make_inline_button("Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")
         ],
         [
-            make_inline_button("⭐ Подписка PRO", callback_data="subscription", button_key="subscription", style="success"),
-            make_inline_button("ℹ️ Помощь", callback_data="info", button_key="info")
+            make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success"),
+            make_inline_button("Помощь", callback_data="info", button_key="info")
         ]
     ])
 
@@ -1117,22 +1142,21 @@ def get_models_keyboard(page: int, user_id: int):
 
     buttons = []
     for model in models_page:
-        # Добавляем эмодзи для моделей генерации изображений
-        display_name = f"🖼 {model}" if model in IMAGE_MODELS else model
+        display_name = f"Картинки: {model}" if model in IMAGE_MODELS else model
         callback_data = f"setmodel_{model}" if has_sub else f"needsub_{model}"
         buttons.append([make_inline_button(display_name, callback_data=callback_data, button_key="model_item")])
 
     # Навигация
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(make_inline_button("◀️", callback_data=f"models_{page - 1}", button_key="nav_prev"))
+        nav_buttons.append(make_inline_button("Назад", callback_data=f"models_{page - 1}", button_key="nav_prev"))
     if end_idx < len(available):
-        nav_buttons.append(make_inline_button("▶️", callback_data=f"models_{page + 1}", button_key="nav_next"))
+        nav_buttons.append(make_inline_button("Далее", callback_data=f"models_{page + 1}", button_key="nav_next"))
 
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    buttons.append([make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")])
+    buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -1148,39 +1172,39 @@ def get_subscription_keyboard(user_id: int):
     if has_sub:
         # Если подписка активна - показываем кнопки продления
         buttons.append([make_inline_button(
-            f"⭐ Продлить звездами ({price_stars} ⭐)",
+            f"Продлить звездами ({price_stars})",
             callback_data="extend_stars",
             button_key="extend_stars",
             style="success"
         )])
         buttons.append([make_inline_button(
-            f"💎 Продлить через CryptoBot ({price_usd} USD)",
+            f"Продлить через CryptoBot ({price_usd} USD)",
             callback_data="extend_crypto",
             button_key="extend_crypto",
             style="primary"
         )])
     else:
         buttons.append([make_inline_button(
-            f"⭐ Купить звездами ({price_stars} ⭐)",
+            f"Купить звездами ({price_stars})",
             callback_data="buy_stars",
             button_key="buy_stars",
             style="success"
         )])
         buttons.append([make_inline_button(
-            f"💎 Купить через CryptoBot ({price_usd} USD)",
+            f"Купить через CryptoBot ({price_usd} USD)",
             callback_data="buy_crypto",
             button_key="buy_crypto",
             style="primary"
         )])
 
-    buttons.append([make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")])
+    buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_cancel_keyboard(callback_data: str = "admin_menu"):
     """Клавиатура отмены"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [make_inline_button("✖️ Отмена", callback_data=callback_data, button_key="cancel", style="danger")]
+        [make_inline_button("Отмена", callback_data=callback_data, button_key="cancel", style="danger")]
     ])
 
 
@@ -1651,7 +1675,7 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     sub_end = get_subscription_end(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
-    text = "👋 <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
+    text = f"{text_emoji('wave')} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
     text += (
         "<b>Могу помочь с чем угодно:</b>\n"
         "— написать пост, поздравление или идею\n"
@@ -1664,14 +1688,14 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
 
     if has_sub:
         if user_id in ADMIN_IDS:
-            text += "👑 <b>Статус:</b> Администратор\n"
+            text += f"{text_emoji('crown')} <b>Статус:</b> Администратор\n"
         else:
-            text += f"⭐ <b>Подписка активна до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
-        text += f"🧬 <b>Текущая модель:</b> <code>{user_data.get('model', DEFAULT_MODEL)}</code>\n\n"
-        text += "💬 <b>Как пользоваться:</b> просто напишите задачу своими словами."
+            text += f"{text_emoji('star')} <b>Подписка активна до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
+        text += f"{text_emoji('models')} <b>Текущая модель:</b> <code>{user_data.get('model', DEFAULT_MODEL)}</code>\n\n"
+        text += f"{text_emoji('chat')} <b>Как пользоваться:</b> просто напишите задачу своими словами."
     else:
         text += (
-            "⭐ <b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
+            f"{text_emoji('star')} <b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
             "Нажмите кнопку ниже: там есть сравнение и преимущества."
         )
 
@@ -1812,11 +1836,15 @@ async def callback_models(callback: CallbackQuery):
     page = int(callback.data.split("_")[1])
     user_data = load_user_data(user_id)
     current_model = user_data.get("model", DEFAULT_MODEL)
-    model_type = "🖼 Генерация изображений" if current_model in IMAGE_MODELS else "💬 Текстовый чат"
+    model_type = (
+        f"{text_emoji('image')} Генерация изображений"
+        if current_model in IMAGE_MODELS
+        else f"{text_emoji('chat')} Текстовый чат"
+    )
 
     text = (
-        "🧬 <b>Модели</b>\n\n"
-        f"🤖 <b>Текущая модель:</b> <code>{current_model}</code>\n"
+        f"{text_emoji('models')} <b>Модели</b>\n\n"
+        f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code>\n"
         f"<b>Тип:</b> {model_type}"
     )
 
@@ -1838,18 +1866,22 @@ async def callback_set_model(callback: CallbackQuery):
     user_data["model"] = model
     save_user_data(user_id, user_data)
 
-    model_type = "🖼 Генерация изображений" if model in IMAGE_MODELS else "💬 Текстовый чат"
+    model_type = (
+        f"{text_emoji('image')} Генерация изображений"
+        if model in IMAGE_MODELS
+        else f"{text_emoji('chat')} Текстовый чат"
+    )
 
     await callback.answer(f"✔️ Модель изменена на {model}!")
 
     await safe_edit_or_send(
         callback,
-        f"✔️ <b>Модель изменена!</b>\n\n"
-        f"🤖 <b>Новая модель:</b> <code>{model}</code>\n"
+        f"{text_emoji('check')} <b>Модель изменена!</b>\n\n"
+        f"{text_emoji('robot')} <b>Новая модель:</b> <code>{model}</code>\n"
         f"<b>Тип:</b> {model_type}",
         InlineKeyboardMarkup(inline_keyboard=[
-            [make_inline_button("🧬 Модели", callback_data="models_0", button_key="models", style="primary")],
-            [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
+            [make_inline_button("Модели", callback_data="models_0", button_key="models", style="primary")],
+            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
         ])
     )
 
@@ -1873,21 +1905,21 @@ async def callback_subscription(callback: CallbackQuery):
     price_usd = get_subscription_price_usd()
 
     if user_id in ADMIN_IDS:
-        text = "👑 <b>Подписка</b>\n\n"
+        text = f"{text_emoji('crown')} <b>Подписка</b>\n\n"
         text += "Вы администратор бота и имеете неограниченный доступ."
     elif has_sub:
-        text = "⭐ <b>Подписка активна!</b>\n\n"
-        text += f"📅 <b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
+        text = f"{text_emoji('star')} <b>Подписка активна!</b>\n\n"
+        text += f"{text_emoji('clock')} <b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
         time_left = sub_end - datetime.now()
         days = time_left.days
         hours = time_left.seconds // 3600
         minutes = (time_left.seconds % 3600) // 60
-        text += f"⏳ <b>Осталось:</b> {days}д {hours}ч {minutes}м"
+        text += f"{text_emoji('clock')} <b>Осталось:</b> {days}д {hours}ч {minutes}м"
     else:
-        text = "⭐ <b>Подписка PRO</b>\n\n"
-        text += f"💰 <b>Цена:</b> {price_stars} звёзд или {price_usd} USD/мес\n\n"
+        text = f"{text_emoji('star')} <b>Подписка PRO</b>\n\n"
+        text += f"{text_emoji('money')} <b>Цена:</b> {price_stars} звёзд или {price_usd} USD/мес\n\n"
         text += (
-            "🚀 <b>Значительные преимущества PRO:</b>\n\n"
+            f"{text_emoji('rocket')} <b>Значительные преимущества PRO:</b>\n\n"
             "• <b>Все модели нейросети</b> — от быстрых до самых умных, без ограничений\n"
             "• <b>Генерация картинок</b> — мемы, иллюстрации, смешные образы по тексту\n"
             "• <b>Стиль ответа</b> — серьёзный, нейтральный, весёлый или «как друг»\n"
@@ -1941,8 +1973,8 @@ async def callback_buy_crypto(callback: CallbackQuery):
                 "Нажмите кнопку ниже для оплаты:"
             ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [make_inline_button("💎 Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
-                [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
+                [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
+                [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
             ]),
             parse_mode="HTML"
         )
@@ -1996,8 +2028,8 @@ async def callback_extend_crypto(callback: CallbackQuery):
                 "Нажмите кнопку ниже для оплаты:"
             ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [make_inline_button("💎 Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
-                [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
+                [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
+                [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
             ]),
             parse_mode="HTML"
         )
@@ -2924,8 +2956,8 @@ async def callback_info(callback: CallbackQuery):
     admin_username = ADMIN_USERNAME.lstrip('@')
 
     buttons = [
-        [make_inline_button(text="💬 Связаться", url=f"https://t.me/{admin_username}", button_key="contact_admin", style="primary")],
-        [make_inline_button(text="🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
+        [make_inline_button(text="Связаться", url=f"https://t.me/{admin_username}", button_key="contact_admin", style="primary")],
+        [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
     ]
     await safe_edit_or_send(
         callback, text,
@@ -3267,7 +3299,7 @@ async def callback_thinking_menu(callback: CallbackQuery):
     preset_human = STYLE_PRESET_LABELS.get(current_preset, "Нейтральный")
     preset_desc = STYLE_PRESET_DESCRIPTIONS.get(current_preset, "")
     preset_block = (
-        "🎚 <b>Стиль ответа</b>\n"
+        f"{text_emoji('style')} <b>Стиль ответа</b>\n"
         "Выберите, как ИИ будет отвечать:\n"
         "• <b>Серьезный</b> — коротко и по делу\n"
         "• <b>Нейтральный</b> — спокойно и универсально\n"
@@ -3299,9 +3331,9 @@ async def callback_thinking_menu(callback: CallbackQuery):
             total_params = count_params(pref_json)
 
             text = (
-                "🧠 <b>Мышление</b>\n\n"
+                f"{text_emoji('style')} <b>Мышление</b>\n\n"
                 f"{preset_block}\n"
-                "📦 <b>JSON конфиг загружен</b>\n"
+                f"{text_emoji('note')} <b>JSON конфиг загружен</b>\n"
                 f"🔑 Секций: {len(top_keys)}\n"
                 f"📊 Параметров: {total_params}\n"
                 f"📝 Ключи: <code>{keys_display}</code>"
@@ -3310,28 +3342,28 @@ async def callback_thinking_menu(callback: CallbackQuery):
             # Обычный текст
             pref_display = f"<blockquote>{current_pref[:200]}{'...' if len(current_pref) > 200 else ''}</blockquote>"
             text = (
-                "🧠 <b>Мышление</b>\n\n"
+                f"{text_emoji('style')} <b>Мышление</b>\n\n"
                 f"{preset_block}\n"
-                f"📝 <b>Текущие предпочтения:</b>\n"
+                f"{text_emoji('note')} <b>Текущие предпочтения:</b>\n"
                 f"{pref_display}"
             )
 
         buttons = [
             [
-                make_inline_button("🧷 Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
-                make_inline_button("⚖️ Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
+                make_inline_button("Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
+                make_inline_button("Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
             ],
             [
-                make_inline_button("😄 Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
-                make_inline_button("🤝 Друг", callback_data="stylepreset_friend", button_key="preset_friend")
+                make_inline_button("Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
+                make_inline_button("Друг", callback_data="stylepreset_friend", button_key="preset_friend")
             ],
-            [make_inline_button("✏️ Изменить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
-            [make_inline_button("🗑️ Удалить", callback_data="thinking_delete", button_key="thinking_delete", style="danger")],
-            [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
+            [make_inline_button("Изменить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
+            [make_inline_button("Удалить", callback_data="thinking_delete", button_key="thinking_delete", style="danger")],
+            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
         ]
     else:
         text = (
-            "🧠 <b>Мышление</b>\n\n"
+            f"{text_emoji('style')} <b>Мышление</b>\n\n"
             f"{preset_block}\n"
             "Хотите тоньше настроить стиль?\n"
             "Нажмите <b>«Настроить»</b> и отправьте:\n"
@@ -3340,27 +3372,27 @@ async def callback_thinking_menu(callback: CallbackQuery):
         )
         buttons = [
             [
-                make_inline_button("🧷 Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
-                make_inline_button("⚖️ Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
+                make_inline_button("Серьезный", callback_data="stylepreset_serious", button_key="preset_serious"),
+                make_inline_button("Нейтральный", callback_data="stylepreset_neutral", button_key="preset_neutral")
             ],
             [
-                make_inline_button("😄 Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
-                make_inline_button("🤝 Друг", callback_data="stylepreset_friend", button_key="preset_friend")
+                make_inline_button("Веселый", callback_data="stylepreset_funny", button_key="preset_funny"),
+                make_inline_button("Друг", callback_data="stylepreset_friend", button_key="preset_friend")
             ],
-            [make_inline_button("✏️ Настроить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
-            [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
+            [make_inline_button("Настроить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
+            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
         ]
 
     # Проверяем подписку
     if not has_active_subscription(user_id):
         buttons = [
-            [make_inline_button("⭐ Оформить подписку", callback_data="subscription", button_key="subscription", style="success")],
-            [make_inline_button("🏠 Главная", callback_data="main_menu", button_key="home", style="primary")]
+            [make_inline_button("Оформить подписку", callback_data="subscription", button_key="subscription", style="success")],
+            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
         ]
         text = (
-            "🧠 <b>Мышление</b>\n\n"
+            f"{text_emoji('style')} <b>Мышление</b>\n\n"
             f"{preset_block}\n"
-            "⭐ Для настройки мышления необходима подписка."
+            f"{text_emoji('star')} Для настройки мышления необходима подписка."
         )
 
     await safe_edit_or_send(callback, text, InlineKeyboardMarkup(inline_keyboard=buttons))
