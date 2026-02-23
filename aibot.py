@@ -40,6 +40,37 @@ DEFAULT_SYSTEM_GIF_URLS = [
     "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3Y2aGlnbW14N2JqbnMxNGUwM3A5ajhucmQ0eWt5bGVzN2QwdnMzZiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0HlBO7eyXzSZkJri/giphy.gif",
     "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjAwMWtvNHY3bXh4cm9taTN0bGc3dDhxNWF4bGFpc3Y5NHJieXN2YSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/xT0xeJpnrWC4XWblEk/giphy.gif"
 ]
+DEFAULT_BUTTON_EMOJI_PACK = {
+    # Main menu
+    "models": "6030400221232501136",        # 🤖
+    "thinking": "5864019342873598613",      # 🧠
+    "subscription": "6028338546736107668",  # ⭐️
+    "info": "6028435952299413210",          # ℹ
+    "home": "6042137469204303531",          # 🏠
+    # Model navigation
+    "model_item": "5936143551854285132",    # 📊
+    "nav_prev": "5960671702059848143",      # ⬅️
+    "nav_next": "5773626993010546707",      # ▶️
+    # Subscription/payment
+    "extend_stars": "6028338546736107668",  # ⭐️
+    "extend_crypto": "5776023601941582822", # 💎
+    "buy_stars": "5778613750688911681",     # 🪙
+    "buy_crypto": "5776023601941582822",    # 💎
+    "pay_crypto": "5776023601941582822",    # 💎
+    # Common actions
+    "cancel": "6030757850274336631",        # ❌
+    "confirm_clear": "5774022692642492953", # ✅
+    "required_channel": "6021418126061605425",  # 📢
+    "check_channels": "5843596438373667352",    # ✅️
+    "contact_admin": "6030784887093464891",     # 💬
+    # Style presets
+    "preset_serious": "6030537007350944596",    # 🛡
+    "preset_neutral": "6041748912102968702",    # 😐
+    "preset_funny": "6043996047582170909",      # 😀
+    "preset_friend": "5774034804450267485",     # 🙂
+    "thinking_edit": "6039779802741739617",      # ✏️
+    "thinking_delete": "6039522349517115015"     # 🗑
+}
 
 STYLE_PRESET_PROMPTS = {
     "serious": (
@@ -360,7 +391,7 @@ def load_config():
         "subscription_price": 100,  # Цена в звездах
         "subscription_price_usd": 5,  # Цена в USD для CryptoBot
         "system_gif_urls": [],
-        "button_emoji_pack": {}
+        "button_emoji_pack": DEFAULT_BUTTON_EMOJI_PACK.copy()
     }
 
 
@@ -830,7 +861,7 @@ def get_button_emoji_pack() -> dict:
             return {str(k): str(v) for k, v in parsed.items() if str(v).strip()}
     except Exception:
         pass
-    return {}
+    return DEFAULT_BUTTON_EMOJI_PACK.copy()
 
 
 def make_inline_button(
