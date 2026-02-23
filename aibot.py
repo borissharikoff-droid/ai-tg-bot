@@ -292,10 +292,33 @@ def add_header_emoji_to_bold_lines(text: str, header_emoji_tag: Optional[str] = 
     )
 
 
+def strip_custom_emoji_outside_first_header(text: str) -> str:
+    """Оставить custom emoji только в первой строке-заголовке, в остальных местах убрать."""
+    if not text:
+        return text
+
+    lines = text.splitlines()
+    header_idx = None
+    header_re = re.compile(r'^\s*(?:<tg-emoji[^>]*>.*?</tg-emoji>\s*)?<b>[^<].*?</b>')
+    for i, line in enumerate(lines):
+        if header_re.search(line):
+            header_idx = i
+            break
+
+    tg_emoji_re = re.compile(r'\s*<tg-emoji[^>]*>.*?</tg-emoji>\s*')
+    cleaned = []
+    for i, line in enumerate(lines):
+        if i != header_idx:
+            line = tg_emoji_re.sub('', line)
+        cleaned.append(line)
+    return "\n".join(cleaned)
+
+
 def normalize_html_outgoing_text(text: str) -> str:
     """Нормализация исходящих HTML-текстов: emoji -> custom emoji + анимодзи в заголовках."""
     normalized = normalize_text_emojis(text)
     normalized = add_header_emoji_to_bold_lines(normalized)
+    normalized = strip_custom_emoji_outside_first_header(normalized)
     return normalized
 
 
@@ -1921,7 +1944,7 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     )
     text = f"{start_title_emoji} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
     text += (
-        "<b>Могу помочь с чем угодно:</b>\n"
+        "Могу помочь с чем угодно:\n"
         "— написать пост, поздравление или идею\n"
         "— сделать мем или смешную картинку\n"
         "— разобрать фото или голосовое сообщение\n\n"
@@ -1932,7 +1955,7 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
 
     if not has_sub:
         text += (
-            f"{text_emoji('star')} <b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
+            "<b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
             "Нажмите кнопку ниже: там есть сравнение и преимущества."
         )
 
@@ -2152,21 +2175,20 @@ async def callback_subscription(callback: CallbackQuery):
     price_usd = get_subscription_price_usd()
 
     if user_id in ADMIN_IDS:
-        text = f"{text_emoji('crown')} <b>Подписка</b>\n\n"
+        text = f"{text_emoji('star')} <b>Подписка</b>\n\n"
         text += "Вы администратор бота и имеете неограниченный доступ."
     elif has_sub:
         text = f"{text_emoji('star')} <b>Подписка активна!</b>\n\n"
-        text += f"{text_emoji('clock')} <b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
+        text += f"<b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
         time_left = sub_end - datetime.now()
         days = time_left.days
         hours = time_left.seconds // 3600
         minutes = (time_left.seconds % 3600) // 60
-        text += f"{text_emoji('clock')} <b>Осталось:</b> {days}д {hours}ч {minutes}м"
+        text += f"<b>Осталось:</b> {days}д {hours}ч {minutes}м"
     else:
         text = f"{text_emoji('star')} <b>Подписка</b>\n\n"
-        text += f"{text_emoji('money')} <b>Цена:</b> {price_stars} звёзд или {price_usd} USD/мес\n\n"
         text += (
-            f"{text_emoji('rocket')} <b>Значительные преимущества подписки:</b>\n"
+            "<b>Значительные преимущества подписки:</b>\n"
             "<blockquote>"
             "• <b>Все модели нейросети</b> — от быстрых до самых умных, без ограничений\n"
             "• <b>Генерация картинок</b> — мемы, иллюстрации, смешные образы по тексту\n"
@@ -3210,9 +3232,9 @@ async def callback_info(callback: CallbackQuery):
     model_mode = "изображения" if current_model in IMAGE_MODELS else "текст"
     text = (
         f"{text_emoji('info')} <b>Настройки</b>\n\n"
-        f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code> ({model_mode})\n"
+        f"<b>Текущая модель:</b> <code>{current_model}</code> ({model_mode})\n"
         "Бот сам выбирает режим (текст/картинка) по вашему запросу.\n\n"
-        "📌 <b>Возможности:</b>\n"
+        "<b>Возможности:</b>\n"
         "<blockquote>"
         "• Генерация изображений\n"
         "• Анализ фото\n"
@@ -3617,9 +3639,9 @@ async def callback_thinking_menu(callback: CallbackQuery):
             text = (
                 f"{text_emoji('style')} <b>Мышление</b>\n\n"
                 f"{preset_block}\n"
-                f"{text_emoji('note')} <b>JSON конфиг загружен</b>\n"
-                f"🔑 Секций: {len(top_keys)}\n"
-                f"📊 Параметров: {total_params}\n"
+                "<b>JSON конфиг загружен</b>\n"
+                f"Секций: {len(top_keys)}\n"
+                f"Параметров: {total_params}\n"
                 f"📝 Ключи: <code>{keys_display}</code>"
             )
         except:
@@ -3628,7 +3650,7 @@ async def callback_thinking_menu(callback: CallbackQuery):
             text = (
                 f"{text_emoji('style')} <b>Мышление</b>\n\n"
                 f"{preset_block}\n"
-                f"{text_emoji('note')} <b>Текущие предпочтения:</b>\n"
+                "<b>Текущие предпочтения:</b>\n"
                 f"{pref_display}"
             )
 
@@ -3675,7 +3697,7 @@ async def callback_thinking_menu(callback: CallbackQuery):
         text = (
             f"{text_emoji('style')} <b>Мышление</b>\n\n"
             f"{preset_block}\n"
-            f"{text_emoji('star')} Для настройки мышления необходима подписка."
+            "Для настройки мышления необходима подписка."
         )
 
     try:
@@ -3730,9 +3752,9 @@ async def callback_thinking_edit(callback: CallbackQuery, state: FSMContext):
         callback,
         "⚙️ <b>Настройка мышления</b>\n\n"
         "Отправьте настройки в одном из форматов:\n\n"
-        "<b>📎 Текст:</b>\n"
+        "<b>Текст:</b>\n"
         "<i>«общайся со мной как друг, пиши с маленькой буквы, используй эмодзи»</i>\n\n"
-        "<b>⚙️ JSON:</b>\n"
+        "<b>JSON:</b>\n"
         "<code>{\n"
         '  "tone": "friendly",\n'
         '  "style": "informal",\n'
