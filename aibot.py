@@ -1667,20 +1667,30 @@ async def handle_business_text_message(message: Message):
         user_data = load_user_data(bot_owner_id)
         user_model = user_data.get("model", DEFAULT_MODEL)
 
-        if user_model in IMAGE_MODELS:
+        should_generate_image = user_model in IMAGE_MODELS or is_image_generation_request(message.text or "")
+        if should_generate_image:
+            image_model = user_model if user_model in IMAGE_MODELS else pick_image_model(bot_owner_id)
+            if not image_model:
+                await bot.send_message(
+                    message.chat.id,
+                    "✖️ Сейчас нет доступной модели для генерации изображений.",
+                    business_connection_id=business_connection_id
+                )
+                return
+
             await bot.send_chat_action(
                 message.chat.id,
                 "upload_photo",
                 business_connection_id=business_connection_id
             )
-            success, result = await generate_image(bot_owner_id, message.text, user_model)
+            success, result = await generate_image(bot_owner_id, message.text, image_model)
 
             if success:
                 photo = BufferedInputFile(result, filename="generated_image.jpg")
                 await bot.send_photo(
                     chat_id=message.chat.id,
                     photo=photo,
-                    caption=f"🖼 {user_model}",
+                    caption=f"🖼 {image_model}",
                     business_connection_id=business_connection_id
                 )
             else:
