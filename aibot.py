@@ -269,6 +269,35 @@ def normalize_text_emojis(text: str) -> str:
     return normalized
 
 
+def get_default_header_emoji_tag() -> str:
+    """Базовая анимодзи-иконка для заголовков во всех HTML-сообщениях."""
+    return (
+        text_emoji("wave")
+        or text_emoji("star")
+        or button_emoji_tag("subscription")
+        or button_emoji_tag("info")
+    )
+
+
+def add_header_emoji_to_bold_lines(text: str, header_emoji_tag: Optional[str] = None) -> str:
+    """Добавить анимодзи в начало строки-заголовка <b>...</b>, если ее там еще нет."""
+    if not text:
+        return text
+    header_prefix = f"{header_emoji_tag or get_default_header_emoji_tag()} "
+    return re.sub(
+        r'(?m)^(?!\s*<tg-emoji)(\s*<b>[^<].*?</b>)',
+        rf'{header_prefix}\1',
+        text
+    )
+
+
+def normalize_html_outgoing_text(text: str) -> str:
+    """Нормализация исходящих HTML-текстов: emoji -> custom emoji + анимодзи в заголовках."""
+    normalized = normalize_text_emojis(text)
+    normalized = add_header_emoji_to_bold_lines(normalized)
+    return normalized
+
+
 def normalize_system_text(text: str) -> str:
     """
     Нормализовать системный текст:
@@ -278,17 +307,7 @@ def normalize_system_text(text: str) -> str:
     if not text:
         return text
 
-    normalized = normalize_text_emojis(text)
-
-    # Добавляем анимодзи в начало строки с заголовком <b>...</b>, если там его еще нет.
-    header_prefix = f"{button_emoji_tag('info') or text_emoji('info')} "
-    normalized = re.sub(
-        r'(?m)^(?!\s*<tg-emoji)(\s*<b>[^<].*?</b>)',
-        rf'{header_prefix}\1',
-        normalized
-    )
-
-    return normalized
+    return normalize_html_outgoing_text(text)
 
 
 def is_image_generation_request(text: str) -> bool:
@@ -554,16 +573,19 @@ def _is_html_parse_mode(parse_mode) -> bool:
 
 _original_bot_send_message = Bot.send_message
 _original_message_answer = Message.answer
+_original_bot_send_photo = Bot.send_photo
+_original_bot_send_video = Bot.send_video
+_original_bot_send_animation = Bot.send_animation
 
 
 async def _bot_send_message_with_custom_emoji(self, *args, **kwargs):
     parse_mode = kwargs.get("parse_mode")
     if _is_html_parse_mode(parse_mode):
         if "text" in kwargs and isinstance(kwargs["text"], str):
-            kwargs["text"] = normalize_text_emojis(kwargs["text"])
+            kwargs["text"] = normalize_html_outgoing_text(kwargs["text"])
         elif len(args) >= 2 and isinstance(args[1], str):
             args = list(args)
-            args[1] = normalize_text_emojis(args[1])
+            args[1] = normalize_html_outgoing_text(args[1])
             args = tuple(args)
     return await _original_bot_send_message(self, *args, **kwargs)
 
@@ -571,12 +593,36 @@ async def _bot_send_message_with_custom_emoji(self, *args, **kwargs):
 async def _message_answer_with_custom_emoji(self, text, *args, **kwargs):
     parse_mode = kwargs.get("parse_mode")
     if _is_html_parse_mode(parse_mode) and isinstance(text, str):
-        text = normalize_text_emojis(text)
+        text = normalize_html_outgoing_text(text)
     return await _original_message_answer(self, text, *args, **kwargs)
+
+
+async def _bot_send_photo_with_custom_emoji(self, *args, **kwargs):
+    parse_mode = kwargs.get("parse_mode")
+    if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
+        kwargs["caption"] = normalize_html_outgoing_text(kwargs["caption"])
+    return await _original_bot_send_photo(self, *args, **kwargs)
+
+
+async def _bot_send_video_with_custom_emoji(self, *args, **kwargs):
+    parse_mode = kwargs.get("parse_mode")
+    if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
+        kwargs["caption"] = normalize_html_outgoing_text(kwargs["caption"])
+    return await _original_bot_send_video(self, *args, **kwargs)
+
+
+async def _bot_send_animation_with_custom_emoji(self, *args, **kwargs):
+    parse_mode = kwargs.get("parse_mode")
+    if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
+        kwargs["caption"] = normalize_html_outgoing_text(kwargs["caption"])
+    return await _original_bot_send_animation(self, *args, **kwargs)
 
 
 Bot.send_message = _bot_send_message_with_custom_emoji
 Message.answer = _message_answer_with_custom_emoji
+Bot.send_photo = _bot_send_photo_with_custom_emoji
+Bot.send_video = _bot_send_video_with_custom_emoji
+Bot.send_animation = _bot_send_animation_with_custom_emoji
 
 
 # ==================== FSM STATES ====================
@@ -1867,10 +1913,10 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     start_example = get_start_example(user_id, rotate=rotate_example)
 
     start_title_emoji = (
-        button_emoji_tag("info")
-        or button_emoji_tag("thinking")
+        text_emoji("wave")
+        or text_emoji("star")
         or button_emoji_tag("subscription")
-        or text_emoji("info")
+        or button_emoji_tag("info")
     )
     text = f"{start_title_emoji} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
     text += (
