@@ -1810,7 +1810,13 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     has_sub = has_active_subscription(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
-    text = f"{button_emoji_tag('models')} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
+    start_title_emoji = (
+        button_emoji_tag("info")
+        or button_emoji_tag("thinking")
+        or button_emoji_tag("subscription")
+        or text_emoji("info")
+    )
+    text = f"{start_title_emoji} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
     text += (
         "<b>Могу помочь с чем угодно:</b>\n"
         "— написать пост, поздравление или идею\n"
