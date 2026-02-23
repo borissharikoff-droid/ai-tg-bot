@@ -35,6 +35,11 @@ DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
+DEFAULT_SYSTEM_GIF_URLS = [
+    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExb3NvNWJjb2M0MnY4N3l6YjF2dnRxMXVydnVwOG8wOW5mODR1bHl4NiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3o7aD2saalBwwftBIY/giphy.gif",
+    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3Y2aGlnbW14N2JqbnMxNGUwM3A5ajhucmQ0eWt5bGVzN2QwdnMzZiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0HlBO7eyXzSZkJri/giphy.gif",
+    "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjAwMWtvNHY3bXh4cm9taTN0bGc3dDhxNWF4bGFpc3Y5NHJieXN2YSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/xT0xeJpnrWC4XWblEk/giphy.gif"
+]
 
 STYLE_PRESET_PROMPTS = {
     "serious": (
@@ -187,6 +192,9 @@ async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_
             gif_pool = [str(u).strip() for u in cfg_urls if str(u).strip()]
     except Exception:
         pass
+
+    if not gif_pool:
+        gif_pool = DEFAULT_SYSTEM_GIF_URLS.copy()
 
     if gif_pool:
         chosen_gif = random.choice(gif_pool)
@@ -1610,13 +1618,13 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     sub_end = get_subscription_end(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
-    text = "👋 <b>Привет! Это бот с нейросетью.</b>\n\n"
+    text = "👋 <b>Привет! Я AI-бот.</b>\n\n"
     text += (
-        "Тут можно <b>решать простые задачи</b> и <b>генерировать смешные картинки</b> без лишней возни.\n\n"
-        "• Написать текст: открытки, посты, подписи, идеи\n"
-        "• Сделать картинку по описанию (мемы, иллюстрации)\n"
-        "• Обработать фото и голосовые сообщения\n\n"
-        "<b>Пример — просто скопируй и отправь:</b>\n"
+        "Помогаю с обычными задачами и делаю смешные картинки.\n\n"
+        "• Тексты: поздравления, посты, идеи\n"
+        "• Картинки по описанию: мемы и иллюстрации\n"
+        "• Разбор фото и голосовых\n\n"
+        "<b>Пример запроса:</b>\n"
         f"<blockquote>{start_example}</blockquote>\n"
     )
 
@@ -1626,7 +1634,7 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
         else:
             text += f"⭐ <b>Подписка активна до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
         text += f"🧬 <b>Текущая модель:</b> <code>{user_data.get('model', DEFAULT_MODEL)}</code>\n\n"
-        text += "💬 <b>Как пользоваться:</b> просто напишите задачу обычными словами."
+        text += "💬 <b>Как пользоваться:</b> просто напишите задачу своими словами."
     else:
         text += (
             "⭐ <b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
