@@ -280,14 +280,15 @@ def get_default_header_emoji_tag() -> str:
 
 
 def add_header_emoji_to_bold_lines(text: str, header_emoji_tag: Optional[str] = None) -> str:
-    """Добавить анимодзи в начало строки-заголовка <b>...</b>, если ее там еще нет."""
+    """Добавить анимодзи только к первому заголовку <b>...</b> в сообщении."""
     if not text:
         return text
     header_prefix = f"{header_emoji_tag or get_default_header_emoji_tag()} "
     return re.sub(
         r'(?m)^(?!\s*<tg-emoji)(\s*<b>[^<].*?</b>)',
         rf'{header_prefix}\1',
-        text
+        text,
+        count=1
     )
 
 
