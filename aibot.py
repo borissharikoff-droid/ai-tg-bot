@@ -19,6 +19,7 @@ import subprocess
 import re
 import html
 import random
+from urllib.parse import quote
 
 try:
     from emoji_to_custom_id import EMOJI_TO_CUSTOM_ID
@@ -40,6 +41,7 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@inzdi")
 #остальное как есть:
 API_URL = "http://api.onlysq.ru/ai/v2"
 IMAGE_API_URL = "https://api.onlysq.ru/ai/imagen"
+FREE_IMAGE_API_URL = "https://image.pollinations.ai/prompt"
 API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
 # Ключ DeepSeek (sk-...) — читается при запуске, не при сборке (чтобы Railway не требовал переменную на build)
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
@@ -175,6 +177,9 @@ if not TELEGRAM_TOKEN:
 
 if not CRYPTO_BOT_TOKEN:
     logging.warning("CRYPTO_BOT_TOKEN is not set. CryptoBot payments will be unavailable.")
+
+if not API_BEARER_TOKEN:
+    logging.warning("API_BEARER_TOKEN is not set. Text/image generation via onlysq.ru may be unavailable.")
 
 if not ADMIN_IDS:
     raise RuntimeError("Set ADMIN_IDS environment variable with at least one Telegram user ID")
@@ -383,7 +388,13 @@ def pick_image_model(user_id: int) -> Optional[str]:
     if preferred_model in enabled_image_models:
         return preferred_model
 
-    for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
+    # Если токен onlysq не настроен — по умолчанию выбираем бесплатную модель.
+    if not API_BEARER_TOKEN:
+        for candidate in ("pollinations-flux-free", "flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
+            if candidate in enabled_image_models:
+                return candidate
+
+    for candidate in ("flux", "pollinations-flux-free", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
         if candidate in enabled_image_models:
             return candidate
     return enabled_image_models[0]
@@ -579,10 +590,11 @@ AVAILABLE_MODELS = [
     "flux-2-dev",
     "phoenix-1.0",
     "lucid-origin",
-    "flux"
+    "flux",
+    "pollinations-flux-free"
 ]
 
-IMAGE_MODELS = {"p-flux", "grok-2-image", "flux-2-dev", "phoenix-1.0", "lucid-origin", "flux"}
+IMAGE_MODELS = {"p-flux", "grok-2-image", "flux-2-dev", "phoenix-1.0", "lucid-origin", "flux", "pollinations-flux-free"}
 MODELS_PER_PAGE = 8
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -724,7 +736,7 @@ DEFAULT_ENABLED_MODELS = [
     "deepseek-v3",
     "deepseek-r1",
     "gemini-3-flash",
-    "flux"  # image-model по умолчанию, чтобы генерация картинок работала из коробки
+    "pollinations-flux-free"  # бесплатная image-model по умолчанию
 ]
 
 
@@ -743,10 +755,14 @@ def get_enabled_models() -> list:
     # Авто-страховка: если нет ни одной image-модели, добавляем первую доступную.
     has_image_model = any(m in IMAGE_MODELS for m in enabled)
     if not has_image_model:
-        for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
+        for candidate in ("pollinations-flux-free", "flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
             if candidate in AVAILABLE_MODELS and candidate not in enabled:
                 enabled.append(candidate)
                 break
+
+    # Если токен onlysq не задан, гарантируем бесплатную модель в списке.
+    if not API_BEARER_TOKEN and "pollinations-flux-free" in AVAILABLE_MODELS and "pollinations-flux-free" not in enabled:
+        enabled.append("pollinations-flux-free")
 
     return enabled
 
@@ -4264,6 +4280,34 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
 
 async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     """Сгенерировать изображение"""
+    if model == "pollinations-flux-free":
+        clean_prompt = sanitize_user_input(prompt, max_length=800)
+        if not clean_prompt:
+            return False, "✖️ Пустой промпт для генерации."
+        try:
+            encoded_prompt = quote(clean_prompt, safe="")
+            url = f"{FREE_IMAGE_API_URL}/{encoded_prompt}"
+            params = {"model": "flux", "nologo": "true", "width": "1024", "height": "1024"}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params, timeout=90) as response:
+                    if response.status == 200:
+                        image_bytes = await response.read()
+                        if image_bytes:
+                            increment_stat("total_messages")
+                            return True, image_bytes
+                        return False, "✖️ Бесплатный API вернул пустое изображение."
+                    body = (await response.text())[:500]
+                    logging.warning(f"Free image API error {response.status}: {body}")
+                    return False, f"✖️ Ошибка бесплатного API ({response.status})"
+        except asyncio.TimeoutError:
+            return False, "✖️ Бесплатный API: превышено время ожидания (90 сек)"
+        except Exception as e:
+            logging.error(f"Ошибка бесплатной генерации: {e}")
+            return False, "✖️ Ошибка бесплатной генерации изображения"
+
+    if not API_BEARER_TOKEN:
+        return False, "✖️ Не настроен API_BEARER_TOKEN для генерации изображений."
+
     headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
 
     send = {"model": model, "prompt": sanitize_user_input(prompt, max_length=1500), "n": 1}
@@ -4285,6 +4329,10 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
 
                     return False, "✖️ API не вернул изображение"
                 else:
+                    body = (await response.text())[:500]
+                    logging.warning(f"Image API error {response.status}: {body}")
+                    if response.status == 401:
+                        return False, "✖️ Ошибка API (401): проверьте API_BEARER_TOKEN в Railway Variables."
                     return False, f"✖️ Ошибка API ({response.status})"
     except asyncio.TimeoutError:
         return False, "✖️ Превышено время ожидания (90 сек)"
