@@ -214,6 +214,49 @@ def text_emoji(name: str) -> str:
     return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
 
 
+def is_image_generation_request(text: str) -> bool:
+    """Определить, просит ли пользователь сгенерировать изображение."""
+    if not text:
+        return False
+    t = text.lower()
+    image_markers = [
+        "сгенерируй картин",
+        "сделай картин",
+        "нарисуй",
+        "создай изображ",
+        "создай картин",
+        "сделай мем",
+        "сгенерируй мем",
+        "иллюстрац",
+        "арт",
+        "poster",
+        "draw",
+        "generate image",
+        "image of",
+        "logo",
+        "стикер"
+    ]
+    return any(marker in t for marker in image_markers)
+
+
+def pick_image_model(user_id: int) -> Optional[str]:
+    """Выбрать модель генерации изображения: сначала пользовательскую, затем дефолт из доступных."""
+    enabled_models = set(get_enabled_models())
+    enabled_image_models = [m for m in AVAILABLE_MODELS if m in IMAGE_MODELS and m in enabled_models]
+    if not enabled_image_models:
+        return None
+
+    user_data = load_user_data(user_id)
+    preferred_model = user_data.get("model")
+    if preferred_model in enabled_image_models:
+        return preferred_model
+
+    for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
+        if candidate in enabled_image_models:
+            return candidate
+    return enabled_image_models[0]
+
+
 def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items: int = 200):
     """Ограничить глубину/размер JSON, чтобы избежать перегрузки."""
     if depth > max_depth:
@@ -1118,12 +1161,11 @@ def get_main_keyboard():
     """Главная клавиатура"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            make_inline_button("Модели AI", callback_data="models_0", button_key="models", style="primary"),
             make_inline_button("Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")
         ],
         [
             make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success"),
-            make_inline_button("Помощь", callback_data="info", button_key="info")
+            make_inline_button("Настройки", callback_data="settings", button_key="info")
         ]
     ])
 
@@ -1670,12 +1712,10 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
 
 async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = False):
     """Отправить приветственное сообщение (понятно обывателю: простые задачи + смешные картинки)."""
-    user_data = load_user_data(user_id)
     has_sub = has_active_subscription(user_id)
-    sub_end = get_subscription_end(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
-    text = f"{text_emoji('wave')} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
+    text = f"{text_emoji('wave')} {text_emoji('robot')} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
     text += (
         "<b>Могу помочь с чем угодно:</b>\n"
         "— написать пост, поздравление или идею\n"
@@ -1686,14 +1726,7 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
         f"<blockquote>{start_example}</blockquote>\n"
     )
 
-    if has_sub:
-        if user_id in ADMIN_IDS:
-            text += f"{text_emoji('crown')} <b>Статус:</b> Администратор\n"
-        else:
-            text += f"{text_emoji('star')} <b>Подписка активна до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
-        text += f"{text_emoji('models')} <b>Текущая модель:</b> <code>{user_data.get('model', DEFAULT_MODEL)}</code>\n\n"
-        text += f"{text_emoji('chat')} <b>Как пользоваться:</b> просто напишите задачу своими словами."
-    else:
+    if not has_sub:
         text += (
             f"{text_emoji('star')} <b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
             "Нажмите кнопку ниже: там есть сравнение и преимущества."
@@ -1845,7 +1878,9 @@ async def callback_models(callback: CallbackQuery):
     text = (
         f"{text_emoji('models')} <b>Модели</b>\n\n"
         f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code>\n"
-        f"<b>Тип:</b> {model_type}"
+        f"<b>Тип:</b> {model_type}\n\n"
+        "Бот сам выбирает текст или картинку по вашему запросу.\n"
+        "Тут вы меняете базовую модель по умолчанию."
     )
 
     await safe_edit_or_send(callback, text, get_models_keyboard(page, user_id))
@@ -2937,12 +2972,17 @@ async def process_channel_media_gif(message: Message, state: FSMContext):
 
 
 # ==================== INFO HANDLER ====================
-@dp.callback_query(F.data == "info")
+@dp.callback_query(F.data.in_(["settings", "info"]))
 async def callback_info(callback: CallbackQuery):
-    """Информация о боте"""
+    """Настройки и информация о боте."""
+    user_id = callback.from_user.id
+    user_data = load_user_data(user_id)
+    current_model = user_data.get("model", DEFAULT_MODEL)
+    model_mode = "изображения" if current_model in IMAGE_MODELS else "текст"
     text = (
-        "ℹ️ <b>О боте</b>\n\n"
-        "🤖 <b>AI Chat Bot</b> — бот для общения с различными AI моделями.\n\n"
+        f"{text_emoji('info')} <b>Настройки</b>\n\n"
+        f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code> ({model_mode})\n"
+        "Бот сам выбирает режим (текст/картинка) по вашему запросу.\n\n"
         "📌 <b>Возможности:</b>\n"
         "• Генерация изображений\n"
         "• Анализ фото\n"
@@ -2956,6 +2996,7 @@ async def callback_info(callback: CallbackQuery):
     admin_username = ADMIN_USERNAME.lstrip('@')
 
     buttons = [
+        [make_inline_button(text="Модели AI", callback_data="models_0", button_key="models", style="primary")],
         [make_inline_button(text="Связаться", url=f"https://t.me/{admin_username}", button_key="contact_admin", style="primary")],
         [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
     ]
@@ -3748,6 +3789,9 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
 
     user_data = load_user_data(user_id)
     user_model = user_data.get("model", DEFAULT_MODEL)
+    # Для текстового/мультимодального чата не используем image-only модели.
+    if user_model in IMAGE_MODELS:
+        user_model = DEFAULT_MODEL
 
     try:
         if _get_deepseek_key():
@@ -3874,6 +3918,8 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
 
     user_data = load_user_data(bot_owner_id)
     user_model = user_data.get("model", DEFAULT_MODEL)
+    if user_model in IMAGE_MODELS:
+        user_model = DEFAULT_MODEL
 
     if _get_deepseek_key():
         ds_messages = _messages_to_deepseek_format(messages)
@@ -4125,26 +4171,28 @@ async def handle_voice(message: Message, state: FSMContext):
             await message.answer("✖️ Не удалось распознать голосовое сообщение. Попробуйте еще раз.")
             return
 
-        # Получаем ответ от AI
-        user_data = load_user_data(user_id)
-        user_model = user_data.get("model", DEFAULT_MODEL)
+        if is_image_generation_request(transcribed_text):
+            image_model = pick_image_model(user_id)
+            if not image_model:
+                await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
+                return
 
-        if user_model in IMAGE_MODELS:
             await bot.send_chat_action(message.chat.id, "upload_photo")
-
-            success, result = await generate_image(user_id, transcribed_text, user_model)
+            success, result = await generate_image(user_id, transcribed_text, image_model)
 
             if success:
                 photo = BufferedInputFile(result, filename="generated_image.jpg")
                 await message.answer_photo(
                     photo=photo,
-                    caption=f"🖼 Модель: {user_model}\n📝 Промпт: {transcribed_text[:100]}{'...' if len(transcribed_text) > 100 else ''}"
+                    caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {transcribed_text[:100]}{'...' if len(transcribed_text) > 100 else ''}",
+                    parse_mode="HTML"
                 )
             else:
                 await message.answer(result)
-        else:
-            ai_response = await get_ai_response(user_id, transcribed_text)
-            await send_long_message(message, ai_response)
+            return
+
+        ai_response = await get_ai_response(user_id, transcribed_text)
+        await send_long_message(message, ai_response)
 
     except Exception as e:
         logging.error(f"Ошибка голоса: {e}")
@@ -4181,31 +4229,33 @@ async def handle_message(message: Message, state: FSMContext):
         )
         return
 
-    user_data = load_user_data(user_id)
-    user_model = user_data.get("model", DEFAULT_MODEL)
+    if is_image_generation_request(message.text):
+        image_model = pick_image_model(user_id)
+        if not image_model:
+            await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
+            return
 
-    if user_model in IMAGE_MODELS:
         await bot.send_chat_action(message.chat.id, "upload_photo")
 
-        success, result = await generate_image(user_id, message.text, user_model)
+        success, result = await generate_image(user_id, message.text, image_model)
 
         if success:
             try:
                 photo = BufferedInputFile(result, filename="generated_image.jpg")
                 await message.answer_photo(
                     photo=photo,
-                    caption=f"🖼 Модель: {user_model}\n📝 Промпт: {message.text[:100]}{'...' if len(message.text) > 100 else ''}"
+                    caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {message.text[:100]}{'...' if len(message.text) > 100 else ''}",
+                    parse_mode="HTML"
                 )
             except Exception as e:
                 await message.answer(f"✖️ Ошибка отправки: {str(e)}")
         else:
             await message.answer(result)
-    else:
-        await bot.send_chat_action(message.chat.id, "typing")
+        return
 
-        ai_response = await get_ai_response(user_id, message.text)
-
-        await send_long_message(message, ai_response)
+    await bot.send_chat_action(message.chat.id, "typing")
+    ai_response = await get_ai_response(user_id, message.text)
+    await send_long_message(message, ai_response)
 
 
 # ==================== SUBSCRIPTION REMINDER ====================
