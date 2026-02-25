@@ -513,32 +513,55 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
     если пользователь не просил животных, но на картинке есть животное, делаем автоповтор.
     """
     animal_allowed = prompt_requests_animals(prompt)
-    current_prompt = prompt
     last_error = "✖️ Не удалось сгенерировать изображение."
 
-    for attempt in range(1, max_attempts + 1):
-        success, result = await generate_image(user_id, current_prompt, model)
-        if not success:
-            last_error = result
-            continue
+    # План моделей: сначала текущая, затем альтернативы.
+    t = (prompt or "").lower()
+    object_scene = any(x in t for x in ("обои", "рулон", "валик", "ролик", "краск", "стол", "предмет", "product"))
+    enabled_models = set(get_enabled_models())
+    if object_scene and not animal_allowed:
+        preferred_order = ["lucid-origin", "phoenix-1.0", "flux-2-dev", "flux", "grok-2-image", "pollinations-flux-free"]
+    else:
+        preferred_order = ["flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"]
 
-        # Если результат не bytes (например URL), пропускаем валидацию.
-        if not isinstance(result, (bytes, bytearray)):
-            return True, result
+    model_plan = [model]
+    for m in preferred_order:
+        if m in IMAGE_MODELS and m in enabled_models and m not in model_plan:
+            model_plan.append(m)
 
-        if animal_allowed:
-            return True, result
+    for model_idx, current_model in enumerate(model_plan):
+        current_prompt = prompt
+        for attempt in range(1, max_attempts + 1):
+            success, result = await generate_image(user_id, current_prompt, current_model)
+            if not success:
+                last_error = result
+                # Если модель явно недоступна/лимитирована — сразу пробуем следующую модель.
+                lower_err = str(result).lower()
+                if any(x in lower_err for x in ("429", "rate limit", "bad argument", "credits", "spending limit")):
+                    break
+                continue
 
-        contains_animal = await image_contains_animal(bytes(result))
-        if contains_animal is False:
-            return True, result
-        if contains_animal is None:
-            # Валидация недоступна — не блокируем пользователя.
-            return True, result
+            # Если результат не bytes (например URL), пропускаем валидацию.
+            if not isinstance(result, (bytes, bytearray)):
+                return True, result
 
-        # contains_animal == True
-        current_prompt = _image_retry_prompt_no_animals(prompt, attempt)
-        last_error = "✖️ Модель упорно добавляет лишние объекты. Попробуйте уточнить запрос."
+            if animal_allowed:
+                return True, result
+
+            contains_animal = await image_contains_animal(bytes(result))
+            if contains_animal is False:
+                return True, result
+            if contains_animal is None:
+                # Валидация недоступна — не блокируем пользователя.
+                return True, result
+
+            # contains_animal == True -> усиливаем негатив и пробуем еще.
+            current_prompt = _image_retry_prompt_no_animals(prompt, attempt)
+            last_error = "✖️ Модель упорно добавляет лишние объекты. Попробуйте уточнить запрос."
+
+        # Переход на следующую модель после серии неудач.
+        if model_idx < len(model_plan) - 1:
+            logging.warning(f"Switching image model fallback: {current_model} -> {model_plan[model_idx + 1]}")
 
     return False, last_error
 
