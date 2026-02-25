@@ -425,6 +425,12 @@ def build_image_prompt(user_text: str) -> str:
             "MUST HAVE SCENE: one or more wallpaper rolls placed on a table, product-style shot. "
             "Wallpaper rolls are the main subject. "
         )
+    elif ("валик" in core_l or "ролик" in core_l or "paint roller" in core_l) and ("краск" in core_l or "paint" in core_l):
+        scene_guard = (
+            "MUST HAVE SCENE: a paint roller lying on the floor with white paint. "
+            "Paint roller is the only main subject. "
+            "No cats, no pets, no animals, no portraits. "
+        )
 
     negative_animals = ""
     if not has_animal:
@@ -459,6 +465,28 @@ def pick_image_model(user_id: int) -> Optional[str]:
         if candidate in enabled_image_models:
             return candidate
     return enabled_image_models[0]
+
+
+def pick_image_model_for_prompt(user_id: int, prompt_text: str) -> Optional[str]:
+    """
+    Выбрать image-модель с учетом типа сцены.
+    Для предметных сцен (без животных) предпочитаем модели, лучше держащие промпт.
+    """
+    enabled_models = set(get_enabled_models())
+    enabled_image_models = [m for m in AVAILABLE_MODELS if m in IMAGE_MODELS and m in enabled_models]
+    if not enabled_image_models:
+        return None
+
+    t = (prompt_text or "").lower()
+    has_animal = any(x in t for x in ("кот", "кошк", "cat", "kitten", "собак", "dog", "puppy", "животн", "animal"))
+    object_scene = any(x in t for x in ("обои", "рулон", "валик", "ролик", "краск", "стол", "предмет", "product"))
+
+    if object_scene and not has_animal:
+        for candidate in ("lucid-origin", "phoenix-1.0", "flux-2-dev", "flux"):
+            if candidate in enabled_image_models:
+                return candidate
+
+    return pick_image_model(user_id)
 
 
 def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items: int = 200):
@@ -1773,7 +1801,7 @@ async def handle_business_text_message(message: Message):
 
         should_generate_image = user_model in IMAGE_MODELS or is_image_generation_request(message.text or "")
         if should_generate_image:
-            image_model = user_model if user_model in IMAGE_MODELS else pick_image_model(bot_owner_id)
+            image_model = user_model if user_model in IMAGE_MODELS else pick_image_model_for_prompt(bot_owner_id, message.text or "")
             if not image_model:
                 await bot.send_message(
                     message.chat.id,
@@ -4737,7 +4765,7 @@ async def handle_voice(message: Message, state: FSMContext):
             return
 
         if is_image_generation_request(transcribed_text):
-            image_model = pick_image_model(user_id)
+            image_model = pick_image_model_for_prompt(user_id, transcribed_text)
             if not image_model:
                 await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
                 return
@@ -4804,7 +4832,7 @@ async def handle_message(message: Message, state: FSMContext):
         return
 
     if is_image_generation_request(message.text):
-        image_model = pick_image_model(user_id)
+        image_model = pick_image_model_for_prompt(user_id, message.text)
         if not image_model:
             await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
             return
