@@ -408,12 +408,23 @@ def build_image_prompt(user_text: str) -> str:
     if not core:
         core = src
 
+    core_l = core.lower()
+    # Сильные ограничения для частого кейса, когда модель игнорирует сцену с борщом.
+    scene_guard = ""
+    if ("кот" in core_l or "кошк" in core_l or "cat" in core_l) and ("борщ" in core_l or "borsch" in core_l or "borscht" in core_l):
+        scene_guard = (
+            "MUST HAVE SCENE: a ginger cat physically inside a plate or bowl of red borscht soup; "
+            "red soup and beets clearly visible around the cat; close-up composition. "
+            "DO NOT output just a cat portrait without soup. "
+        )
+
     strict_prompt = (
-        f"User request: {core}. "
-        "Follow the request exactly. Keep the main subject exactly as requested. "
-        "Do not replace the subject with a different animal or object. "
-        "No dogs unless user explicitly asked for dogs. "
-        "No text, no logos, no watermark."
+        f"REQUEST (RU): {core}. "
+        "Translate to clear English internally and follow exactly. "
+        f"{scene_guard}"
+        "Render a coherent single scene that matches the request exactly. "
+        "Main subject must stay unchanged; do not substitute species/object. "
+        "NEGATIVE: dogs, people, random flowers, plain pet portrait, text, logo, watermark, extra captions."
     )
     return strict_prompt
 
