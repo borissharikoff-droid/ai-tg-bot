@@ -410,41 +410,28 @@ def build_image_prompt(user_text: str) -> str:
         core = src
 
     core_l = core.lower()
-    # Сильные ограничения для частого кейса, когда модель игнорирует сцену с борщом.
-    scene_guard = ""
-    has_cat = ("кот" in core_l or "кошк" in core_l or "cat" in core_l or "kitten" in core_l)
-    has_animal = has_cat or ("собак" in core_l or "dog" in core_l or "puppy" in core_l or "животн" in core_l or "animal" in core_l)
-    if ("кот" in core_l or "кошк" in core_l or "cat" in core_l) and ("борщ" in core_l or "borsch" in core_l or "borscht" in core_l):
-        scene_guard = (
-            "MUST HAVE SCENE: a ginger cat physically inside a plate or bowl of red borscht soup; "
-            "red soup and beets clearly visible around the cat; close-up composition. "
-            "DO NOT output just a cat portrait without soup. "
-        )
-    elif ("обои" in core_l or "обоев" in core_l or "wallpaper" in core_l):
-        scene_guard = (
-            "MUST HAVE SCENE: one or more wallpaper rolls placed on a table, product-style shot. "
-            "Wallpaper rolls are the main subject. "
-        )
-    elif ("валик" in core_l or "ролик" in core_l or "paint roller" in core_l) and ("краск" in core_l or "paint" in core_l):
-        scene_guard = (
-            "MUST HAVE SCENE: a paint roller lying on the floor with white paint. "
-            "Paint roller is the only main subject. "
-            "No cats, no pets, no animals, no portraits. "
-        )
-
-    negative_animals = ""
-    if not has_animal:
-        negative_animals = "No cats, no dogs, no animals. "
+    animal_words = (
+        "кот", "кошка", "кошк", "cat", "kitten",
+        "собак", "dog", "puppy",
+        "птиц", "bird", "лошад", "horse", "медвед", "bear",
+        "животн", "animal"
+    )
+    has_animal = any(w in core_l for w in animal_words)
 
     strict_prompt = (
-        f"REQUEST (RU): {core}. "
-        "Translate to clear English internally and follow exactly. "
-        f"{scene_guard}"
-        "Render a coherent single scene that matches the request exactly. "
-        "Main subject must stay unchanged; do not substitute species/object. "
-        f"{negative_animals}"
-        "NEGATIVE: people, random flowers, plain pet portrait, text, logo, watermark, extra captions."
+        f"USER REQUEST (literal): {core}. "
+        "Follow the user request exactly and literally. "
+        "Build ONE coherent scene from the request. "
+        "Keep all explicitly requested entities, attributes and relations (object, color, material, position, style). "
+        "Do not replace the main subject with a different object/animal/person even if it seems more aesthetic. "
+        "Do not add unrelated dominant subjects. "
+        "If request is ambiguous, prefer the most literal interpretation."
     )
+
+    if not has_animal:
+        strict_prompt += " No animals or pets unless explicitly requested."
+
+    strict_prompt += " NEGATIVE: text, logo, watermark, captions."
     return strict_prompt
 
 
