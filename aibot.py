@@ -4402,36 +4402,60 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     if not API_BEARER_TOKEN:
         return False, "✖️ Не настроен API_BEARER_TOKEN для генерации изображений."
 
+    prompt_clean = sanitize_user_input(prompt, max_length=1500)
+    if not prompt_clean:
+        return False, "✖️ Пустой промпт для генерации."
+
     headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
 
-    send = {"model": model, "prompt": sanitize_user_input(prompt, max_length=1500), "n": 1}
+    enabled_models = set(get_enabled_models())
+    ordered_candidates = ["flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"]
+    model_attempts = [model]
+    for candidate in ordered_candidates:
+        if candidate in enabled_models and candidate in IMAGE_MODELS and candidate not in model_attempts:
+            model_attempts.append(candidate)
 
+    last_status = None
+    last_body = ""
     try:
         connector = aiohttp.TCPConnector()
         async with aiohttp.ClientSession(connector=connector) as session:
-            async with session.post(IMAGE_API_URL, json=send, headers=headers, timeout=90) as response:
-                if response.status == 200:
-                    data = await response.json()
+            for idx, model_name in enumerate(model_attempts):
+                send = {"model": model_name, "prompt": prompt_clean, "n": 1}
+                async with session.post(IMAGE_API_URL, json=send, headers=headers, timeout=90) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if "files" in data and isinstance(data["files"], list) and len(data["files"]) > 0:
+                            try:
+                                image_bytes = base64.b64decode(data["files"][0])
+                                increment_stat("total_messages")
+                                return True, image_bytes
+                            except Exception:
+                                return False, "✖️ Ошибка декодирования изображения"
+                        last_status = 200
+                        continue
 
-                    if 'files' in data and isinstance(data['files'], list) and len(data['files']) > 0:
-                        try:
-                            image_bytes = base64.b64decode(data['files'][0])
-                            increment_stat("total_messages")
-                            return True, image_bytes
-                        except:
-                            return False, "✖️ Ошибка декодирования изображения"
-
-                    return False, "✖️ API не вернул изображение"
-                else:
                     body = (await response.text())[:500]
-                    logging.warning(f"Image API error {response.status}: {body}")
+                    last_status = response.status
+                    last_body = body
+                    logging.warning(f"Image API error {response.status} (model={model_name}): {body}")
+
+                    # На rate limit пробуем следующую onlysq image-модель.
+                    if response.status == 429 and idx < len(model_attempts) - 1:
+                        continue
                     if response.status == 401:
                         return False, "✖️ Ошибка API (401): проверьте API_BEARER_TOKEN в Railway Variables."
-                    return False, f"✖️ Ошибка API ({response.status})"
+
+        # Если onlysq не справился (например, 429 на всех моделях) — пробуем бесплатный fallback.
+        if last_status in {429, 500, 502, 503, 504, 520, 522, 524, 530}:
+            return await generate_image(user_id, prompt_clean, "pollinations-flux-free")
+        if last_status:
+            return False, f"✖️ Ошибка API ({last_status})"
+        return False, f"✖️ API не вернул изображение"
     except asyncio.TimeoutError:
         return False, "✖️ Превышено время ожидания (90 сек)"
     except Exception as e:
-        logging.error(f"Ошибка генерации: {e}")
+        logging.error(f"Ошибка генерации: {e} | last_status={last_status} body={last_body}")
         return False, f"✖️ Ошибка: {str(e)}"
 
 
