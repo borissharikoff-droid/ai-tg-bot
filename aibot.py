@@ -45,6 +45,8 @@ FREE_IMAGE_API_URL = "https://image.pollinations.ai/prompt"
 API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
 # Ключ DeepSeek (sk-...) — читается при запуске, не при сборке (чтобы Railway не требовал переменную на build)
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+IMAGE_DAILY_LIMIT_PRO = int(os.getenv("IMAGE_DAILY_LIMIT_PRO", "20"))
+IMAGE_MONTHLY_LIMIT_PRO = int(os.getenv("IMAGE_MONTHLY_LIMIT_PRO", "300"))
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
@@ -388,13 +390,8 @@ def pick_image_model(user_id: int) -> Optional[str]:
     if preferred_model in enabled_image_models:
         return preferred_model
 
-    # Если токен onlysq не настроен — по умолчанию выбираем бесплатную модель.
-    if not API_BEARER_TOKEN:
-        for candidate in ("pollinations-flux-free", "flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
-            if candidate in enabled_image_models:
-                return candidate
-
-    for candidate in ("flux", "pollinations-flux-free", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
+    # По умолчанию предпочитаем onlysq image-модели.
+    for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
         if candidate in enabled_image_models:
             return candidate
     return enabled_image_models[0]
@@ -594,7 +591,10 @@ AVAILABLE_MODELS = [
     "pollinations-flux-free"
 ]
 
-IMAGE_MODELS = {"p-flux", "grok-2-image", "flux-2-dev", "phoenix-1.0", "lucid-origin", "flux", "pollinations-flux-free"}
+IMAGE_MODELS = {
+    "p-flux", "grok-2-image", "flux-2-dev", "phoenix-1.0", "lucid-origin", "flux",
+    "pollinations-flux-free"
+}
 MODELS_PER_PAGE = 8
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -736,7 +736,7 @@ DEFAULT_ENABLED_MODELS = [
     "deepseek-v3",
     "deepseek-r1",
     "gemini-3-flash",
-    "pollinations-flux-free"  # бесплатная image-model по умолчанию
+    "flux"
 ]
 
 
@@ -755,7 +755,7 @@ def get_enabled_models() -> list:
     # Авто-страховка: если нет ни одной image-модели, добавляем первую доступную.
     has_image_model = any(m in IMAGE_MODELS for m in enabled)
     if not has_image_model:
-        for candidate in ("pollinations-flux-free", "flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"):
+        for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
             if candidate in AVAILABLE_MODELS and candidate not in enabled:
                 enabled.append(candidate)
                 break
@@ -1011,6 +1011,46 @@ def get_subscription_end(user_id: int) -> Optional[datetime]:
         return datetime.fromisoformat(sub_end)
     except:
         return None
+
+
+def try_consume_image_generation_limit(user_id: int) -> tuple:
+    """
+    Проверить и списать 1 генерацию изображения из лимита.
+    Лимит действует для платной подписки: в день и в месяц.
+    """
+    if user_id in ADMIN_IDS:
+        return True, ""
+
+    if not has_active_subscription(user_id):
+        return False, "✖️ Для генерации изображений нужна активная подписка."
+
+    user_data = load_user_data(user_id)
+    today_key = datetime.now().strftime("%Y-%m-%d")
+    month_key = datetime.now().strftime("%Y-%m")
+
+    daily_date = str(user_data.get("image_daily_date") or "")
+    daily_count = int(user_data.get("image_daily_count") or 0)
+    monthly_period = str(user_data.get("image_monthly_period") or "")
+    monthly_count = int(user_data.get("image_monthly_count") or 0)
+
+    if daily_date != today_key:
+        daily_date = today_key
+        daily_count = 0
+    if monthly_period != month_key:
+        monthly_period = month_key
+        monthly_count = 0
+
+    if daily_count >= IMAGE_DAILY_LIMIT_PRO:
+        return False, f"✖️ Достигнут дневной лимит генераций ({IMAGE_DAILY_LIMIT_PRO}). Попробуйте завтра."
+    if monthly_count >= IMAGE_MONTHLY_LIMIT_PRO:
+        return False, f"✖️ Достигнут месячный лимит генераций ({IMAGE_MONTHLY_LIMIT_PRO})."
+
+    user_data["image_daily_date"] = daily_date
+    user_data["image_daily_count"] = daily_count + 1
+    user_data["image_monthly_period"] = monthly_period
+    user_data["image_monthly_count"] = monthly_count + 1
+    save_user_data(user_id, user_data)
+    return True, ""
 
 
 def grant_subscription(user_id: int, days: int = 30):
@@ -1678,6 +1718,15 @@ async def handle_business_text_message(message: Message):
                 )
                 return
 
+            ok_limit, limit_msg = try_consume_image_generation_limit(bot_owner_id)
+            if not ok_limit:
+                await bot.send_message(
+                    message.chat.id,
+                    limit_msg,
+                    business_connection_id=business_connection_id
+                )
+                return
+
             await bot.send_chat_action(
                 message.chat.id,
                 "upload_photo",
@@ -2239,7 +2288,8 @@ async def callback_subscription(callback: CallbackQuery):
         days = time_left.days
         hours = time_left.seconds // 3600
         minutes = (time_left.seconds % 3600) // 60
-        text += f"<b>Осталось:</b> {days}д {hours}ч {minutes}м"
+        text += f"<b>Осталось:</b> {days}д {hours}ч {minutes}м\n"
+        text += f"Лимит генерации картинок: {IMAGE_DAILY_LIMIT_PRO}/день, {IMAGE_MONTHLY_LIMIT_PRO}/месяц"
     else:
         text = f"{text_emoji('star')} <b>Подписка</b>\n\n"
         text += (
@@ -2253,6 +2303,7 @@ async def callback_subscription(callback: CallbackQuery):
             "• <b>Удобно с телефона</b> — решай задачи без перехода на сайты и приложения"
             "</blockquote>"
         )
+        text += f"\nЛимит генерации картинок по подписке: {IMAGE_DAILY_LIMIT_PRO}/день, {IMAGE_MONTHLY_LIMIT_PRO}/месяц"
 
     try:
         await callback.message.delete()
@@ -4130,18 +4181,15 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
         user_model = DEFAULT_MODEL
 
     try:
-        if _get_deepseek_key():
-            # Чат через DeepSeek API — Bearer = твой ключ DeepSeek (sk-...)
-            ds_messages = _messages_to_deepseek_format(messages)
-            ds_model = _deepseek_model(user_model)
-            send = {"model": ds_model, "messages": ds_messages}
-            headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
-            url = DEEPSEEK_API_URL
-        else:
-            # Чат через onlysq.ru — нужен API_BEARER_TOKEN от их сервиса
-            send = {"model": user_model, "request": {"messages": messages}}
-            headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
-            url = API_URL
+        if not _get_deepseek_key():
+            return "✖️ Не настроен DEEPSEEK_API_KEY. Текстовые ответы работают только через DeepSeek."
+
+        # Чат всегда через DeepSeek API.
+        ds_messages = _messages_to_deepseek_format(messages)
+        ds_model = _deepseek_model(user_model)
+        send = {"model": ds_model, "messages": ds_messages}
+        headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
+        url = DEEPSEEK_API_URL
 
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=send, headers=headers, timeout=60) as response:
@@ -4257,16 +4305,14 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
     if user_model in IMAGE_MODELS:
         user_model = DEFAULT_MODEL
 
-    if _get_deepseek_key():
-        ds_messages = _messages_to_deepseek_format(messages)
-        ds_model = _deepseek_model(user_model)
-        send = {"model": ds_model, "messages": ds_messages}
-        headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
-        url = DEEPSEEK_API_URL
-    else:
-        send = {"model": user_model, "request": {"messages": messages}}
-        headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}"}
-        url = API_URL
+    if not _get_deepseek_key():
+        return "✖️ Не настроен DEEPSEEK_API_KEY. Текстовые ответы работают только через DeepSeek."
+
+    ds_messages = _messages_to_deepseek_format(messages)
+    ds_model = _deepseek_model(user_model)
+    send = {"model": ds_model, "messages": ds_messages}
+    headers = {"Authorization": f"Bearer {_get_deepseek_key()}", "Content-Type": "application/json"}
+    url = DEEPSEEK_API_URL
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -4605,6 +4651,11 @@ async def handle_voice(message: Message, state: FSMContext):
                 await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
                 return
 
+        ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
+        if not ok_limit:
+            await message.answer(limit_msg)
+            return
+
             await bot.send_chat_action(message.chat.id, "upload_photo")
             success, result = await generate_image(user_id, transcribed_text, image_model)
 
@@ -4665,6 +4716,11 @@ async def handle_message(message: Message, state: FSMContext):
         image_model = pick_image_model(user_id)
         if not image_model:
             await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
+            return
+
+        ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
+        if not ok_limit:
+            await message.answer(limit_msg)
             return
 
         await bot.send_chat_action(message.chat.id, "upload_photo")
