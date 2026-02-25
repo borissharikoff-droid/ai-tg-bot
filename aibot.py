@@ -154,13 +154,21 @@ START_EXAMPLES = [
 ]
 
 RESPONSE_STYLE_SYSTEM_PROMPT = (
-    "Ты — полезный ассистент. Отвечай максимально по делу, без воды и повторов. "
-    "По умолчанию всегда используй формат под Telegram: короткие абзацы, списки, выделения. "
-    "Структурируй ответ: короткий вывод, затем 2-6 пунктов по сути. "
+    "Ты — полезный ассистент для массового пользователя Telegram. "
+    "Отвечай коротко, точно, без воды, без повторов, без лишних вступлений. "
+    "Всегда используй аккуратный Telegram-формат: короткие абзацы, списки, уместные выделения. "
+    "Базовая структура: 1 короткий вывод, затем 2-6 пунктов по сути. "
+    "Если запрос простой — ответь в 1-3 предложениях без списка. "
     "Разрешенная разметка: **жирный**, *курсив*, `код`, цитаты >, списки через '-'. "
     "Не используй таблицы и markdown-ссылки вида [текст](url). "
-    "Если пользователь просит ссылки/источники/видео, обязательно давай прямые URL (https://...). "
-    "Если вопрос простой — дай короткий ответ в 1-3 предложениях."
+    "Если просят источники/видео/ссылки — давай прямые URL (https://...). "
+    "Не выдумывай факты; если данных не хватает, коротко уточни."
+)
+
+RESPONSE_STYLE_HARD_GUARD_PROMPT = (
+    "КРИТИЧНО: независимо от остального контекста сохраняй стиль Telegram — чисто, четко, по делу, "
+    "без словесного мусора. Используй выделения осознанно: важное — **жирным**, термины — *курсивом*, "
+    "при необходимости цитаты через >."
 )
 
 
@@ -345,10 +353,13 @@ def is_image_generation_request(text: str) -> bool:
     """Определить, просит ли пользователь сгенерировать изображение."""
     if not text:
         return False
-    t = text.lower().strip()
+    t = re.sub(r"\s+", " ", text.lower().strip())
     image_markers = [
         "сгенерируй картин",
         "сделай картин",
+        "сделай изображ",
+        "создай фото",
+        "сгенерируй изображ",
         "картинк",
         "картинку",
         "кратинк",      # частая опечатка: "кратинка"
@@ -368,6 +379,11 @@ def is_image_generation_request(text: str) -> bool:
         "аватарк",
         "обои",
         "poster",
+        "make me an image",
+        "make an image",
+        "create image",
+        "create a picture",
+        "make me a picture",
         "draw",
         "image",
         "generate image",
@@ -376,6 +392,65 @@ def is_image_generation_request(text: str) -> bool:
         "стикер"
     ]
     return any(marker in t for marker in image_markers)
+
+
+def is_photo_edit_request(text: str) -> bool:
+    """Определить, просит ли пользователь изменить/обработать присланное фото."""
+    if not text:
+        return False
+    t = re.sub(r"\s+", " ", text.lower().strip())
+
+    direct_markers = [
+        "измени фото",
+        "измени фотку",
+        "измени изображение",
+        "отредактируй фото",
+        "обработай фото",
+        "улучши фото",
+        "сделай из этого фото",
+        "сделай из этой фотки",
+        "edit this photo",
+        "edit this image",
+        "retouch this photo",
+        "enhance this photo",
+        "change this photo",
+        "remove background",
+        "убери фон",
+    ]
+    if any(marker in t for marker in direct_markers):
+        return True
+
+    edit_verbs = [
+        "измени", "отредакт", "обработ", "улучши", "передел", "преврати",
+        "замени", "убери", "добавь", "edit", "retouch", "enhance", "change"
+    ]
+    photo_refs = [
+        "фото", "фотку", "фотография", "изображение", "картинку",
+        "picture", "photo", "image", "pic", "this"
+    ]
+    return any(v in t for v in edit_verbs) and any(p in t for p in photo_refs)
+
+
+def build_photo_edit_prompt(user_instruction: str, photo_context: str) -> str:
+    """
+    Построить prompt для режима "изменить фото" через генерацию:
+    максимально сохранить объект и сцену, менять только запрошенное.
+    """
+    instruction = sanitize_user_input(user_instruction, max_length=900)
+    context = sanitize_user_input(photo_context, max_length=1200)
+    if not instruction:
+        instruction = "сделай аккуратную художественную обработку фото"
+    if not context:
+        context = "source photo with a clear main subject"
+
+    composed = (
+        f"SOURCE PHOTO CONTEXT: {context}. "
+        f"EDIT REQUEST: {instruction}. "
+        "Keep the same main subject identity, pose and framing from the source photo. "
+        "Apply only requested edits. Preserve scene coherence and realism unless user asked for stylization. "
+        "Do not replace the subject with a different person/animal/object."
+    )
+    return sanitize_user_input(composed, max_length=1800) or composed
 
 
 def build_image_prompt(user_text: str) -> str:
@@ -1917,6 +1992,14 @@ async def handle_business_text_message(message: Message):
         user_data = load_user_data(bot_owner_id)
         user_model = user_data.get("model", DEFAULT_MODEL)
 
+        if is_photo_edit_request(message.text or ""):
+            await bot.send_message(
+                message.chat.id,
+                "✖️ Для редактирования пришлите фото с подписью, что нужно изменить.",
+                business_connection_id=business_connection_id
+            )
+            return
+
         should_generate_image = user_model in IMAGE_MODELS or is_image_generation_request(message.text or "")
         if should_generate_image:
             image_model = user_model if user_model in IMAGE_MODELS else pick_image_model_for_prompt(bot_owner_id, message.text or "")
@@ -2025,12 +2108,72 @@ async def handle_business_photo(message: Message):
 
         user_text = message.caption if message.caption else "Что на фото?"
 
-        user_text = message.caption if message.caption else "Что на фото?"
-
         photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
         photo_bytes = await bot.download_file(file.file_path)
         photo_base64 = base64.b64encode(photo_bytes.read()).decode('utf-8')
+
+        if is_photo_edit_request(user_text):
+            image_model = pick_image_model_for_prompt(bot_owner_id, user_text)
+            if not image_model:
+                await bot.send_message(
+                    message.chat.id,
+                    "✖️ Сейчас нет доступной модели для генерации изображений.",
+                    business_connection_id=business_connection_id
+                )
+                return
+
+            ok_limit, limit_msg = try_consume_image_generation_limit(bot_owner_id)
+            if not ok_limit:
+                await bot.send_message(
+                    message.chat.id,
+                    limit_msg,
+                    business_connection_id=business_connection_id
+                )
+                return
+
+            await bot.send_chat_action(
+                message.chat.id,
+                "upload_photo",
+                business_connection_id=business_connection_id
+            )
+
+            # Берем краткий контекст фото через текущий vision-путь, затем собираем edit-промпт.
+            context_prompt = (
+                "Кратко опиши фото для дальнейшего редактирования: главный объект, фон, цвета, ракурс, свет. "
+                "Формат: 1 строка до 220 символов."
+            )
+            source_context = await get_business_ai_response(
+                bot_owner_id,
+                business_connection_id,
+                message.chat.id,
+                context_prompt,
+                photo_base64
+            )
+            if isinstance(source_context, str) and source_context.startswith("✖️"):
+                source_context = ""
+
+            edit_prompt = build_photo_edit_prompt(user_text, source_context or "")
+            success, result = await generate_image_with_guard(bot_owner_id, edit_prompt, image_model)
+            if success:
+                photo_out = (
+                    BufferedInputFile(result, filename="edited_image.jpg")
+                    if isinstance(result, (bytes, bytearray))
+                    else result
+                )
+                await bot.send_photo(
+                    chat_id=message.chat.id,
+                    photo=photo_out,
+                    caption=f"🖼 {image_model}\n✏️ Редактирование выполнено",
+                    business_connection_id=business_connection_id
+                )
+            else:
+                await bot.send_message(
+                    message.chat.id,
+                    f"{result}\nПопробуйте уточнить правку (например: стиль, фон, цвет, ракурс).",
+                    business_connection_id=business_connection_id
+                )
+            return
 
         ai_response = await get_business_ai_response(
             bot_owner_id,
@@ -4369,6 +4512,12 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
                 "content": f"Следуй этим указаниям при общении: {thinking_pref}"
             })
 
+    # Жестко фиксируем формат ответа, даже при пользовательских пресетах/ролях.
+    messages.append({
+        "role": "system",
+        "content": RESPONSE_STYLE_HARD_GUARD_PROMPT
+    })
+
     # Добавляем историю
     history = get_history_for_api(user_id, limit=20)
     messages.extend(history)
@@ -4494,6 +4643,12 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
                 "role": "system",
                 "content": f"Следуй этим указаниям при общении: {thinking_pref}"
             })
+
+    # Жестко фиксируем формат ответа, даже при пользовательских пресетах/ролях.
+    messages.append({
+        "role": "system",
+        "content": RESPONSE_STYLE_HARD_GUARD_PROMPT
+    })
 
     # Добавляем историю ЭТОГО КОНКРЕТНОГО клиента
     history = get_business_history_for_api(business_connection_id, client_chat_id, limit=20)
@@ -4829,8 +4984,48 @@ async def handle_photo(message: Message, state: FSMContext):
         photo_bytes = await bot.download_file(file.file_path)
         photo_base64 = base64.b64encode(photo_bytes.read()).decode('utf-8')
 
-        ai_response = await get_ai_response(user_id, user_text, photo_base64)
+        if is_photo_edit_request(user_text):
+            image_model = pick_image_model_for_prompt(user_id, user_text)
+            if not image_model:
+                await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
+                return
 
+            ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
+            if not ok_limit:
+                await message.answer(limit_msg)
+                return
+
+            await bot.send_chat_action(message.chat.id, "upload_photo")
+
+            # Берем краткий контекст фото через текущий vision-путь, затем собираем edit-промпт.
+            context_prompt = (
+                "Кратко опиши фото для дальнейшего редактирования: главный объект, фон, цвета, ракурс, свет. "
+                "Формат: 1 строка до 220 символов."
+            )
+            source_context = await get_ai_response(user_id, context_prompt, photo_base64)
+            if isinstance(source_context, str) and source_context.startswith("✖️"):
+                source_context = ""
+
+            edit_prompt = build_photo_edit_prompt(user_text, source_context or "")
+            success, result = await generate_image_with_guard(user_id, edit_prompt, image_model)
+            if success:
+                photo_out = (
+                    BufferedInputFile(result, filename="edited_image.jpg")
+                    if isinstance(result, (bytes, bytearray))
+                    else result
+                )
+                await message.answer_photo(
+                    photo=photo_out,
+                    caption=f"{text_emoji('image')} Модель: {image_model}\n✏️ Редактирование выполнено",
+                    parse_mode="HTML"
+                )
+            else:
+                await message.answer(
+                    f"{result}\nПопробуйте уточнить правку (например: стиль, фон, цвет, ракурс)."
+                )
+            return
+
+        ai_response = await get_ai_response(user_id, user_text, photo_base64)
         await send_long_message(message, ai_response)
     except Exception as e:
         logging.error(f"Ошибка фото: {e}")
@@ -4947,6 +5142,10 @@ async def handle_message(message: Message, state: FSMContext):
             text="✖️ Для использования бота необходима подписка!",
             reply_markup=get_subscription_keyboard(user_id)
         )
+        return
+
+    if is_photo_edit_request(message.text):
+        await message.answer("✖️ Для редактирования пришлите фото с подписью, что нужно изменить.")
         return
 
     if is_image_generation_request(message.text):
