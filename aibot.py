@@ -391,7 +391,7 @@ def pick_image_model(user_id: int) -> Optional[str]:
         return preferred_model
 
     # По умолчанию предпочитаем onlysq image-модели.
-    for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
+    for candidate in ("flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
         if candidate in enabled_image_models:
             return candidate
     return enabled_image_models[0]
@@ -755,7 +755,7 @@ def get_enabled_models() -> list:
     # Авто-страховка: если нет ни одной image-модели, добавляем первую доступную.
     has_image_model = any(m in IMAGE_MODELS for m in enabled)
     if not has_image_model:
-        for candidate in ("flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
+        for candidate in ("flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
             if candidate in AVAILABLE_MODELS and candidate not in enabled:
                 enabled.append(candidate)
                 break
@@ -4363,27 +4363,34 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
                     for i, params in enumerate(attempts):
                         params = dict(params)
                         params["seed"] = str(random.randint(1, 10_000_000))
-                        async with session.get(base_url, params=params, timeout=90) as response:
-                            if response.status == 200:
-                                image_bytes = await response.read()
-                                if image_bytes:
-                                    increment_stat("total_messages")
-                                    return True, image_bytes
-                                last_status = 200
-                            else:
-                                body = (await response.text())[:500]
-                                last_status = response.status
-                                logging.warning(
-                                    f"Free image API error {response.status} on attempt {i + 1} ({base_url}): {body}"
-                                )
+                        try:
+                            async with session.get(base_url, params=params, timeout=90) as response:
+                                if response.status == 200:
+                                    image_bytes = await response.read()
+                                    if image_bytes:
+                                        increment_stat("total_messages")
+                                        return True, image_bytes
+                                    last_status = 200
+                                else:
+                                    body = (await response.text())[:500]
+                                    last_status = response.status
+                                    logging.warning(
+                                        f"Free image API error {response.status} on attempt {i + 1} ({base_url}): {body}"
+                                    )
+                        except Exception as req_e:
+                            # Ошибка конкретного хоста/запроса: логируем и пробуем дальше.
+                            last_status = 0
+                            logging.warning(
+                                f"Free image API request failed on attempt {i + 1} ({base_url}): {req_e}"
+                            )
 
-                            if i < len(attempts) - 1 and (last_status in retry_statuses or last_status == 200):
-                                await asyncio.sleep(1.2 + i * 0.8)
-                                continue
-                            break
+                        if i < len(attempts) - 1 and (last_status in retry_statuses or last_status in {0, 200}):
+                            await asyncio.sleep(1.2 + i * 0.8)
+                            continue
+                        break
 
             if last_status:
-                if last_status in retry_statuses:
+                if last_status in retry_statuses or last_status == 0:
                     return False, "✖️ Бесплатный API временно перегружен. Попробуйте через 10-30 секунд."
                 return False, f"✖️ Ошибка бесплатного API ({last_status})"
             return False, "✖️ Бесплатный API не вернул изображение."
@@ -4403,7 +4410,7 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
 
     enabled_models = set(get_enabled_models())
-    ordered_candidates = ["flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"]
+    ordered_candidates = ["flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"]
     model_attempts = [model]
     for candidate in ordered_candidates:
         if candidate in AVAILABLE_MODELS and candidate in IMAGE_MODELS and candidate != "pollinations-flux-free" and candidate not in model_attempts:
