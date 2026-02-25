@@ -435,6 +435,114 @@ def build_image_prompt(user_text: str) -> str:
     return strict_prompt
 
 
+def prompt_requests_animals(prompt_text: str) -> bool:
+    t = (prompt_text or "").lower()
+    animal_words = (
+        "кот", "кошка", "кошк", "cat", "kitten",
+        "собак", "dog", "puppy",
+        "птиц", "bird", "лошад", "horse", "медвед", "bear",
+        "животн", "animal"
+    )
+    return any(w in t for w in animal_words)
+
+
+def _image_retry_prompt_no_animals(prompt_text: str, attempt: int) -> str:
+    base = sanitize_user_input(prompt_text, max_length=1200)
+    suffix = (
+        " STRICT: no animals, no pets, no cats, no dogs, no birds. "
+        "If any animal appears, regenerate the scene without animals."
+    )
+    if attempt >= 2:
+        suffix += " Focus only on requested objects and environment."
+    return f"{base}. {suffix}"
+
+
+async def image_contains_animal(image_bytes: bytes) -> Optional[bool]:
+    """
+    Проверить через vision API, есть ли на изображении животное.
+    Возвращает True/False или None, если проверка недоступна.
+    """
+    if not API_BEARER_TOKEN or not image_bytes:
+        return None
+    try:
+        img_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are an image validator. Return strictly JSON only: "
+                    '{"contains_animal": true|false}'
+                )
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
+                    {"type": "text", "text": "Does this image contain any animal (cat, dog, bird, etc.)?"}
+                ]
+            }
+        ]
+        payload = {"model": "gemini-3-flash", "request": {"messages": messages}}
+        headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
+        async with aiohttp.ClientSession() as session:
+            async with session.post(API_URL, json=payload, headers=headers, timeout=40) as response:
+                if response.status != 200:
+                    return None
+                data = await response.json()
+                raw = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                try:
+                    parsed = json.loads(raw)
+                    val = parsed.get("contains_animal")
+                    if isinstance(val, bool):
+                        return val
+                except Exception:
+                    raw_l = str(raw).lower()
+                    if '"contains_animal": true' in raw_l:
+                        return True
+                    if '"contains_animal": false' in raw_l:
+                        return False
+        return None
+    except Exception as e:
+        logging.warning(f"Image validation skipped: {e}")
+        return None
+
+
+async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_attempts: int = 3) -> tuple:
+    """
+    Генерация с авто-проверкой:
+    если пользователь не просил животных, но на картинке есть животное, делаем автоповтор.
+    """
+    animal_allowed = prompt_requests_animals(prompt)
+    current_prompt = prompt
+    last_error = "✖️ Не удалось сгенерировать изображение."
+
+    for attempt in range(1, max_attempts + 1):
+        success, result = await generate_image(user_id, current_prompt, model)
+        if not success:
+            last_error = result
+            continue
+
+        # Если результат не bytes (например URL), пропускаем валидацию.
+        if not isinstance(result, (bytes, bytearray)):
+            return True, result
+
+        if animal_allowed:
+            return True, result
+
+        contains_animal = await image_contains_animal(bytes(result))
+        if contains_animal is False:
+            return True, result
+        if contains_animal is None:
+            # Валидация недоступна — не блокируем пользователя.
+            return True, result
+
+        # contains_animal == True
+        current_prompt = _image_retry_prompt_no_animals(prompt, attempt)
+        last_error = "✖️ Модель упорно добавляет лишние объекты. Попробуйте уточнить запрос."
+
+    return False, last_error
+
+
 def pick_image_model(user_id: int) -> Optional[str]:
     """Выбрать модель генерации изображения: сначала пользовательскую, затем дефолт из доступных."""
     enabled_models = set(get_enabled_models())
@@ -1811,7 +1919,7 @@ async def handle_business_text_message(message: Message):
                 "upload_photo",
                 business_connection_id=business_connection_id
             )
-            success, result = await generate_image(bot_owner_id, message.text, image_model)
+            success, result = await generate_image_with_guard(bot_owner_id, message.text, image_model)
 
             if success:
                 photo = (
@@ -4763,7 +4871,7 @@ async def handle_voice(message: Message, state: FSMContext):
             return
 
             await bot.send_chat_action(message.chat.id, "upload_photo")
-            success, result = await generate_image(user_id, transcribed_text, image_model)
+            success, result = await generate_image_with_guard(user_id, transcribed_text, image_model)
 
             if success:
                 photo = (
@@ -4831,7 +4939,7 @@ async def handle_message(message: Message, state: FSMContext):
 
         await bot.send_chat_action(message.chat.id, "upload_photo")
 
-        success, result = await generate_image(user_id, message.text, image_model)
+        success, result = await generate_image_with_guard(user_id, message.text, image_model)
 
         if success:
             try:
