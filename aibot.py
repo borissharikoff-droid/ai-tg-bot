@@ -4920,17 +4920,29 @@ def markdown_to_html(text: str) -> str:
     escaped = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped)
     escaped = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'<i>\1</i>', escaped)
     escaped = re.sub(r'`([^`\n]+)`', r'<code>\1</code>', escaped)
-    escaped = re.sub(r'(?m)^>\s?(.*)$', r'<blockquote>\1</blockquote>', escaped)
+    # После html.escape символ '>' превращается в '&gt;', учитываем это для цитат.
+    escaped = re.sub(r'(?m)^\s*&gt;\s?(.*)$', r'<blockquote>\1</blockquote>', escaped)
     escaped = re.sub(r'(?m)^-\s+', '• ', escaped)
 
     # 2) Восстанавливаем markdown-ссылки в виде HTML-гиперссылок.
     for token, tag in link_placeholders.items():
         escaped = escaped.replace(token, tag)
 
+    trailing_url_punct = ".,;:!?)]}>\"'"
+
+    def _linkify_bare_url(match):
+        raw_url = match.group(1)
+        clean_url = raw_url.rstrip(trailing_url_punct)
+        tail = raw_url[len(clean_url):]
+        if not clean_url:
+            return raw_url
+        anchor = f'<a href="{html.escape(clean_url, quote=True)}">{html.escape(clean_url)}</a>'
+        return f"{anchor}{html.escape(tail)}"
+
     # 3) Делаем bare URLs кликабельными.
     escaped = re.sub(
         r'(?<!["\'>])(https?://[^\s<]+)',
-        lambda m: f'<a href="{html.escape(m.group(1), quote=True)}">{html.escape(m.group(1))}</a>',
+        _linkify_bare_url,
         escaped
     )
     return escaped
