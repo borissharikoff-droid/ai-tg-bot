@@ -47,6 +47,7 @@ API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 IMAGE_DAILY_LIMIT_PRO = int(os.getenv("IMAGE_DAILY_LIMIT_PRO", "20"))
 IMAGE_MONTHLY_LIMIT_PRO = int(os.getenv("IMAGE_MONTHLY_LIMIT_PRO", "300"))
+FREE_TRIAL_LIMIT = int(os.getenv("FREE_TRIAL_LIMIT", "5"))
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
@@ -1088,9 +1089,11 @@ def load_stats():
             return json.load(f)
     return {
         "total_users": 0,
-        "active_subscriptions": 0,
+        "total_starts": 0,
         "total_messages": 0,
-        "total_revenue": 0
+        "total_payments": 0,
+        "total_revenue": 0,
+        "total_revenue_usd": 0.0,
     }
 
 
@@ -1100,8 +1103,8 @@ def save_stats(stats):
         json.dump(stats, f, ensure_ascii=False, indent=2)
 
 
-def increment_stat(key: str, value: int = 1):
-    """Увеличить значение статистики"""
+def increment_stat(key: str, value=1):
+    """Увеличить значение статистики (value: int или float)"""
     stats = load_stats()
     stats[key] = stats.get(key, 0) + value
     save_stats(stats)
@@ -1301,6 +1304,36 @@ def get_subscription_end(user_id: int) -> Optional[datetime]:
         return None
 
 
+def get_free_trial_used(user_id: int) -> int:
+    """Сколько бесплатных запросов уже использовано"""
+    user_data = load_user_data(user_id)
+    return int(user_data.get("free_trial_used") or 0)
+
+
+def consume_free_trial(user_id: int):
+    """Списать 1 бесплатный запрос"""
+    user_data = load_user_data(user_id)
+    user_data["free_trial_used"] = get_free_trial_used(user_id) + 1
+    save_user_data(user_id, user_data)
+
+
+def can_make_request(user_id: int) -> bool:
+    """Может ли пользователь сделать запрос (подписка или бесплатный триал)"""
+    if user_id in ADMIN_IDS:
+        return True
+    if has_active_subscription(user_id):
+        return True
+    return get_free_trial_used(user_id) < FREE_TRIAL_LIMIT
+
+
+def get_free_trial_paywall_text() -> str:
+    """Текст пейвола при исчерпании бесплатного триала"""
+    return (
+        f"✖️ Бесплатный лимит ({FREE_TRIAL_LIMIT} запросов) исчерпан.\n\n"
+        "Оформите подписку, чтобы продолжить пользоваться ботом."
+    )
+
+
 def try_consume_image_generation_limit(user_id: int) -> tuple:
     """
     Проверить и списать 1 генерацию изображения из лимита.
@@ -1310,7 +1343,9 @@ def try_consume_image_generation_limit(user_id: int) -> tuple:
         return True, ""
 
     if not has_active_subscription(user_id):
-        return False, "✖️ Для генерации изображений нужна активная подписка."
+        if get_free_trial_used(user_id) < FREE_TRIAL_LIMIT:
+            return True, ""
+        return False, get_free_trial_paywall_text()
 
     user_data = load_user_data(user_id)
     today_key = datetime.now().strftime("%Y-%m-%d")
@@ -1977,10 +2012,10 @@ async def handle_business_text_message(message: Message):
         if is_blacklisted(bot_owner_id):
             return
 
-        if not has_active_subscription(bot_owner_id):
+        if not can_make_request(bot_owner_id):
             await bot.send_message(
                 message.chat.id,
-                "✖️ У владельца бота закончилась подписка!",
+                get_free_trial_paywall_text(),
                 business_connection_id=business_connection_id
             )
             return
@@ -2042,6 +2077,8 @@ async def handle_business_text_message(message: Message):
                     caption=f"🖼 {image_model}",
                     business_connection_id=business_connection_id
                 )
+                if not has_active_subscription(bot_owner_id):
+                    consume_free_trial(bot_owner_id)
             else:
                 await bot.send_message(
                     message.chat.id,
@@ -2075,6 +2112,8 @@ async def handle_business_text_message(message: Message):
                         business_connection_id=business_connection_id,
                         parse_mode="HTML"
                     )
+            if not has_active_subscription(bot_owner_id):
+                consume_free_trial(bot_owner_id)
 
         increment_stat("total_messages")
 
@@ -2100,7 +2139,12 @@ async def handle_business_photo(message: Message):
         if is_blacklisted(bot_owner_id):
             return
 
-        if not has_active_subscription(bot_owner_id):
+        if not can_make_request(bot_owner_id):
+            await bot.send_message(
+                message.chat.id,
+                get_free_trial_paywall_text(),
+                business_connection_id=business_connection_id
+            )
             return
 
         await bot.send_chat_action(
@@ -2170,6 +2214,8 @@ async def handle_business_photo(message: Message):
                     caption=f"🖼 {image_model}\n✏️ Редактирование выполнено",
                     business_connection_id=business_connection_id
                 )
+                if not has_active_subscription(bot_owner_id):
+                    consume_free_trial(bot_owner_id)
             else:
                 await bot.send_message(
                     message.chat.id,
@@ -2193,6 +2239,8 @@ async def handle_business_photo(message: Message):
             business_connection_id=business_connection_id,
             parse_mode="HTML"
         )
+        if not has_active_subscription(bot_owner_id):
+            consume_free_trial(bot_owner_id)
 
     except Exception as e:
         logging.error(f"❌ Ошибка бизнес-фото: {e}")
@@ -2216,7 +2264,12 @@ async def handle_business_voice(message: Message):
         if is_blacklisted(bot_owner_id):
             return
 
-        if not has_active_subscription(bot_owner_id):
+        if not can_make_request(bot_owner_id):
+            await bot.send_message(
+                message.chat.id,
+                get_free_trial_paywall_text(),
+                business_connection_id=business_connection_id
+            )
             return
 
         await bot.send_chat_action(
@@ -2254,6 +2307,8 @@ async def handle_business_voice(message: Message):
             business_connection_id=business_connection_id,
             parse_mode="HTML"
         )
+        if not has_active_subscription(bot_owner_id):
+            consume_free_trial(bot_owner_id)
 
     except Exception as e:
         logging.error(f"❌ Ошибка бизнес-голос: {e}")
@@ -2296,7 +2351,9 @@ async def cmd_start(message: Message):
     user_data["full_name"] = message.from_user.full_name
     save_user_data(user_id, user_data)
 
-    # Проверяем, новый ли пользователь
+    # Статистика: каждый /start
+    increment_stat("total_starts")
+    # Новый пользователь (первый раз)
     if not os.path.exists(get_user_history_path(user_id)):
         increment_stat("total_users")
 
@@ -2414,10 +2471,16 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     )
 
     if not has_sub:
-        text += (
-            "<b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
-            "Нажмите кнопку ниже: там есть сравнение и преимущества."
-        )
+        remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
+        if remaining > 0:
+            text += (
+                f"<b>У вас {remaining} бесплатных запросов</b> для пробы.\n"
+                "После этого — оформите подписку PRO (кнопка ниже)."
+            )
+        else:
+            text += (
+                "<b>Бесплатный лимит исчерпан.</b> Оформите подписку PRO, чтобы продолжить."
+            )
 
     if await send_section_media_message(
         chat_id=chat_id,
@@ -2807,6 +2870,7 @@ async def process_successful_payment(message: Message):
 
     # Обновляем статистику
     price = get_subscription_price()
+    increment_stat("total_payments")
     increment_stat("total_revenue", price)
 
     sub_end = get_subscription_end(user_id)
@@ -2852,14 +2916,18 @@ async def callback_admin_stats(callback: CallbackQuery):
     users = get_all_users()
     active_subs = len(get_users_with_active_subscription())
     price = get_subscription_price()
+    revenue_usd = stats.get("total_revenue_usd", 0) or 0
 
     text = (
         "📊 <b>Статистика</b>\n\n"
-        f"👥 <b>Всего пользователей:</b> {len(users)}\n"
+        f"🟢 <b>Нажатий /start:</b> {stats.get('total_starts', 0)}\n"
+        f"👥 <b>Уникальных пользователей:</b> {stats.get('total_users', 0)}\n"
         f"⭐ <b>Активных подписок:</b> {active_subs}\n"
-        f"💬 <b>Всего сообщений:</b> {stats.get('total_messages', 0)}\n"
-        f"💰 <b>Общий доход:</b> {stats.get('total_revenue', 0)} ⭐\n\n"
-        f"🏷️ <b>Текущая цена:</b> {price} ⭐/мес"
+        f"💳 <b>Оплат подписки:</b> {stats.get('total_payments', 0)}\n"
+        f"💬 <b>Всего сообщений:</b> {stats.get('total_messages', 0)}\n\n"
+        f"💰 <b>Доход (звёзды):</b> {stats.get('total_revenue', 0)} ⭐\n"
+        f"💎 <b>Доход (CryptoBot):</b> {revenue_usd:.2f} USD\n\n"
+        f"🏷️ <b>Текущая цена:</b> {price} ⭐ / {get_subscription_price_usd()} USD"
     )
 
     await safe_edit_or_send(
@@ -4981,10 +5049,10 @@ async def handle_photo(message: Message, state: FSMContext):
             await send_channel_subscription_message(message.chat.id, user_id)
             return
 
-    if not has_active_subscription(user_id):
+    if not can_make_request(user_id):
         await send_system_message(
             chat_id=message.chat.id,
-            text="✖️ Для использования бота необходима подписка!",
+            text=get_free_trial_paywall_text(),
             reply_markup=get_subscription_keyboard(user_id)
         )
         return
@@ -5034,6 +5102,8 @@ async def handle_photo(message: Message, state: FSMContext):
                     caption=f"{text_emoji('image')} Модель: {image_model}\n✏️ Редактирование выполнено",
                     parse_mode="HTML"
                 )
+                if not has_active_subscription(user_id):
+                    consume_free_trial(user_id)
             else:
                 await message.answer(
                     f"{result}\nПопробуйте уточнить правку (например: стиль, фон, цвет, ракурс)."
@@ -5042,6 +5112,8 @@ async def handle_photo(message: Message, state: FSMContext):
 
         ai_response = await get_ai_response(user_id, user_text, photo_base64)
         await send_long_message(message, ai_response)
+        if not has_active_subscription(user_id):
+            consume_free_trial(user_id)
     except Exception as e:
         logging.error(f"Ошибка фото: {e}")
         await message.answer("✖️ Ошибка при обработке фото")
@@ -5066,10 +5138,10 @@ async def handle_voice(message: Message, state: FSMContext):
             await send_channel_subscription_message(message.chat.id, user_id)
             return
 
-    if not has_active_subscription(user_id):
+    if not can_make_request(user_id):
         await send_system_message(
             chat_id=message.chat.id,
-            text="✖️ Для использования бота необходима подписка!",
+            text=get_free_trial_paywall_text(),
             reply_markup=get_subscription_keyboard(user_id)
         )
         return
@@ -5097,15 +5169,12 @@ async def handle_voice(message: Message, state: FSMContext):
             if not image_model:
                 await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
                 return
-
-        ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
-        if not ok_limit:
-            await message.answer(limit_msg)
-            return
-
+            ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
+            if not ok_limit:
+                await message.answer(limit_msg)
+                return
             await bot.send_chat_action(message.chat.id, "upload_photo")
             success, result = await generate_image_with_guard(user_id, transcribed_text, image_model)
-
             if success:
                 photo = (
                     BufferedInputFile(result, filename="generated_image.jpg")
@@ -5117,12 +5186,16 @@ async def handle_voice(message: Message, state: FSMContext):
                     caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {transcribed_text[:100]}{'...' if len(transcribed_text) > 100 else ''}",
                     parse_mode="HTML"
                 )
+                if not has_active_subscription(user_id):
+                    consume_free_trial(user_id)
             else:
                 await message.answer(result)
             return
 
         ai_response = await get_ai_response(user_id, transcribed_text)
         await send_long_message(message, ai_response)
+        if not has_active_subscription(user_id):
+            consume_free_trial(user_id)
 
     except Exception as e:
         logging.error(f"Ошибка голоса: {e}")
@@ -5151,10 +5224,10 @@ async def handle_message(message: Message, state: FSMContext):
             await send_channel_subscription_message(message.chat.id, user_id)
             return
 
-    if not has_active_subscription(user_id):
+    if not can_make_request(user_id):
         await send_system_message(
             chat_id=message.chat.id,
-            text="✖️ Для использования бота необходима подписка!",
+            text=get_free_trial_paywall_text(),
             reply_markup=get_subscription_keyboard(user_id)
         )
         return
@@ -5190,6 +5263,8 @@ async def handle_message(message: Message, state: FSMContext):
                     caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {message.text[:100]}{'...' if len(message.text) > 100 else ''}",
                     parse_mode="HTML"
                 )
+                if not has_active_subscription(user_id):
+                    consume_free_trial(user_id)
             except Exception as e:
                 await message.answer(f"✖️ Ошибка отправки: {str(e)}")
         else:
@@ -5199,6 +5274,8 @@ async def handle_message(message: Message, state: FSMContext):
     await bot.send_chat_action(message.chat.id, "typing")
     ai_response = await get_ai_response(user_id, message.text)
     await send_long_message(message, ai_response)
+    if not has_active_subscription(user_id):
+        consume_free_trial(user_id)
 
 
 # ==================== SUBSCRIPTION REMINDER ====================
@@ -5285,7 +5362,8 @@ async def check_pending_invoices():
 
                         # Обновляем статистику
                         price_usd = get_subscription_price_usd()
-                        increment_stat("total_revenue", int(price_usd * 100))  # Конвертируем в условные единицы
+                        increment_stat("total_payments")
+                        increment_stat("total_revenue_usd", price_usd)
 
                         # Уведомляем пользователя
                         try:
