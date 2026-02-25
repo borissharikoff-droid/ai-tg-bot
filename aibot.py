@@ -4383,14 +4383,8 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
                             break
 
             if last_status:
-                # Последний шанс: отдаем прямую URL-картинку, Telegram часто успешно тянет её сам.
-                fallback_url = (
-                    f"https://pollinations.ai/p/{encoded_prompt}"
-                    f"?model=flux&nologo=true&width=1024&height=1024&seed={random.randint(1, 10_000_000)}"
-                )
                 if last_status in retry_statuses:
-                    logging.warning("Free API unstable, fallback to direct image URL mode")
-                    return True, fallback_url
+                    return False, "✖️ Бесплатный API временно перегружен. Попробуйте через 10-30 секунд."
                 return False, f"✖️ Ошибка бесплатного API ({last_status})"
             return False, "✖️ Бесплатный API не вернул изображение."
         except asyncio.TimeoutError:
@@ -4412,7 +4406,7 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     ordered_candidates = ["flux", "p-flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"]
     model_attempts = [model]
     for candidate in ordered_candidates:
-        if candidate in enabled_models and candidate in IMAGE_MODELS and candidate not in model_attempts:
+        if candidate in AVAILABLE_MODELS and candidate in IMAGE_MODELS and candidate != "pollinations-flux-free" and candidate not in model_attempts:
             model_attempts.append(candidate)
 
     last_status = None
