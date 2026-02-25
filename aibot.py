@@ -378,6 +378,46 @@ def is_image_generation_request(text: str) -> bool:
     return any(marker in t for marker in image_markers)
 
 
+def build_image_prompt(user_text: str) -> str:
+    """
+    Нормализовать пользовательский запрос в более строгий prompt для генерации изображения.
+    Это снижает шанс подмены главного объекта (например, кот -> собака).
+    """
+    src = sanitize_user_input(user_text, max_length=1500)
+    if not src:
+        return ""
+
+    core = src.strip()
+    # Убираем частые "обертки" запроса, оставляя суть сцены.
+    core = re.sub(
+        r'(?i)\b(привет|здравствуйте|братка|бро|пожалуйста|плиз|pls|please)\b',
+        '',
+        core
+    )
+    core = re.sub(
+        r'(?i)\b(дай|сделай|сгенерируй|создай|нарисуй|покажи|выдай)\b',
+        '',
+        core
+    )
+    core = re.sub(
+        r'(?i)\b(картинку|картинку|картинка|изображение|фото|арт|image|picture)\b',
+        '',
+        core
+    )
+    core = re.sub(r'\s+', ' ', core).strip(" ,.!?-")
+    if not core:
+        core = src
+
+    strict_prompt = (
+        f"User request: {core}. "
+        "Follow the request exactly. Keep the main subject exactly as requested. "
+        "Do not replace the subject with a different animal or object. "
+        "No dogs unless user explicitly asked for dogs. "
+        "No text, no logos, no watermark."
+    )
+    return strict_prompt
+
+
 def pick_image_model(user_id: int) -> Optional[str]:
     """Выбрать модель генерации изображения: сначала пользовательскую, затем дефолт из доступных."""
     enabled_models = set(get_enabled_models())
@@ -4341,7 +4381,8 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
 async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     """Сгенерировать изображение"""
     if model == "pollinations-flux-free":
-        clean_prompt = sanitize_user_input(prompt, max_length=800)
+        clean_prompt = build_image_prompt(prompt)
+        clean_prompt = sanitize_user_input(clean_prompt, max_length=800)
         if not clean_prompt:
             return False, "✖️ Пустой промпт для генерации."
         try:
@@ -4403,7 +4444,8 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     if not API_BEARER_TOKEN:
         return False, "✖️ Не настроен API_BEARER_TOKEN для генерации изображений."
 
-    prompt_clean = sanitize_user_input(prompt, max_length=1500)
+    prompt_clean = build_image_prompt(prompt)
+    prompt_clean = sanitize_user_input(prompt_clean, max_length=1500)
     if not prompt_clean:
         return False, "✖️ Пустой промпт для генерации."
 
