@@ -399,6 +399,7 @@ def build_image_prompt(user_text: str) -> str:
         '',
         core
     )
+    core = re.sub(r'(?i)\b(мне|me)\b', '', core)
     core = re.sub(
         r'(?i)\b(картинку|картинку|картинка|изображение|фото|арт|image|picture)\b',
         '',
@@ -411,12 +412,23 @@ def build_image_prompt(user_text: str) -> str:
     core_l = core.lower()
     # Сильные ограничения для частого кейса, когда модель игнорирует сцену с борщом.
     scene_guard = ""
+    has_cat = ("кот" in core_l or "кошк" in core_l or "cat" in core_l or "kitten" in core_l)
+    has_animal = has_cat or ("собак" in core_l or "dog" in core_l or "puppy" in core_l or "животн" in core_l or "animal" in core_l)
     if ("кот" in core_l or "кошк" in core_l or "cat" in core_l) and ("борщ" in core_l or "borsch" in core_l or "borscht" in core_l):
         scene_guard = (
             "MUST HAVE SCENE: a ginger cat physically inside a plate or bowl of red borscht soup; "
             "red soup and beets clearly visible around the cat; close-up composition. "
             "DO NOT output just a cat portrait without soup. "
         )
+    elif ("обои" in core_l or "обоев" in core_l or "wallpaper" in core_l):
+        scene_guard = (
+            "MUST HAVE SCENE: one or more wallpaper rolls placed on a table, product-style shot. "
+            "Wallpaper rolls are the main subject. "
+        )
+
+    negative_animals = ""
+    if not has_animal:
+        negative_animals = "No cats, no dogs, no animals. "
 
     strict_prompt = (
         f"REQUEST (RU): {core}. "
@@ -424,7 +436,8 @@ def build_image_prompt(user_text: str) -> str:
         f"{scene_guard}"
         "Render a coherent single scene that matches the request exactly. "
         "Main subject must stay unchanged; do not substitute species/object. "
-        "NEGATIVE: dogs, people, random flowers, plain pet portrait, text, logo, watermark, extra captions."
+        f"{negative_animals}"
+        "NEGATIVE: people, random flowers, plain pet portrait, text, logo, watermark, extra captions."
     )
     return strict_prompt
 
