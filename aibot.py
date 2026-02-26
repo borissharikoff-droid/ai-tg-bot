@@ -2003,8 +2003,8 @@ async def safe_edit_or_send(callback: CallbackQuery, text: str, reply_markup=Non
                 reply_markup=reply_markup,
                 parse_mode=parse_mode
             )
-        except:
-            pass
+        except Exception as e2:
+            logging.error(f"safe_edit_or_send fallback failed: {e2}")
 
 
 # ==================== КОМАНДЫ БОТА ====================
@@ -2715,24 +2715,39 @@ async def callback_models(callback: CallbackQuery):
             await callback.answer("✖️ Подпишитесь на каналы!", show_alert=True)
             return
 
-    page = int(callback.data.split("_")[1])
-    user_data = load_user_data(user_id)
-    current_model = user_data.get("model", DEFAULT_MODEL)
-    model_type = (
-        f"{text_emoji('image')} Генерация изображений"
-        if current_model in IMAGE_MODELS
-        else f"{text_emoji('chat')} Текстовый чат"
-    )
+    try:
+        parts = callback.data.split("_")
+        page = int(parts[1]) if len(parts) > 1 else 0
 
-    text = (
-        f"{text_emoji('models')} <b>Модели</b>\n\n"
-        f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code>\n"
-        f"<b>Тип:</b> {model_type}\n\n"
-        "Бот сам выбирает текст или картинку по вашему запросу.\n"
-        "Тут вы меняете базовую модель по умолчанию."
-    )
+        user_data = load_user_data(user_id)
+        current_model = user_data.get("model", DEFAULT_MODEL)
+        model_type = (
+            f"{text_emoji('image')} Генерация изображений"
+            if current_model in IMAGE_MODELS
+            else f"{text_emoji('chat')} Текстовый чат"
+        )
 
-    await safe_edit_or_send(callback, text, get_models_keyboard(page, user_id))
+        text = (
+            f"{text_emoji('models')} <b>Модели</b>\n\n"
+            f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code>\n"
+            f"<b>Тип:</b> {model_type}\n\n"
+            "Бот сам выбирает текст или картинку по вашему запросу.\n"
+            "Тут вы меняете базовую модель по умолчанию."
+        )
+
+        keyboard = get_models_keyboard(page, user_id)
+        await safe_edit_or_send(callback, text, keyboard)
+    except Exception as e:
+        logging.exception(f"callback_models: {e}")
+        try:
+            await bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="⚠️ Ошибка загрузки моделей. Попробуйте позже.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
     await callback.answer()
 
 
