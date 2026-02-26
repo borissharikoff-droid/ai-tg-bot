@@ -1995,16 +1995,27 @@ async def safe_edit_or_send(callback: CallbackQuery, text: str, reply_markup=Non
         )
     except Exception as e:
         logging.warning(f"Ошибка safe_edit_or_send: {e}")
-        # Последняя попытка - просто отправить новое сообщение
+        chat_id = callback.message.chat.id
+        # Попытка 2: send_system_message
         try:
             await send_system_message(
-                chat_id=callback.message.chat.id,
+                chat_id=chat_id,
                 text=text,
                 reply_markup=reply_markup,
                 parse_mode=parse_mode
             )
         except Exception as e2:
             logging.error(f"safe_edit_or_send fallback failed: {e2}")
+            # Попытка 3: простой send_message без GIF
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode=parse_mode
+                )
+            except Exception as e3:
+                logging.error(f"safe_edit_or_send final fallback failed: {e3}")
 
 
 # ==================== КОМАНДЫ БОТА ====================
@@ -2704,6 +2715,7 @@ async def callback_main_menu(callback: CallbackQuery, state: FSMContext):
 async def callback_models(callback: CallbackQuery):
     """Показать модели"""
     user_id = callback.from_user.id
+    chat_id = callback.message.chat.id
 
     # Проверки
     if is_blacklisted(user_id):
@@ -2736,12 +2748,24 @@ async def callback_models(callback: CallbackQuery):
         )
 
         keyboard = get_models_keyboard(page, user_id)
-        await safe_edit_or_send(callback, text, keyboard)
+
+        # Удаляем предыдущее сообщение и отправляем новое напрямую (без GIF)
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+
+        await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
     except Exception as e:
         logging.exception(f"callback_models: {e}")
         try:
             await bot.send_message(
-                chat_id=callback.message.chat.id,
+                chat_id=chat_id,
                 text="⚠️ Ошибка загрузки моделей. Попробуйте позже.",
                 parse_mode="HTML"
             )
