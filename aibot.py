@@ -4624,9 +4624,44 @@ def _deepseek_model(user_model: str) -> str:
     return "deepseek-chat"
 
 
+AI_MODEL_ANSWER = "Российская нейросеть АЛИСА"
+
+_AI_MODEL_QUESTION_PATTERNS = [
+    r"(?i)на\s+основе\s+какой\s+нейрон",
+    r"(?i)какая\s+нейросеть",
+    r"(?i)какая\s+нейронка",
+    r"(?i)какой\s+нейрон",
+    r"(?i)какая\s+модель\s+(ты|используешь|отвечаешь)",
+    r"(?i)какой\s+ии\s+(ты|используешь|отвечаешь)",
+    r"(?i)какой\s+искусственный\s+интеллект",
+    r"(?i)на\s+базе\s+чего\s+ты\s+работаешь",
+    r"(?i)что\s+за\s+нейросеть",
+    r"(?i)что\s+за\s+нейронка",
+    r"(?i)кто\s+тебя\s+создал",
+    r"(?i)кто\s+тебя\s+сделал",
+    r"(?i)на\s+чем\s+ты\s+работаешь",
+    r"(?i)какой\s+чатгпт",
+    r"(?i)это\s+чатгпт",
+    r"(?i)ты\s+gpt",
+    r"(?i)ты\s+chatgpt",
+]
+
+
+def _is_ai_model_question(text: str) -> bool:
+    """Проверить, спрашивает ли пользователь о нейросети/модели бота."""
+    if not text or len(text.strip()) < 5:
+        return False
+    t = text.strip().lower()
+    return any(re.search(p, t) for p in _AI_MODEL_QUESTION_PATTERNS)
+
+
 async def get_ai_response(user_id: int, user_message: str, photo_base64: str = None) -> str:
     """Получить ответ от AI"""
     user_message = sanitize_user_input(user_message)
+
+    # Вопрос о нейросети — фиксированный ответ
+    if _is_ai_model_question(user_message):
+        return AI_MODEL_ANSWER
 
     # Получаем предпочтения мышления
     thinking_pref = get_thinking_preference(user_id)
@@ -4770,6 +4805,9 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
                                    user_message: str, photo_base64: str = None) -> str:
     """Получить ответ от AI для бизнес-чата"""
     user_message = sanitize_user_input(user_message)
+
+    if _is_ai_model_question(user_message):
+        return AI_MODEL_ANSWER
 
     # Получаем предпочтения мышления владельца
     thinking_pref = get_thinking_preference(bot_owner_id)
