@@ -983,9 +983,9 @@ DEFAULT_MESSAGES = {
     "welcome_intro": (
         "{greeting} Сэкономь часы на рутине — напиши, что нужно, и получи готовый результат."
     ),
-    "welcome_free_requests": "Бесплатных запросов: {remaining}",
-    "welcome_example_intro": "Например, напиши:",
-    "welcome_subscribe_cta": "Для использования без ограничений оформите подписку PRO.",
+    "welcome_free_requests": "<b>Бесплатных запросов:</b> {remaining}",
+    "welcome_example_intro": "<b>Например, напиши:</b>",
+    "welcome_subscribe_cta": "<b>Для использования без ограничений оформите подписку PRO.</b>",
     "channel_subscribe": (
         "📺 <b>Подпишись на канал — и получи доступ к боту</b>\n\n"
         "Советы по AI, обновления бота и эксклюзивные промпты.\n\n"
@@ -2554,15 +2554,22 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     )
     greeting_text = f"Привет, {first_name}!" if first_name else "Привет!"
     greeting = get_message("welcome_intro", greeting=greeting_text)
+    # 1. Приветствие — жирным
     text = f"{start_title_emoji} <b>{greeting}</b>\n\n"
 
+    # 2. Бесплатных запросов: 5 — «Бесплатных запросов» жирным, число обычным
     if not has_sub:
         remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
         if remaining > 0:
             text += f"{get_message('welcome_free_requests', remaining=remaining)}\n\n"
 
+    # 3. Например, напиши: — жирным
     text += f"{get_message('welcome_example_intro')}\n\n"
+
+    # 4. Пример — цитата (blockquote)
     text += f"<blockquote>{start_example}</blockquote>\n\n"
+
+    # 5. CTA — жирным
     if not has_sub:
         text += get_message("welcome_subscribe_cta")
 
