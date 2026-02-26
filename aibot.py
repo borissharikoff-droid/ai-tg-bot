@@ -983,10 +983,9 @@ DEFAULT_MESSAGES = {
     "welcome_intro": (
         "{greeting} Сэкономь часы на рутине — напиши, что нужно, и получи готовый результат."
     ),
-    "welcome_social_proof": "Уже {total_users} пользователей используют бота каждый день.\n\n",
-    "welcome_example_intro": "Пример: напиши «Сделай 5 идей смешной открытки про понедельник» — получи готовые варианты.",
-    "welcome_trial": "Попробуй прямо сейчас — у тебя {remaining} бесплатных запросов.\nПосле этого оформи PRO и продолжай без ограничений.",
-    "welcome_limit_reached": "Бесплатный лимит исчерпан. Оформи подписку PRO, чтобы продолжить.",
+    "welcome_free_requests": "Бесплатных запросов: {remaining}",
+    "welcome_example_intro": "Например, напиши:",
+    "welcome_subscribe_cta": "Для использования без ограничений оформите подписку PRO.",
     "channel_subscribe": (
         "📺 <b>Подпишись на канал — и получи доступ к боту</b>\n\n"
         "Советы по AI, обновления бота и эксклюзивные промпты.\n\n"
@@ -2541,14 +2540,11 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
 
 
 async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = False):
-    """Отправить приветственное сообщение (benefit-first, social proof, CTA)."""
+    """Отправить приветственное сообщение (формат как на скриншоте)."""
     has_sub = has_active_subscription(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
     user_data = load_user_data(user_id)
     first_name = (user_data.get("full_name") or "").split()[0] if user_data.get("full_name") else None
-    stats = load_stats()
-    total_users = stats.get("total_users", 0)
-    social_proof = get_message("welcome_social_proof", total_users=total_users) if total_users > 10 else ""
 
     start_title_emoji = (
         text_emoji("wave")
@@ -2559,16 +2555,16 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     greeting_text = f"Привет, {first_name}!" if first_name else "Привет!"
     greeting = get_message("welcome_intro", greeting=greeting_text)
     text = f"{start_title_emoji} <b>{greeting}</b>\n\n"
-    text += social_proof
-    text += f"<b>{get_message('welcome_example_intro')}</b>\n\n"
-    text += f"<blockquote>{start_example}</blockquote>\n"
 
     if not has_sub:
         remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
         if remaining > 0:
-            text += f"<b>{get_message('welcome_trial', remaining=remaining)}</b>"
-        else:
-            text += f"<b>{get_message('welcome_limit_reached')}</b>"
+            text += f"{get_message('welcome_free_requests', remaining=remaining)}\n\n"
+
+    text += f"{get_message('welcome_example_intro')}\n\n"
+    text += f"<blockquote>{start_example}</blockquote>\n\n"
+    if not has_sub:
+        text += get_message("welcome_subscribe_cta")
 
     if await send_section_media_message(
         chat_id=chat_id,
@@ -4717,11 +4713,31 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
     if user_model in IMAGE_MODELS:
         user_model = DEFAULT_MODEL
 
+    def _save_and_return(ai_reply: str) -> str:
+        text_msg = user_message if not photo_base64 else f"[Фото] {user_message}"
+        add_message_to_history(user_id, "user", text_msg)
+        add_message_to_history(user_id, "assistant", ai_reply)
+        increment_stat("total_messages")
+        return ai_reply
+
     try:
+        # При наличии фото используем onlysq API (поддерживает vision)
+        if photo_base64 and API_BEARER_TOKEN:
+            payload = {"model": "gemini-3-flash", "request": {"messages": messages}}
+            headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
+            async with aiohttp.ClientSession() as session:
+                async with session.post(API_URL, json=payload, headers=headers, timeout=60) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ai_reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                        if ai_reply:
+                            return _save_and_return(ai_reply)
+                    logging.warning(f"onlysq vision API status={response.status}, fallback to DeepSeek")
+
         if not _get_deepseek_key():
             return "✖️ Не настроен DEEPSEEK_API_KEY. Текстовые ответы работают только через DeepSeek."
 
-        # Чат всегда через DeepSeek API.
+        # Чат через DeepSeek API (без фото или fallback)
         ds_messages = _messages_to_deepseek_format(messages)
         ds_model = _deepseek_model(user_model)
         send = {"model": ds_model, "messages": ds_messages}
@@ -4733,16 +4749,7 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
                 if response.status == 200:
                     data = await response.json()
                     ai_reply = data['choices'][0]['message']['content']
-
-                    # Сохраняем в историю
-                    text_msg = user_message if not photo_base64 else f"[Фото] {user_message}"
-                    add_message_to_history(user_id, "user", text_msg)
-                    add_message_to_history(user_id, "assistant", ai_reply)
-
-                    # Обновляем статистику
-                    increment_stat("total_messages")
-
-                    return ai_reply
+                    return _save_and_return(ai_reply)
                 else:
                     return "✖️ Ошибка API"
     except asyncio.TimeoutError:
@@ -4847,6 +4854,24 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
     user_model = user_data.get("model", DEFAULT_MODEL)
     if user_model in IMAGE_MODELS:
         user_model = DEFAULT_MODEL
+
+    if photo_base64 and API_BEARER_TOKEN:
+        payload = {"model": "gemini-3-flash", "request": {"messages": messages}}
+        headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(API_URL, json=payload, headers=headers, timeout=60) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ai_reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                        if ai_reply:
+                            text_msg = user_message if not photo_base64 else f"[Фото] {user_message}"
+                            add_message_to_business_history(business_connection_id, client_chat_id, "user", text_msg)
+                            add_message_to_business_history(business_connection_id, client_chat_id, "assistant", ai_reply)
+                            increment_stat("total_messages")
+                            return ai_reply
+        except Exception as e:
+            logging.warning(f"onlysq vision API error: {e}")
 
     if not _get_deepseek_key():
         return "✖️ Не настроен DEEPSEEK_API_KEY. Текстовые ответы работают только через DeepSeek."
