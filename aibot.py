@@ -198,8 +198,13 @@ if not API_BEARER_TOKEN:
 if not ADMIN_IDS:
     raise RuntimeError("Set ADMIN_IDS environment variable with at least one Telegram user ID")
 
-# Пути к файлам
-DATA_DIR = "data"
+# Пути к файлам (DATA_DIR — для персистентного хранения при деплое)
+# 1) DATA_DIR в .env  2) RAILWAY_VOLUME_MOUNT_PATH (Railway)  3) ./data
+_data_dir = (
+    os.getenv("DATA_DIR", "").strip()
+    or os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+)
+DATA_DIR = os.path.abspath(_data_dir) if _data_dir else os.path.join(PROJECT_ROOT, "data")
 USERS_DIR = os.path.join(DATA_DIR, "users")
 CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 STATS_FILE = os.path.join(DATA_DIR, "stats.json")
@@ -209,6 +214,7 @@ BUSINESS_CONNECTIONS_FILE = os.path.join(DATA_DIR, "business_connections.json")
 
 # Создаем директории
 os.makedirs(USERS_DIR, exist_ok=True)
+logging.info(f"📁 Данные: {DATA_DIR}")
 
 # ==================== ПРОВЕРКА ЗАВИСИМОСТЕЙ ДЛЯ ГОЛОСА ====================
 logging.basicConfig(level=logging.INFO)
