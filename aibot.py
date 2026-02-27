@@ -1877,7 +1877,7 @@ def get_main_keyboard():
 
 
 def get_models_keyboard(page: int, user_id: int):
-    """Клавиатура выбора моделей"""
+    """Клавиатура выбора моделей (простые кнопки без style/emoji для совместимости)"""
     has_sub = has_active_subscription(user_id)
 
     # Получаем только включенные модели
@@ -1892,19 +1892,19 @@ def get_models_keyboard(page: int, user_id: int):
     for model in models_page:
         display_name = f"Картинки: {model}" if model in IMAGE_MODELS else model
         callback_data = f"setmodel_{model}" if has_sub else f"needsub_{model}"
-        buttons.append([make_inline_button(display_name, callback_data=callback_data, button_key="model_item")])
+        buttons.append([InlineKeyboardButton(text=display_name, callback_data=callback_data)])
 
     # Навигация
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(make_inline_button("Назад", callback_data=f"models_{page - 1}", button_key="nav_prev"))
+        nav_buttons.append(InlineKeyboardButton(text="◀️ Назад", callback_data=f"models_{page - 1}"))
     if end_idx < len(available):
-        nav_buttons.append(make_inline_button("Далее", callback_data=f"models_{page + 1}", button_key="nav_next"))
+        nav_buttons.append(InlineKeyboardButton(text="Далее ▶️", callback_data=f"models_{page + 1}"))
 
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")])
+    buttons.append([InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -2551,11 +2551,9 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
 
 
 async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = False):
-    """Отправить приветственное сообщение (формат как на скриншоте)."""
+    """Отправить приветственное сообщение (понятно обывателю: простые задачи + смешные картинки)."""
     has_sub = has_active_subscription(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
-    user_data = load_user_data(user_id)
-    first_name = (user_data.get("full_name") or "").split()[0] if user_data.get("full_name") else None
 
     start_title_emoji = (
         text_emoji("wave")
@@ -2563,26 +2561,25 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
         or button_emoji_tag("subscription")
         or button_emoji_tag("info")
     )
-    greeting_text = f"Привет, {first_name}!" if first_name else "Привет!"
-    greeting = get_message("welcome_intro", greeting=greeting_text)
-    # 1. Приветствие — жирным
-    text = f"{start_title_emoji} <b>{greeting}</b>\n\n"
+    text = f"{start_title_emoji} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
+    text += (
+        "Могу помочь с чем угодно:\n"
+        "— написать пост, поздравление или идею\n"
+        "— сделать мем или смешную картинку\n"
+        "— разобрать фото или голосовое сообщение\n\n"
+        "Просто напиши, что нужно — и я сделаю.\n\n"
+        "<b>Пример запроса:</b>\n"
+        f"<blockquote>{start_example}</blockquote>\n"
+    )
 
-    # 2. Бесплатных запросов: 5 — «Бесплатных запросов» жирным, число обычным
     if not has_sub:
         remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
         if remaining > 0:
-            text += f"{get_message('welcome_free_requests', remaining=remaining)}\n\n"
-
-    # 3. Например, напиши: — жирным
-    text += f"{get_message('welcome_example_intro')}\n\n"
-
-    # 4. Пример — цитата (blockquote)
-    text += f"<blockquote>{start_example}</blockquote>\n\n"
-
-    # 5. CTA — жирным
-    if not has_sub:
-        text += get_message("welcome_subscribe_cta")
+            text += f"\n<b>Бесплатных запросов:</b> {remaining}\n\n"
+        text += (
+            "<b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
+            "Нажмите кнопку ниже: там есть сравнение и преимущества."
+        )
 
     if await send_section_media_message(
         chat_id=chat_id,
@@ -3064,7 +3061,7 @@ async def callback_admin_stats(callback: CallbackQuery):
     text = (
         "📊 <b>Статистика</b>\n\n"
         f"🟢 <b>Нажатий /start:</b> {stats.get('total_starts', 0)}\n"
-        f"👥 <b>Уникальных пользователей:</b> {stats.get('total_users', 0)}\n"
+        f"👥 <b>Всего пользователей:</b> {len(users)}\n"
         f"⭐ <b>Активных подписок:</b> {active_subs}\n"
         f"💳 <b>Оплат подписки:</b> {total_payments}\n"
         f"💬 <b>Всего сообщений:</b> {stats.get('total_messages', 0)}\n\n"
