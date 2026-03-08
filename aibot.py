@@ -47,7 +47,8 @@ API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 IMAGE_DAILY_LIMIT_PRO = int(os.getenv("IMAGE_DAILY_LIMIT_PRO", "20"))
 IMAGE_MONTHLY_LIMIT_PRO = int(os.getenv("IMAGE_MONTHLY_LIMIT_PRO", "300"))
-FREE_TRIAL_LIMIT = int(os.getenv("FREE_TRIAL_LIMIT", "15"))
+FREE_TRIAL_LIMIT = int(os.getenv("FREE_TRIAL_LIMIT", "10"))
+FREE_IMAGE_TRIAL_LIMIT = int(os.getenv("FREE_IMAGE_TRIAL_LIMIT", "5"))
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
@@ -1083,7 +1084,7 @@ DEFAULT_MESSAGES = {
     ),
     "subscription_price_anchor": "<s>15 USD</s>  <b>{price_stars} Stars</b> или <b>{price_usd} USD</b> за 30 дней",
     "trial_reminder_1_left": (
-        "<b>Остался 1 бесплатный запрос!</b>\n\n"
+        "<b>Бесплатные запросы почти закончились!</b>\n\n"
         "Попробуй что-нибудь крутое напоследок:\n"
         "• <i>«Нарисуй кота-самурая в неоновых огнях»</i>\n"
         "• <i>«Составь бизнес-план кофейни за 5 минут»</i>\n\n"
@@ -1467,30 +1468,57 @@ def get_subscription_end(user_id: int) -> Optional[datetime]:
 
 
 def get_free_trial_used(user_id: int) -> int:
-    """Сколько бесплатных запросов уже использовано"""
+    """Сколько бесплатных текстовых запросов уже использовано"""
     user_data = load_user_data(user_id)
     return int(user_data.get("free_trial_used") or 0)
+
+
+def get_free_image_trial_used(user_id: int) -> int:
+    """Сколько бесплатных запросов на картинки уже использовано"""
+    user_data = load_user_data(user_id)
+    return int(user_data.get("image_trial_used") or 0)
+
+
+def get_free_trial_remaining(user_id: int) -> tuple:
+    """Вернуть (текст_осталось, картинок_осталось)"""
+    text_rem = max(0, FREE_TRIAL_LIMIT - get_free_trial_used(user_id))
+    img_rem = max(0, FREE_IMAGE_TRIAL_LIMIT - get_free_image_trial_used(user_id))
+    return text_rem, img_rem
 
 
 def consume_free_trial(user_id: int, is_image: bool = False):
     """Списать 1 бесплатный запрос. Сохраняет first_use_time при первом использовании."""
     user_data = load_user_data(user_id)
     used = get_free_trial_used(user_id)
-    if used == 0:
+    if used == 0 and not user_data.get("first_use_time"):
         user_data["first_use_time"] = datetime.now().isoformat()
-    user_data["free_trial_used"] = used + 1
     if is_image:
         user_data["image_trial_used"] = user_data.get("image_trial_used", 0) + 1
+    else:
+        user_data["free_trial_used"] = used + 1
     save_user_data(user_id, user_data)
 
 
-def can_make_request(user_id: int) -> bool:
+def can_make_request(user_id: int, is_image: bool = False) -> bool:
     """Может ли пользователь сделать запрос (подписка или бесплатный триал)"""
     if user_id in ADMIN_IDS:
         return True
     if has_active_subscription(user_id):
         return True
+    if is_image:
+        return get_free_image_trial_used(user_id) < FREE_IMAGE_TRIAL_LIMIT
+    # Для текста проверяем текстовый лимит
     return get_free_trial_used(user_id) < FREE_TRIAL_LIMIT
+
+
+def can_make_any_request(user_id: int) -> bool:
+    """Есть ли хоть какие-то бесплатные запросы (текст или картинки)"""
+    if user_id in ADMIN_IDS:
+        return True
+    if has_active_subscription(user_id):
+        return True
+    text_rem, img_rem = get_free_trial_remaining(user_id)
+    return text_rem > 0 or img_rem > 0
 
 
 def get_free_trial_paywall_text(user_id: int = None) -> str:
@@ -1499,6 +1527,27 @@ def get_free_trial_paywall_text(user_id: int = None) -> str:
     price_usd = get_subscription_price_usd()
     active_subs = len(get_users_with_active_subscription())
     proof = get_message("paywall_proof", active_subs=active_subs) if active_subs > 0 else ""
+
+    # Если остались запросы другого типа — подсказываем
+    if user_id:
+        text_rem, img_rem = get_free_trial_remaining(user_id)
+        if text_rem > 0 and img_rem == 0:
+            return (
+                f"{proof}"
+                f"<b>Бесплатные картинки закончились</b>\n\n"
+                f"У тебя ещё {text_rem} текстовых запросов.\n"
+                f"Для безлимитных картинок — оформи PRO.\n\n"
+                f"<b>Всего {price_stars} Stars / {price_usd} USD за 30 дней</b>"
+            )
+        if img_rem > 0 and text_rem == 0:
+            return (
+                f"{proof}"
+                f"<b>Бесплатные текстовые запросы закончились</b>\n\n"
+                f"У тебя ещё {img_rem} картинок.\n"
+                f"Для безлимита — оформи PRO.\n\n"
+                f"<b>Всего {price_stars} Stars / {price_usd} USD за 30 дней</b>"
+            )
+
     return get_message(
         "paywall",
         proof=proof,
@@ -1517,7 +1566,7 @@ def try_consume_image_generation_limit(user_id: int) -> tuple:
         return True, ""
 
     if not has_active_subscription(user_id):
-        if get_free_trial_used(user_id) < FREE_TRIAL_LIMIT:
+        if get_free_image_trial_used(user_id) < FREE_IMAGE_TRIAL_LIMIT:
             return True, ""
         return False, get_free_trial_paywall_text(user_id)
 
@@ -1982,18 +2031,17 @@ def get_main_keyboard(user_id: int = None):
 
 
 def get_models_keyboard(page: int, user_id: int):
-    """Клавиатура выбора моделей (простые кнопки без style/emoji для совместимости)"""
+    """Клавиатура выбора моделей — текстовые и картиночные разделены"""
     has_sub = has_active_subscription(user_id)
 
-    # Получаем только включенные модели
     enabled_models = get_enabled_models()
     available = [m for m in AVAILABLE_MODELS if m in enabled_models]
 
-    start_idx = page * MODELS_PER_PAGE
-    end_idx = start_idx + MODELS_PER_PAGE
-    models_page = available[start_idx:end_idx]
+    # Разделяем на текстовые и картиночные
+    text_models = [m for m in available if m not in IMAGE_MODELS]
+    image_models_list = [m for m in available if m in IMAGE_MODELS]
 
-    # Дружественные названия моделей
+    # Дружественные названия
     MODEL_DISPLAY_NAMES = {
         "gpt-5.2-chat": "GPT-5.2 Chat",
         "gpt-5.1-chat": "GPT-5.1 Chat",
@@ -2016,27 +2064,44 @@ def get_models_keyboard(page: int, user_id: int):
         "gemini-2.5-pro": "Gemini 2.5 Pro",
         "gemini-2.5-flash": "Gemini 2.5 Flash",
         "grok-3": "Grok 3",
-        "flux": "Flux (Картинки)",
-        "flux-2-dev": "Flux 2 Dev (Картинки)",
-        "grok-2-image": "Grok 2 Image (Картинки)",
-        "phoenix-1.0": "Phoenix 1.0 (Картинки)",
-        "lucid-origin": "Lucid Origin (Картинки)",
-        "pollinations-flux-free": "Flux Free (Картинки)",
+        "flux": "Flux",
+        "flux-2-dev": "Flux 2 Dev",
+        "grok-2-image": "Grok 2 Image",
+        "phoenix-1.0": "Phoenix 1.0",
+        "lucid-origin": "Lucid Origin",
+        "pollinations-flux-free": "Flux Free",
     }
 
+    # Объединяем в один список с разделителями для пагинации
+    combined = []
+    if text_models:
+        combined.append(("header", "✏️ ТЕКСТОВЫЕ МОДЕЛИ"))
+        for m in text_models:
+            combined.append(("model", m))
+    if image_models_list:
+        combined.append(("header", "🎨 МОДЕЛИ ДЛЯ КАРТИНОК"))
+        for m in image_models_list:
+            combined.append(("model", m))
+
+    start_idx = page * MODELS_PER_PAGE
+    end_idx = start_idx + MODELS_PER_PAGE
+    page_items = combined[start_idx:end_idx]
+
     buttons = []
-    for model in models_page:
-        display_name = MODEL_DISPLAY_NAMES.get(model, model)
-        if model in IMAGE_MODELS and model not in MODEL_DISPLAY_NAMES:
-            display_name = f"Картинки: {model}"
-        callback_data = f"setmodel_{model}" if has_sub else f"needsub_{model}"
-        buttons.append([InlineKeyboardButton(text=display_name, callback_data=callback_data)])
+    for item_type, item_value in page_items:
+        if item_type == "header":
+            buttons.append([InlineKeyboardButton(text=f"— {item_value} —", callback_data="noop")])
+        else:
+            display_name = MODEL_DISPLAY_NAMES.get(item_value, item_value)
+            prefix = "🎨 " if item_value in IMAGE_MODELS else "✏️ "
+            callback_data = f"setmodel_{item_value}" if has_sub else f"needsub_{item_value}"
+            buttons.append([InlineKeyboardButton(text=f"{prefix}{display_name}", callback_data=callback_data)])
 
     # Навигация
     nav_buttons = []
     if page > 0:
         nav_buttons.append(InlineKeyboardButton(text="◀️ Назад", callback_data=f"models_{page - 1}"))
-    if end_idx < len(available):
+    if end_idx < len(combined):
         nav_buttons.append(InlineKeyboardButton(text="Далее ▶️", callback_data=f"models_{page + 1}"))
 
     if nav_buttons:
@@ -2241,7 +2306,7 @@ async def handle_business_text_message(message: Message):
         if is_blacklisted(bot_owner_id):
             return
 
-        if not can_make_request(bot_owner_id):
+        if not can_make_any_request(bot_owner_id):
             increment_stat("paywall_shown")
             await bot.send_message(
                 message.chat.id,
@@ -2371,7 +2436,7 @@ async def handle_business_photo(message: Message):
         if is_blacklisted(bot_owner_id):
             return
 
-        if not can_make_request(bot_owner_id):
+        if not can_make_any_request(bot_owner_id):
             increment_stat("paywall_shown")
             await bot.send_message(
                 message.chat.id,
@@ -2499,7 +2564,7 @@ async def handle_business_voice(message: Message):
         if is_blacklisted(bot_owner_id):
             return
 
-        if not can_make_request(bot_owner_id):
+        if not can_make_any_request(bot_owner_id):
             increment_stat("paywall_shown")
             await bot.send_message(
                 message.chat.id,
@@ -2701,20 +2766,25 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     text = f"{start_title_emoji} <b>Привет! Я твой ИИ-помощник.</b>\n\n"
     text += (
         "Просто напиши — и я помогу:\n\n"
-        "  <b>Текст</b> — посты, идеи, код, переводы\n"
-        "  <b>Картинки</b> — мемы, арты, логотипы по описанию\n"
-        "  <b>Фото</b> — отправь фото и задай вопрос\n"
-        "  <b>Голос</b> — отправь голосовое, я отвечу текстом\n\n"
-        "<b>Попробуй прямо сейчас:</b>\n"
-        f"<blockquote>{start_example}</blockquote>\n"
+        "✏️ <b>Текст</b> — посты, идеи, код, переводы\n"
+        "🎨 <b>Картинки</b> — мемы, арты, логотипы по описанию\n"
+        "📷 <b>Фото</b> — отправь фото и задай вопрос\n"
+        "🎤 <b>Голос</b> — отправь голосовое, я отвечу текстом\n"
     )
 
     if not has_sub:
-        remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
-        if remaining > 0:
-            text += f"\nУ тебя <b>{remaining} бесплатных запросов</b> — попробуй!\n"
+        text_rem, img_rem = get_free_trial_remaining(user_id)
+        if text_rem > 0 or img_rem > 0:
+            text += (
+                f"\n<b>Бесплатно:</b> {text_rem} текстовых + {img_rem} картинок\n"
+            )
         else:
             text += "\nБесплатные запросы закончились. Оформи PRO!\n"
+
+    text += (
+        "\n<b>Попробуй прямо сейчас:</b>\n"
+        f"<blockquote>{start_example}</blockquote>\n"
+    )
 
     if await send_section_media_message(
         chat_id=chat_id,
@@ -2745,6 +2815,12 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
             await send_system_message(chat_id=chat_id, text=text, reply_markup=kb, parse_mode="HTML")
     else:
         await send_system_message(chat_id=chat_id, text=text, reply_markup=kb, parse_mode="HTML")
+
+
+@dp.callback_query(F.data == "noop")
+async def callback_noop(callback: CallbackQuery):
+    """Пустой обработчик для разделителей"""
+    await callback.answer()
 
 
 @dp.callback_query(F.data == "check_channels")
@@ -2852,9 +2928,10 @@ async def callback_models(callback: CallbackQuery):
 
         text = (
             "🤖 <b>Модели AI</b>\n\n"
-            f"<b>Текущая:</b> <code>{current_model}</code> ({model_mode})\n\n"
-            "Выбери модель для ответов.\n"
-            "Бот сам определяет: текст или картинка."
+            f"Сейчас выбрана: <b>{current_model}</b> ({model_mode})\n\n"
+            "✏️ — отвечает текстом на любые вопросы\n"
+            "🎨 — рисует картинки по описанию\n\n"
+            "Выбери модель ниже:"
         )
 
         keyboard = get_models_keyboard(page, user_id)
@@ -2959,14 +3036,14 @@ async def callback_subscription(callback: CallbackQuery):
         active_subs = len(get_users_with_active_subscription())
         proof = get_message("subscription_proof", active_subs=active_subs) if active_subs > 0 else ""
         user_data = load_user_data(user_id)
-        remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
+        text_rem, img_rem = get_free_trial_remaining(user_id)
         text = f"{text_emoji('star')} <b>Подписка PRO</b>\n\n"
         text += f"<b>{get_message('subscription_outcome')}</b>\n\n"
         text += proof
         text += f"<blockquote>{get_message('subscription_benefits')}</blockquote>\n\n"
         text += get_message("subscription_price_anchor", price_stars=price_stars, price_usd=price_usd)
-        if remaining > 0:
-            text += f"\n\n<i>Осталось бесплатных запросов: {remaining}</i>"
+        if text_rem > 0 or img_rem > 0:
+            text += f"\n\n<i>Осталось бесплатно: {text_rem} текстовых, {img_rem} картинок</i>"
 
     try:
         await callback.message.delete()
@@ -3019,9 +3096,9 @@ async def callback_generate_image_prompt(callback: CallbackQuery):
         [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
     ]
     if not has_active_subscription(user_id):
-        remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
-        if remaining > 0:
-            text += f"\n\nБесплатных запросов: <b>{remaining}</b>"
+        text_rem, img_rem = get_free_trial_remaining(user_id)
+        if text_rem > 0 or img_rem > 0:
+            text += f"\n\nБесплатно: <b>{text_rem} текстовых, {img_rem} картинок</b>"
         else:
             buttons.insert(0, [make_inline_button("Оформить PRO", callback_data="subscription", button_key="subscription", style="success")])
 
@@ -5428,7 +5505,7 @@ async def handle_photo(message: Message, state: FSMContext):
             await send_channel_subscription_message(message.chat.id, user_id)
             return
 
-    if not can_make_request(user_id):
+    if not can_make_any_request(user_id):
         increment_stat("paywall_shown")
         await send_system_message(
             chat_id=message.chat.id,
@@ -5523,7 +5600,7 @@ async def handle_voice(message: Message, state: FSMContext):
             await send_channel_subscription_message(message.chat.id, user_id)
             return
 
-    if not can_make_request(user_id):
+    if not can_make_any_request(user_id):
         increment_stat("paywall_shown")
         await send_system_message(
             chat_id=message.chat.id,
@@ -5615,7 +5692,7 @@ async def handle_message(message: Message, state: FSMContext):
             await send_channel_subscription_message(message.chat.id, user_id)
             return
 
-    if not can_make_request(user_id):
+    if not can_make_any_request(user_id):
         increment_stat("paywall_shown")
         await send_system_message(
             chat_id=message.chat.id,
@@ -5680,6 +5757,17 @@ async def handle_message(message: Message, state: FSMContext):
             await message.answer(result)
         return
 
+    # Проверяем текстовый лимит перед запросом к AI
+    if not has_active_subscription(user_id) and user_id not in ADMIN_IDS:
+        if not can_make_request(user_id, is_image=False):
+            increment_stat("paywall_shown")
+            await send_system_message(
+                chat_id=message.chat.id,
+                text=get_free_trial_paywall_text(user_id),
+                reply_markup=get_subscription_keyboard(user_id)
+            )
+            return
+
     await bot.send_chat_action(message.chat.id, "typing")
     ai_response = await get_ai_response(user_id, message.text)
     await send_long_message(message, ai_response)
@@ -5690,11 +5778,12 @@ async def handle_message(message: Message, state: FSMContext):
 
 # ==================== TRIAL REMINDERS ====================
 async def maybe_send_trial_reminder_1_left(chat_id: int, user_id: int):
-    """Отправить напоминание, когда остался 1 бесплатный запрос (после 4-го использования)."""
+    """Отправить напоминание, когда бесплатные запросы почти закончились."""
     if user_id in ADMIN_IDS or has_active_subscription(user_id):
         return
-    used = get_free_trial_used(user_id)
-    if used != FREE_TRIAL_LIMIT - 1:
+    text_rem, img_rem = get_free_trial_remaining(user_id)
+    total_rem = text_rem + img_rem
+    if total_rem > 2 or total_rem == 0:
         return
     if not should_send_reminder(user_id, "trial_1_left"):
         return
