@@ -47,7 +47,7 @@ API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 IMAGE_DAILY_LIMIT_PRO = int(os.getenv("IMAGE_DAILY_LIMIT_PRO", "20"))
 IMAGE_MONTHLY_LIMIT_PRO = int(os.getenv("IMAGE_MONTHLY_LIMIT_PRO", "300"))
-FREE_TRIAL_LIMIT = int(os.getenv("FREE_TRIAL_LIMIT", "5"))
+FREE_TRIAL_LIMIT = int(os.getenv("FREE_TRIAL_LIMIT", "15"))
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
@@ -66,6 +66,7 @@ DEFAULT_BUTTON_EMOJI_PACK = {
     "subscription": "6028338546736107668",  # ⭐️
     "info": "6028435952299413210",          # ℹ
     "home": "6042137469204303531",          # 🏠
+    "image": "6030466823290360017",         # 🖼
     # Model navigation
     "model_item": "5936143551854285132",    # 📊
     "nav_prev": "5960671702059848143",      # ⬅️
@@ -143,15 +144,18 @@ STYLE_PRESET_DESCRIPTIONS = {
 }
 
 START_EXAMPLES = [
-    "«Сделай 5 идей смешной открытки про понедельник для коллег»",
-    "«Придумай короткий текст для поздравления друга с днем рождения»",
-    "«Сгенерируй идею мем-картинки про удаленку и дедлайны»",
-    "«Объясни простыми словами, как составить план на неделю»",
-    "«Придумай подпись к фото для сторис в веселом стиле»",
-    "«Напиши короткий пост для соцсетей про выходные»",
-    "«Нарисуй смешную картинку: кот в костюме офисного работника»",
-    "«Помоги сформулировать отказ от встречи вежливо и коротко»",
-    "«Идеи для смешного стикера про утро понедельника»",
+    "«Нарисуй кота-программиста за ноутбуком с кофе»",
+    "«Придумай 5 идей для поста в Telegram про мотивацию»",
+    "«Сгенери мем-картинку про дедлайны и прокрастинацию»",
+    "«Напиши поздравление другу с днём рождения в стихах»",
+    "«Объясни квантовую физику как будто мне 5 лет»",
+    "«Нарисуй закат на Марсе в стиле киберпанк»",
+    "«Составь план питания на неделю для похудения»",
+    "«Придумай подпись к фото для сторис — смешную и цепляющую»",
+    "«Нарисуй милую собаку-астронавта в открытом космосе»",
+    "«Помоги написать сопроводительное письмо для резюме»",
+    "«Сделай логотип для кофейни в минималистичном стиле»",
+    "«Напиши пост для соцсетей про выходные с юмором»",
 ]
 
 RESPONSE_STYLE_SYSTEM_PROMPT = (
@@ -399,7 +403,25 @@ def is_image_generation_request(text: str) -> bool:
         "generate image",
         "image of",
         "logo",
-        "стикер"
+        "стикер",
+        "лого",
+        "логотип",
+        "сделай арт",
+        "нарисуй арт",
+        "wallpaper",
+        "сгенери",
+        "сгенерь",
+        "генерируй",
+        "сделай обои",
+        "портрет",
+        "нарисовать",
+        "рисунок",
+        "иконк",
+        "баннер",
+        "постер",
+        "обложк",
+        "визуализ",
+        "коллаж"
     ]
     return any(marker in t for marker in image_markers)
 
@@ -983,9 +1005,14 @@ MESSAGES_FILE = os.path.join(DATA_DIR, "messages.json")
 DEFAULT_MESSAGES = {
     "paywall": (
         "{proof}"
-        "Специальное предложение! Всего {price_stars} Stars / {price_usd} USD за 30 дней, вместо 1000."
+        "<b>Бесплатные запросы закончились</b>\n\n"
+        "Оформи PRO — и пользуйся без ограничений:\n"
+        "• Безлимитные запросы к ИИ\n"
+        "• Генерация картинок до {img_daily}/день\n"
+        "• Все модели + настройка стиля\n\n"
+        "<b>Всего {price_stars} Stars / {price_usd} USD за 30 дней</b>"
     ),
-    "paywall_proof": "Присоединяйся к {active_subs} пользователям с PRO.\n\n",
+    "paywall_proof": "{active_subs} пользователей уже на PRO\n\n",
     "welcome_intro": (
         "{greeting} Сэкономь часы на рутине — напиши, что нужно, и получи готовый результат."
     ),
@@ -993,30 +1020,44 @@ DEFAULT_MESSAGES = {
     "welcome_example_intro": "<b>Например, напиши:</b>",
     "welcome_subscribe_cta": "<b>Для использования без ограничений оформите подписку PRO.</b>",
     "channel_subscribe": (
-        "📺 <b>Подпишись на канал — и получи доступ к боту</b>\n\n"
+        "<b>Подпишись на канал — и получи доступ к боту</b>\n\n"
         "Советы по AI, обновления бота и эксклюзивные промпты.\n\n"
         "{proof}"
-        "👇 Нажми на канал ниже и подпишись:"
+        "Нажми на канал ниже и подпишись:"
     ),
     "channel_proof": "Уже {subs_count} пользователей в боте.\n\n",
-    "subscription_outcome": "Получи доступ ко всем возможностям — без ограничений.",
-    "subscription_proof": "{active_subs} пользователей уже выбрали PRO.\n\n",
+    "subscription_outcome": "Сними все ограничения — пользуйся ИИ на максимум.",
+    "subscription_proof": "{active_subs} пользователей уже выбрали PRO\n\n",
     "subscription_benefits": (
-        "• <b>Все модели нейросети</b> — от быстрых до самых умных\n"
-        "• <b>Генерация картинок</b> — мемы, иллюстрации по тексту\n"
-        "• <b>Стиль ответа</b> — серьёзный, нейтральный, весёлый или «как друг»\n"
-        "• <b>Фото и голос</b> — отправляй скриншоты и голосовые"
+        "• <b>Безлимитные запросы</b> — текст, код, идеи без ограничений\n"
+        "• <b>Генерация картинок</b> — мемы, логотипы, арты по описанию\n"
+        "• <b>Все модели AI</b> — GPT-5, Claude, Gemini, DeepSeek и др.\n"
+        "• <b>Стиль ответа</b> — серьёзный, весёлый, дружеский\n"
+        "• <b>Фото + голос</b> — анализ скриншотов и голосовых"
     ),
-    "subscription_price_anchor": "<s>15 USD</s> — сейчас <b>{price_stars} Stars</b> или <b>{price_usd} USD</b> за 30 дней",
+    "subscription_price_anchor": "<s>15 USD</s>  <b>{price_stars} Stars</b> или <b>{price_usd} USD</b> за 30 дней",
     "trial_reminder_1_left": (
-        "💡 <b>Остался 1 бесплатный запрос!</b>\n\n"
-        "Попробуй что-то крутое — например, генерацию картинки по описанию.\n"
-        "После этого оформи PRO и продолжай без ограничений."
+        "<b>Остался 1 бесплатный запрос!</b>\n\n"
+        "Попробуй что-нибудь крутое напоследок:\n"
+        "• <i>«Нарисуй кота-самурая в неоновых огнях»</i>\n"
+        "• <i>«Составь бизнес-план кофейни за 5 минут»</i>\n\n"
+        "Чтобы продолжить — оформи PRO."
     ),
     "trial_reminder_24h": (
-        "👋 <b>Как тебе бот?</b>\n\n"
-        "Если понравилось — оформи PRO и получи доступ ко всем моделям "
-        "и генерации картинок без ограничений."
+        "<b>Привет! Как тебе бот?</b>\n\n"
+        "Ты уже попробовал возможности ИИ-ассистента.\n"
+        "С PRO ты получишь:\n"
+        "• Безлимитные запросы\n"
+        "• Генерацию картинок\n"
+        "• Все модели AI\n\n"
+        "Оформи PRO — и забудь про ограничения."
+    ),
+    "image_generation_progress": (
+        "Генерирую изображение...\n"
+        "Обычно это занимает 10-30 секунд."
+    ),
+    "image_success_free_cta": (
+        "\n\n<i>С PRO — до {img_daily} картинок в день + все модели AI</i>"
     ),
 }
 
@@ -1416,7 +1457,8 @@ def get_free_trial_paywall_text(user_id: int = None) -> str:
         "paywall",
         proof=proof,
         price_stars=price_stars,
-        price_usd=price_usd
+        price_usd=price_usd,
+        img_daily=IMAGE_DAILY_LIMIT_PRO
     )
 
 
@@ -1869,17 +1911,28 @@ def should_send_reminder(user_id: int, reminder_type: str) -> bool:
 
 
 # ==================== КЛАВИАТУРЫ ====================
-def get_main_keyboard():
+def get_main_keyboard(user_id: int = None):
     """Главная клавиатура"""
-    return InlineKeyboardMarkup(inline_keyboard=[
+    has_sub = has_active_subscription(user_id) if user_id else False
+    buttons = [
         [
-            make_inline_button("Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")
+            make_inline_button("Генерация картинок", callback_data="generate_image_prompt", button_key="image", style="primary")
         ],
         [
-            make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success"),
+            make_inline_button("Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary"),
+            make_inline_button("Модели AI", callback_data="models_0", button_key="models")
+        ],
+    ]
+    if not has_sub:
+        buttons.append([
+            make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success")
+        ])
+    else:
+        buttons.append([
+            make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription"),
             make_inline_button("Настройки", callback_data="settings", button_key="info")
-        ]
-    ])
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def get_models_keyboard(page: int, user_id: int):
@@ -1894,9 +1947,42 @@ def get_models_keyboard(page: int, user_id: int):
     end_idx = start_idx + MODELS_PER_PAGE
     models_page = available[start_idx:end_idx]
 
+    # Дружественные названия моделей
+    MODEL_DISPLAY_NAMES = {
+        "gpt-5.2-chat": "GPT-5.2 Chat",
+        "gpt-5.1-chat": "GPT-5.1 Chat",
+        "gpt-5-chat": "GPT-5 Chat",
+        "gpt-5": "GPT-5",
+        "gpt-5-mini": "GPT-5 Mini",
+        "gpt-5-nano": "GPT-5 Nano",
+        "gpt-4.1": "GPT-4.1",
+        "gpt-4.1-mini": "GPT-4.1 Mini",
+        "gpt-4o": "GPT-4o",
+        "gpt-4o-mini": "GPT-4o Mini",
+        "claude-opus-4-6": "Claude Opus 4.6",
+        "claude-opus-4-5": "Claude Opus 4.5",
+        "claude-sonnet-4-5": "Claude Sonnet 4.5",
+        "claude-haiku-4-5": "Claude Haiku 4.5",
+        "deepseek-v3": "DeepSeek V3",
+        "deepseek-r1": "DeepSeek R1 (Reasoning)",
+        "gemini-3-pro": "Gemini 3 Pro",
+        "gemini-3-flash": "Gemini 3 Flash",
+        "gemini-2.5-pro": "Gemini 2.5 Pro",
+        "gemini-2.5-flash": "Gemini 2.5 Flash",
+        "grok-3": "Grok 3",
+        "flux": "Flux (Картинки)",
+        "flux-2-dev": "Flux 2 Dev (Картинки)",
+        "grok-2-image": "Grok 2 Image (Картинки)",
+        "phoenix-1.0": "Phoenix 1.0 (Картинки)",
+        "lucid-origin": "Lucid Origin (Картинки)",
+        "pollinations-flux-free": "Flux Free (Картинки)",
+    }
+
     buttons = []
     for model in models_page:
-        display_name = f"Картинки: {model}" if model in IMAGE_MODELS else model
+        display_name = MODEL_DISPLAY_NAMES.get(model, model)
+        if model in IMAGE_MODELS and model not in MODEL_DISPLAY_NAMES:
+            display_name = f"Картинки: {model}"
         callback_data = f"setmodel_{model}" if has_sub else f"needsub_{model}"
         buttons.append([InlineKeyboardButton(text=display_name, callback_data=callback_data)])
 
@@ -2557,7 +2643,7 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
 
 
 async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = False):
-    """Отправить приветственное сообщение (понятно обывателю: простые задачи + смешные картинки)."""
+    """Отправить приветственное сообщение."""
     has_sub = has_active_subscription(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
@@ -2567,35 +2653,34 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
         or button_emoji_tag("subscription")
         or button_emoji_tag("info")
     )
-    text = f"{start_title_emoji} <b>Привет! Я ИИ-бот — твой помощник в Telegram.</b>\n\n"
+    text = f"{start_title_emoji} <b>Привет! Я твой ИИ-помощник.</b>\n\n"
     text += (
-        "Могу помочь с чем угодно:\n"
-        "— написать пост, поздравление или идею\n"
-        "— сделать мем или смешную картинку\n"
-        "— разобрать фото или голосовое сообщение\n\n"
-        "Просто напиши, что нужно — и я сделаю.\n\n"
-        "<b>Пример запроса:</b>\n"
+        "Просто напиши — и я помогу:\n\n"
+        "  <b>Текст</b> — посты, идеи, код, переводы\n"
+        "  <b>Картинки</b> — мемы, арты, логотипы по описанию\n"
+        "  <b>Фото</b> — отправь фото и задай вопрос\n"
+        "  <b>Голос</b> — отправь голосовое, я отвечу текстом\n\n"
+        "<b>Попробуй прямо сейчас:</b>\n"
         f"<blockquote>{start_example}</blockquote>\n"
     )
 
     if not has_sub:
         remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
         if remaining > 0:
-            text += f"\n<b>Бесплатных запросов:</b> {remaining}\n\n"
-        text += (
-            "<b>Чтобы пользоваться ботом без ограничений, оформите подписку PRO.</b>\n"
-            "Нажмите кнопку ниже: там есть сравнение и преимущества."
-        )
+            text += f"\nУ тебя <b>{remaining} бесплатных запросов</b> — попробуй!\n"
+        else:
+            text += "\nБесплатные запросы закончились. Оформи PRO!\n"
 
     if await send_section_media_message(
         chat_id=chat_id,
         text=text,
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyboard(user_id),
         section="start",
         parse_mode="HTML"
     ):
         return
 
+    kb = get_main_keyboard(user_id)
     start_media = get_start_media()
     if start_media:
         media_type = start_media.get("type")
@@ -2603,36 +2688,18 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
 
         try:
             if media_type == "photo":
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
+                await bot.send_photo(chat_id=chat_id, photo=file_id, caption=text, reply_markup=kb, parse_mode="HTML")
             elif media_type == "video":
-                await bot.send_video(
-                    chat_id=chat_id,
-                    video=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
+                await bot.send_video(chat_id=chat_id, video=file_id, caption=text, reply_markup=kb, parse_mode="HTML")
             elif media_type == "animation":
-                await bot.send_animation(
-                    chat_id=chat_id,
-                    animation=file_id,
-                    caption=text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode="HTML"
-                )
+                await bot.send_animation(chat_id=chat_id, animation=file_id, caption=text, reply_markup=kb, parse_mode="HTML")
             else:
-                await bot.send_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+                await bot.send_message(chat_id=chat_id, text=text, reply_markup=kb, parse_mode="HTML")
         except Exception as e:
             logging.error(f"Ошибка отправки медиа: {e}")
-            await send_system_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+            await send_system_message(chat_id=chat_id, text=text, reply_markup=kb, parse_mode="HTML")
     else:
-        await send_system_message(chat_id=chat_id, text=text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+        await send_system_message(chat_id=chat_id, text=text, reply_markup=kb, parse_mode="HTML")
 
 
 @dp.callback_query(F.data == "check_channels")
@@ -2743,11 +2810,11 @@ async def callback_models(callback: CallbackQuery):
         )
 
         text = (
-            f"{text_emoji('models')} <b>Модели</b>\n\n"
-            f"{text_emoji('robot')} <b>Текущая модель:</b> <code>{current_model}</code>\n"
-            f"<b>Тип:</b> {model_type}\n\n"
-            "Бот сам выбирает текст или картинку по вашему запросу.\n"
-            "Тут вы меняете базовую модель по умолчанию."
+            f"{text_emoji('models')} <b>Модели AI</b>\n\n"
+            f"<b>Текущая:</b> <code>{current_model}</code>\n"
+            f"<b>Режим:</b> {model_type}\n\n"
+            "Выбери модель для ответов.\n"
+            "Бот автоматически определяет: текст или картинка."
         )
 
         keyboard = get_models_keyboard(page, user_id)
@@ -2814,15 +2881,14 @@ async def callback_set_model(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("needsub_"))
 async def callback_need_subscription(callback: CallbackQuery):
-    """Нужна подписка для смены модели"""
+    """Нужна подписка для смены модели — перенаправляем на страницу подписки"""
     user_id = callback.from_user.id
     user_data = load_user_data(user_id)
     user_data["needsub_clicked"] = True
     save_user_data(user_id, user_data)
-    await callback.answer(
-        "⭐ Для смены модели необходимо оформить подписку!",
-        show_alert=True
-    )
+    await callback.answer()
+    # Перенаправляем на экран подписки
+    await callback_subscription(callback)
 
 
 @dp.callback_query(F.data == "subscription")
@@ -2839,28 +2905,32 @@ async def callback_subscription(callback: CallbackQuery):
         text = f"{text_emoji('star')} <b>Подписка</b>\n\n"
         text += "Вы администратор бота и имеете неограниченный доступ."
     elif has_sub:
-        text = f"{text_emoji('star')} <b>Подписка активна!</b>\n\n"
-        text += f"<b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
+        text = f"{text_emoji('star')} <b>Подписка PRO активна</b>\n\n"
+        text += f"<b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
         time_left = sub_end - datetime.now()
         days = time_left.days
         hours = time_left.seconds // 3600
-        minutes = (time_left.seconds % 3600) // 60
-        text += f"<b>Осталось:</b> {days}д {hours}ч {minutes}м\n"
-        text += f"Лимит генерации картинок: {IMAGE_DAILY_LIMIT_PRO}/день, {IMAGE_MONTHLY_LIMIT_PRO}/месяц"
+        text += f"<b>Осталось:</b> {days}д {hours}ч\n\n"
+        text += (
+            "<b>Доступно:</b>\n"
+            f"  Безлимитные запросы к ИИ\n"
+            f"  Генерация картинок: {IMAGE_DAILY_LIMIT_PRO}/день\n"
+            f"  Все модели + настройка стиля\n"
+        )
     else:
         price_stars = get_subscription_price()
         price_usd = get_subscription_price_usd()
         active_subs = len(get_users_with_active_subscription())
         proof = get_message("subscription_proof", active_subs=active_subs) if active_subs > 0 else ""
         user_data = load_user_data(user_id)
-        needsub = user_data.get("needsub_clicked")
+        remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
         text = f"{text_emoji('star')} <b>Подписка PRO</b>\n\n"
-        if needsub:
-            text += f"<b>Разблокируй все модели — оформи PRO!</b>\n\n"
         text += f"<b>{get_message('subscription_outcome')}</b>\n\n"
         text += proof
         text += f"<blockquote>{get_message('subscription_benefits')}</blockquote>\n\n"
         text += get_message("subscription_price_anchor", price_stars=price_stars, price_usd=price_usd)
+        if remaining > 0:
+            text += f"\n\n<i>Осталось бесплатных запросов: {remaining}</i>"
 
     try:
         await callback.message.delete()
@@ -2879,6 +2949,51 @@ async def callback_subscription(callback: CallbackQuery):
             reply_markup=get_subscription_keyboard(user_id),
             parse_mode="HTML"
         )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "generate_image_prompt")
+async def callback_generate_image_prompt(callback: CallbackQuery):
+    """Подсказка по генерации картинок"""
+    user_id = callback.from_user.id
+
+    if is_blacklisted(user_id):
+        await callback.answer()
+        return
+
+    examples = [
+        "«Нарисуй кота-самурая в неоновых огнях»",
+        "«Сделай логотип кофейни в минимализме»",
+        "«Нарисуй закат на Марсе в стиле киберпанк»",
+        "«Сделай мем: программист и 100 вкладок в браузере»",
+        "«Нарисуй милую панду-астронавта»",
+    ]
+    example = random.choice(examples)
+
+    text = (
+        f"{text_emoji('image')} <b>Генерация картинок</b>\n\n"
+        "Просто напиши, что хочешь увидеть — и я нарисую!\n\n"
+        "<b>Примеры запросов:</b>\n"
+        f"<blockquote>{example}</blockquote>\n\n"
+        "Поддерживаются: мемы, арты, логотипы, иллюстрации, аватарки и многое другое.\n\n"
+        "<i>Напиши запрос прямо в чат:</i>"
+    )
+
+    buttons = [
+        [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+    ]
+    if not has_active_subscription(user_id):
+        remaining = FREE_TRIAL_LIMIT - get_free_trial_used(user_id)
+        if remaining > 0:
+            text += f"\n\nБесплатных запросов: <b>{remaining}</b>"
+        else:
+            buttons.insert(0, [make_inline_button("Оформить PRO", callback_data="subscription", button_key="subscription", style="success")])
+
+    await safe_edit_or_send(
+        callback,
+        text,
+        InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
     await callback.answer()
 
 
@@ -3018,11 +3133,16 @@ async def process_successful_payment(message: Message):
     await send_system_message(
         chat_id=message.chat.id,
         text=(
-            "🎉 <b>Оплата прошла успешно!</b>\n\n"
-            f"⭐ Подписка активирована до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
-            "Теперь вы можете использовать все функции бота!"
+            "<b>Оплата прошла успешно!</b>\n\n"
+            f"Подписка активна до: <b>{sub_end.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+            "<b>Теперь тебе доступно:</b>\n"
+            "  Безлимитные запросы к ИИ\n"
+            f"  Генерация до {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
+            "  Все модели AI (GPT-5, Claude, Gemini...)\n"
+            "  Настройка стиля ответа\n\n"
+            "Попробуй прямо сейчас — напиши что угодно!"
         ),
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyboard(user_id),
         parse_mode="HTML"
     )
 
@@ -3912,25 +4032,31 @@ async def callback_info(callback: CallbackQuery):
     user_data = load_user_data(user_id)
     current_model = user_data.get("model", DEFAULT_MODEL)
     model_mode = "изображения" if current_model in IMAGE_MODELS else "текст"
+    style_preset = get_response_style_preset(user_id)
+    style_label = STYLE_PRESET_LABELS.get(style_preset, "Нейтральный")
+
     text = (
         f"{text_emoji('info')} <b>Настройки</b>\n\n"
-        f"<b>Текущая модель:</b> <code>{current_model}</code> ({model_mode})\n"
-        "Бот сам выбирает режим (текст/картинка) по вашему запросу.\n\n"
-        "<b>Возможности:</b>\n"
-        "<blockquote>"
-        "• Генерация изображений\n"
-        "• Анализ фото\n"
-        "• Голосовые сообщения\n"
-        "• Настройка стиля общения"
-        "</blockquote>"
+        f"<b>Модель:</b> <code>{current_model}</code> ({model_mode})\n"
+        f"<b>Стиль:</b> {style_label}\n\n"
+        "<b>Что умеет бот:</b>\n"
+        "  Ответы на любые вопросы\n"
+        "  Генерация картинок по описанию\n"
+        "  Анализ фото и скриншотов\n"
+        "  Распознавание голосовых\n"
+        "  Настройка стиля общения\n\n"
+        "<b>Команды:</b>\n"
+        "/start — главное меню\n"
+        "/clear — очистить историю чата"
     )
 
-    # Извлекаем username без @
     admin_username = ADMIN_USERNAME.lstrip('@')
 
     buttons = [
         [make_inline_button(text="Модели AI", callback_data="models_0", button_key="models", style="primary")],
-        [make_inline_button(text="Связаться", url=f"https://t.me/{admin_username}", button_key="contact_admin", style="primary")],
+        [make_inline_button(text="Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")],
+        [make_inline_button(text="Очистить историю", callback_data="confirm_clear", button_key="confirm_clear")],
+        [make_inline_button(text="Связаться с нами", url=f"https://t.me/{admin_username}", button_key="contact_admin")],
         [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
     ]
     try:
@@ -4532,14 +4658,14 @@ async def process_thinking_preference(message: Message, state: FSMContext):
             f"📦 Секций: {len(top_keys)}\n"
             f"🔑 Ключи: {keys_display}\n\n"
             "ИИ будет использовать эти настройки при общении.",
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard(user_id),
             parse_mode="HTML"
         )
     else:
         await message.answer(
             "✔️ <b>Предпочтения сохранены!</b>\n\n"
             "ИИ будет учитывать ваши пожелания при общении.",
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard(user_id),
             parse_mode="HTML"
         )
 
@@ -4603,7 +4729,7 @@ async def process_thinking_document(message: Message, state: FSMContext):
             f"📦 Секций: {len(top_keys)}\n"
             f"🔑 Ключи: {keys_display}\n\n"
             "ИИ будет использовать эти настройки при общении.",
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard(user_id),
             parse_mode="HTML"
         )
 
@@ -4634,7 +4760,7 @@ async def callback_thinking_delete(callback: CallbackQuery):
         callback,
         "✔️ Предпочтения удалены!\n\n"
         "ИИ будет общаться в стандартном режиме.",
-        get_main_keyboard()
+        get_main_keyboard(user_id)
     )
     await callback.answer()
 
@@ -5317,9 +5443,12 @@ async def handle_photo(message: Message, state: FSMContext):
                     if isinstance(result, (bytes, bytearray))
                     else result
                 )
+                edit_caption = f"{text_emoji('image')} <b>{image_model}</b>\nРедактирование выполнено"
+                if not has_active_subscription(user_id):
+                    edit_caption += get_message("image_success_free_cta", img_daily=IMAGE_DAILY_LIMIT_PRO)
                 await message.answer_photo(
                     photo=photo_out,
-                    caption=f"{text_emoji('image')} Модель: {image_model}\n✏️ Редактирование выполнено",
+                    caption=edit_caption,
                     parse_mode="HTML"
                 )
                 if not has_active_subscription(user_id):
@@ -5404,9 +5533,12 @@ async def handle_voice(message: Message, state: FSMContext):
                     if isinstance(result, (bytes, bytearray))
                     else result
                 )
+                voice_caption = f"{text_emoji('image')} <b>{image_model}</b>\n{text_emoji('note')} {transcribed_text[:80]}{'...' if len(transcribed_text) > 80 else ''}"
+                if not has_active_subscription(user_id):
+                    voice_caption += get_message("image_success_free_cta", img_daily=IMAGE_DAILY_LIMIT_PRO)
                 await message.answer_photo(
                     photo=photo,
-                    caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {transcribed_text[:100]}{'...' if len(transcribed_text) > 100 else ''}",
+                    caption=voice_caption,
                     parse_mode="HTML"
                 )
                 if not has_active_subscription(user_id):
@@ -5473,9 +5605,20 @@ async def handle_message(message: Message, state: FSMContext):
             await message.answer(limit_msg)
             return
 
+        # Отправляем прогресс-сообщение
+        progress_msg = await message.answer(
+            get_message("image_generation_progress"),
+            parse_mode="HTML"
+        )
         await bot.send_chat_action(message.chat.id, "upload_photo")
 
         success, result = await generate_image_with_guard(user_id, message.text, image_model)
+
+        # Удаляем прогресс-сообщение
+        try:
+            await progress_msg.delete()
+        except Exception:
+            pass
 
         if success:
             try:
@@ -5484,9 +5627,14 @@ async def handle_message(message: Message, state: FSMContext):
                     if isinstance(result, (bytes, bytearray))
                     else result
                 )
+                caption = f"{text_emoji('image')} <b>{image_model}</b>"
+                prompt_preview = message.text[:80] + ('...' if len(message.text) > 80 else '')
+                caption += f"\n{text_emoji('note')} {prompt_preview}"
+                if not has_active_subscription(user_id):
+                    caption += get_message("image_success_free_cta", img_daily=IMAGE_DAILY_LIMIT_PRO)
                 await message.answer_photo(
                     photo=photo,
-                    caption=f"{text_emoji('image')} Модель: {image_model}\n{text_emoji('note')} Промпт: {message.text[:100]}{'...' if len(message.text) > 100 else ''}",
+                    caption=caption,
                     parse_mode="HTML"
                 )
                 if not has_active_subscription(user_id):
@@ -5665,12 +5813,16 @@ async def check_pending_invoices():
                             await send_system_message(
                                 chat_id=user_id,
                                 text=(
-                                    "✅ <b>Оплата получена!</b>\n\n"
-                                    "💎 Подписка активирована через CryptoBot\n"
-                                    f"📅 Действует до: {sub_end.strftime('%d.%m.%Y %H:%M')}\n\n"
-                                    "Спасибо за покупку! 🎉"
+                                    "<b>Оплата получена!</b>\n\n"
+                                    "Подписка PRO активирована через CryptoBot\n"
+                                    f"Действует до: <b>{sub_end.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+                                    "<b>Доступно:</b>\n"
+                                    "  Безлимитные запросы к ИИ\n"
+                                    f"  Генерация до {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
+                                    "  Все модели AI\n\n"
+                                    "Напиши что угодно — и я помогу!"
                                 ),
-                                reply_markup=get_main_keyboard(),
+                                reply_markup=get_main_keyboard(user_id),
                                 parse_mode="HTML"
                             )
                         except Exception as e:
