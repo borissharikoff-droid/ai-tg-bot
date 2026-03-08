@@ -589,16 +589,21 @@ def build_photo_edit_prompt(user_instruction: str, photo_context: str) -> str:
 
 
 ENHANCE_IMAGE_PROMPT_SYSTEM = (
-    "You are an expert image prompt engineer. "
+    "You are an expert image prompt engineer for AI image generators (Flux, Stable Diffusion). "
     "The user gives you a description (often in Russian). "
-    "Your job: translate it to English and rewrite as a concise, vivid image generation prompt. "
-    "Rules:\n"
-    "- Output ONLY the English prompt, nothing else\n"
-    "- Keep it under 120 words\n"
-    "- Preserve every detail the user asked for (subject, style, colors, mood)\n"
-    "- Add artistic quality keywords: detailed, high quality, 4k, sharp focus\n"
-    "- Do NOT add subjects/objects the user didn't ask for\n"
-    "- End with: --no text, watermark, logo, blurry"
+    "Your job: translate it to English and rewrite as a vivid, detailed image generation prompt.\n\n"
+    "RULES:\n"
+    "- Output ONLY the English prompt, nothing else — no explanations, no quotes\n"
+    "- Keep it 40-80 words\n"
+    "- Preserve EVERY detail the user asked for\n"
+    "- If user says 'мем' (meme): make it funny, exaggerated, cartoon/comic style, expressive face, dramatic lighting, humorous composition\n"
+    "- If user says 'логотип' (logo): clean, minimalist, vector style, centered, white background\n"
+    "- If user says 'арт/рисунок': digital art, vibrant colors, detailed\n"
+    "- If user says 'фото/реалистичное': photorealistic, DSLR, natural lighting\n"
+    "- Add style keywords matching the mood (comic style for memes, cinematic for dramatic scenes, etc.)\n"
+    "- Add quality keywords: highly detailed, sharp focus, professional\n"
+    "- Do NOT add random objects or subjects the user didn't ask for\n"
+    "- End with: --no text, letters, words, watermark, logo, blurry, low quality"
 )
 
 
@@ -659,7 +664,21 @@ def build_image_prompt(user_text: str) -> str:
     if not core:
         core = src
 
-    return f"{core}, detailed, high quality, 4k, sharp focus. --no text, watermark, logo, blurry"
+    # Добавляем стилевые подсказки на английском
+    core_l = core.lower()
+    style_hints = []
+    if any(w in core_l for w in ("мем", "смешн", "юмор", "прикол", "ржач")):
+        style_hints.append("funny meme, comic style, exaggerated expressions, humorous")
+    elif any(w in core_l for w in ("лого", "логотип")):
+        style_hints.append("clean logo, minimalist, vector, white background")
+    elif any(w in core_l for w in ("реалист", "фотореалист")):
+        style_hints.append("photorealistic, DSLR photography, natural lighting")
+    else:
+        style_hints.append("digital art, vibrant colors")
+
+    style_hints.append("highly detailed, sharp focus, professional quality")
+    suffix = ", ".join(style_hints)
+    return f"{core}, {suffix}. --no text, letters, watermark, logo, blurry"
 
 
 def prompt_requests_animals(prompt_text: str) -> bool:
