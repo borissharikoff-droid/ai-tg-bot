@@ -73,25 +73,51 @@ DEFAULT_BUTTON_EMOJI_PACK = {
     "model_item": "5936143551854285132",    # 📊
     "nav_prev": "5960671702059848143",      # ⬅️
     "nav_next": "5773626993010546707",      # ▶️
+    "nav_back": "5960671702059848143",      # ◁ назад
     # Subscription/payment
     "extend_stars": "6028338546736107668",  # ⭐️
     "extend_crypto": "5776023601941582822", # 💎
     "buy_stars": "5778613750688911681",     # 🪙
     "buy_crypto": "5776023601941582822",    # 💎
     "pay_crypto": "5776023601941582822",    # 💎
+    "money": "5904462880941545555",         # 🪙
+    "money_send": "5890848474563352982",    # 🪙 отправить
+    "money_receive": "5879814368572478751", # 🏧 принять
     # Common actions
     "cancel": "6030757850274336631",        # ❌
+    "confirm": "5774022692642492953",       # ✅
     "confirm_clear": "5774022692642492953", # ✅
     "required_channel": "6021418126061605425",  # 📢
     "check_channels": "5843596438373667352",    # ✅️
     "contact_admin": "6030784887093464891",     # 💬
+    "loading": "5345906554510012647",       # 🔄
+    "code": "5940433880585605708",          # 🔨 </>
+    "broadcast": "5370599459661045441",     # 📢
+    "delete": "6039522349517115015",        # 🗑
+    "add": "5774022692642492953",           # ➕
+    "block": "6030757850274336631",         # 🚫
+    "unblock": "5774034804450267485",       # ➖
     # Style presets
     "preset_serious": "6030537007350944596",    # 🛡
     "preset_neutral": "6041748912102968702",    # 😐
     "preset_funny": "6043996047582170909",      # 😀
     "preset_friend": "5774034804450267485",     # 🙂
     "thinking_edit": "6039779802741739617",      # ✏️
-    "thinking_delete": "6039522349517115015"     # 🗑
+    "thinking_delete": "6039522349517115015",    # 🗑
+    # Admin panel
+    "admin_stats": "5936143551854285132",       # 📊
+    "admin_price": "5904462880941545555",       # 💰
+    "admin_models": "6030400221232501136",      # 🧬
+    "admin_grant": "5774022692642492953",       # ✅
+    "admin_revoke": "6030757850274336631",      # ⛔
+    "admin_broadcast": "5370599459661045441",   # 📢
+    "admin_users": "6030784887093464891",       # 👥
+    "admin_channels": "6021418126061605425",    # 📺
+    "admin_blacklist": "6030757850274336631",   # 🚫
+    "admin_media": "6030466823290360017",       # 🖼️
+    # Models page
+    "text_model": "6039779802741739617",        # ✏️
+    "image_model": "6030466823290360017",       # 🎨
 }
 TEXT_EMOJI_IDS = {
     "wave": "6041921818896372382",          # 👋
@@ -2161,27 +2187,36 @@ def get_models_keyboard(page: int, user_id: int):
     end_idx = start_idx + MODELS_PER_PAGE
     page_items = combined[start_idx:end_idx]
 
+    emoji_pack = get_button_emoji_pack()
     buttons = []
     for item_type, item_value in page_items:
         if item_type == "header":
             buttons.append([InlineKeyboardButton(text=f"— {item_value} —", callback_data="noop")])
         else:
             display_name = MODEL_DISPLAY_NAMES.get(item_value, item_value)
-            prefix = "🎨 " if item_value in IMAGE_MODELS else "✏️ "
+            bkey = "image_model" if item_value in IMAGE_MODELS else "text_model"
             callback_data = f"setmodel_{item_value}" if has_sub else f"needsub_{item_value}"
-            buttons.append([InlineKeyboardButton(text=f"{prefix}{display_name}", callback_data=callback_data)])
+            btn_kwargs = {"text": display_name, "callback_data": callback_data}
+            eid = emoji_pack.get(bkey)
+            if eid:
+                btn_kwargs["icon_custom_emoji_id"] = eid
+            try:
+                buttons.append([InlineKeyboardButton(**btn_kwargs)])
+            except TypeError:
+                btn_kwargs.pop("icon_custom_emoji_id", None)
+                buttons.append([InlineKeyboardButton(**btn_kwargs)])
 
     # Навигация
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(InlineKeyboardButton(text="◀️ Назад", callback_data=f"models_{page - 1}"))
+        nav_buttons.append(make_inline_button("Назад", callback_data=f"models_{page - 1}", button_key="nav_back"))
     if end_idx < len(combined):
-        nav_buttons.append(InlineKeyboardButton(text="Далее ▶️", callback_data=f"models_{page + 1}"))
+        nav_buttons.append(make_inline_button("Далее", callback_data=f"models_{page + 1}", button_key="nav_next"))
 
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton(text="🏠 Главная", callback_data="main_menu")])
+    buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -2235,24 +2270,24 @@ def get_cancel_keyboard(callback_data: str = "admin_menu"):
 def get_admin_keyboard():
     """Клавиатура админ-панели"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Аналитика", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="💰 Тарифы", callback_data="admin_price")],
-        [InlineKeyboardButton(text="🧬 Доступные модели", callback_data="admin_models_0")],
-        [InlineKeyboardButton(text="✅ Выдать подписку", callback_data="admin_grant")],
-        [InlineKeyboardButton(text="⛔ Забрать подписку", callback_data="admin_revoke")],
-        [InlineKeyboardButton(text="📢 Массовая рассылка", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="👥 База пользователей", callback_data="admin_users_0")],
-        [InlineKeyboardButton(text="📺 Каналы обяз. подписки", callback_data="admin_channels")],
-        [InlineKeyboardButton(text="🚫 Blacklist", callback_data="admin_blacklist")],
-        [InlineKeyboardButton(text="🖼️ Медиа-оформление", callback_data="admin_media")]
+        [make_inline_button("Аналитика", callback_data="admin_stats", button_key="admin_stats")],
+        [make_inline_button("Тарифы", callback_data="admin_price", button_key="admin_price")],
+        [make_inline_button("Доступные модели", callback_data="admin_models_0", button_key="admin_models")],
+        [make_inline_button("Выдать подписку", callback_data="admin_grant", button_key="admin_grant")],
+        [make_inline_button("Забрать подписку", callback_data="admin_revoke", button_key="admin_revoke")],
+        [make_inline_button("Массовая рассылка", callback_data="admin_broadcast", button_key="admin_broadcast")],
+        [make_inline_button("База пользователей", callback_data="admin_users_0", button_key="admin_users")],
+        [make_inline_button("Каналы обяз. подписки", callback_data="admin_channels", button_key="admin_channels")],
+        [make_inline_button("Blacklist", callback_data="admin_blacklist", button_key="admin_blacklist")],
+        [make_inline_button("Медиа-оформление", callback_data="admin_media", button_key="admin_media")]
     ])
 
 
 def get_broadcast_confirm_keyboard():
     """Клавиатура подтверждения рассылки"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✔️ Отправить", callback_data="broadcast_confirm")],
-        [InlineKeyboardButton(text="✖️ Отмена", callback_data="admin_menu")]
+        [make_inline_button("Отправить", callback_data="broadcast_confirm", button_key="confirm", style="success")],
+        [make_inline_button("Отмена", callback_data="admin_menu", button_key="cancel")]
     ])
 
 
@@ -2758,7 +2793,7 @@ async def send_channel_subscription_message(chat_id: int, user_id: int):
     buttons = []
     for ch in channels:
         buttons.append([make_inline_button(
-            text=f"📢 {ch['name']}",
+            text=ch['name'],
             url=ch['link'],
             button_key="required_channel",
             style="primary"
@@ -3392,7 +3427,7 @@ async def callback_admin_stats(callback: CallbackQuery):
     await safe_edit_or_send(
         callback, text,
         InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")]
+            [make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")]
         ])
     )
     await callback.answer()
@@ -3428,13 +3463,13 @@ async def callback_admin_models(callback: CallbackQuery):
     # Навигация
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(InlineKeyboardButton(text="◀️", callback_data=f"admin_models_{page - 1}"))
+        nav_buttons.append(make_inline_button("Назад", callback_data=f"admin_models_{page - 1}", button_key="nav_prev"))
     if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton(text="▶️", callback_data=f"admin_models_{page + 1}"))
+        nav_buttons.append(make_inline_button("Далее", callback_data=f"admin_models_{page + 1}", button_key="nav_next"))
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+    buttons.append([make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")])
 
     await safe_edit_or_send(
         callback,
@@ -3487,13 +3522,13 @@ async def callback_toggle_model(callback: CallbackQuery):
 
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(InlineKeyboardButton(text="◀️", callback_data=f"admin_models_{page - 1}"))
+        nav_buttons.append(make_inline_button("Назад", callback_data=f"admin_models_{page - 1}", button_key="nav_prev"))
     if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton(text="▶️", callback_data=f"admin_models_{page + 1}"))
+        nav_buttons.append(make_inline_button("Далее", callback_data=f"admin_models_{page + 1}", button_key="nav_next"))
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+    buttons.append([make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")])
 
     try:
         await callback.message.edit_text(
@@ -3525,9 +3560,9 @@ async def callback_admin_price(callback: CallbackQuery, state: FSMContext):
         f"💎 Текущая цена (Crypto): {price_usd} USD\n\n"
         f"Выберите валюту:",
         InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Звезды", callback_data="price_stars")],
-            [InlineKeyboardButton(text="💎 CryptoBot", callback_data="price_crypto")],
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")]
+            [make_inline_button("Звезды", callback_data="price_stars", button_key="extend_stars")],
+            [make_inline_button("CryptoBot", callback_data="price_crypto", button_key="extend_crypto")],
+            [make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")]
         ])
     )
     await callback.answer()
@@ -3892,7 +3927,7 @@ async def callback_admin_users(callback: CallbackQuery):
             callback,
             "👥 <b>Пользователи</b>\n\nПользователей нет.",
             InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")]
+                [make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")]
             ])
         )
         await callback.answer()
@@ -3921,13 +3956,13 @@ async def callback_admin_users(callback: CallbackQuery):
     nav_buttons = []
     if len(all_users) > per_page:
         if page > 0:
-            nav_buttons.append(InlineKeyboardButton(text="◀️", callback_data=f"admin_users_{page - 1}"))
+            nav_buttons.append(make_inline_button("Назад", callback_data=f"admin_users_{page - 1}", button_key="nav_prev"))
         if page < total_pages - 1:
-            nav_buttons.append(InlineKeyboardButton(text="▶️", callback_data=f"admin_users_{page + 1}"))
+            nav_buttons.append(make_inline_button("Далее", callback_data=f"admin_users_{page + 1}", button_key="nav_next"))
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+    buttons.append([make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")])
 
     await safe_edit_or_send(
         callback,
@@ -3968,7 +4003,7 @@ async def callback_view_user(callback: CallbackQuery):
     )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_users_0")]
+        [make_inline_button("Назад", callback_data="admin_users_0", button_key="nav_back")]
     ])
 
     # Удаляем текущее сообщение
@@ -4020,15 +4055,15 @@ async def callback_admin_media(callback: CallbackQuery):
     start_media = get_start_media()
     channel_media = get_channel_media()
 
-    start_status = "✔️" if start_media else "✖️"
-    channel_status = "✔️" if channel_media else "✖️"
+    start_status = "+" if start_media else "—"
+    channel_status = "+" if channel_media else "—"
 
     buttons = [
-        [InlineKeyboardButton(text=f"🏠 /start {start_status}", callback_data="media_start")],
-        [InlineKeyboardButton(text=f"📺 Подписка на канал {channel_status}", callback_data="media_channel")]
+        [make_inline_button(f"/start [{start_status}]", callback_data="media_start", button_key="home")],
+        [make_inline_button(f"Подписка на канал [{channel_status}]", callback_data="media_channel", button_key="admin_channels")]
     ]
 
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+    buttons.append([make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")])
 
     await safe_edit_or_send(
         callback,
@@ -4051,9 +4086,9 @@ async def callback_media_start(callback: CallbackQuery, state: FSMContext):
 
     buttons = []
     if start_media:
-        buttons.append([InlineKeyboardButton(text="🗑️ Удалить", callback_data="media_start_delete")])
+        buttons.append([make_inline_button("Удалить", callback_data="media_start_delete", button_key="delete")])
 
-    buttons.append([InlineKeyboardButton(text="✖️ Отмена", callback_data="admin_media")])
+    buttons.append([make_inline_button("Отмена", callback_data="admin_media", button_key="cancel")])
 
     await safe_edit_or_send(
         callback,
@@ -4077,9 +4112,9 @@ async def callback_media_channel(callback: CallbackQuery, state: FSMContext):
 
     buttons = []
     if channel_media:
-        buttons.append([InlineKeyboardButton(text="🗑️ Удалить", callback_data="media_channel_delete")])
+        buttons.append([make_inline_button("Удалить", callback_data="media_channel_delete", button_key="delete")])
 
-    buttons.append([InlineKeyboardButton(text="✖️ Отмена", callback_data="admin_media")])
+    buttons.append([make_inline_button("Отмена", callback_data="admin_media", button_key="cancel")])
 
     await safe_edit_or_send(
         callback,
@@ -4283,13 +4318,14 @@ async def callback_admin_channels(callback: CallbackQuery):
 
     if channels:
         for ch in channels:
-            buttons.append([InlineKeyboardButton(
-                text=f"✖️ {ch['name']}",
-                callback_data=f"delchannel_{ch['id']}"
+            buttons.append([make_inline_button(
+                ch['name'],
+                callback_data=f"delchannel_{ch['id']}",
+                button_key="cancel"
             )])
 
-    buttons.append([InlineKeyboardButton(text="➕ Добавить канал", callback_data="add_channel")])
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")])
+    buttons.append([make_inline_button("Добавить канал", callback_data="add_channel", button_key="add")])
+    buttons.append([make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")])
 
     status = f"Каналов: {len(channels)}" if channels else "Нет обязательных каналов"
 
@@ -4439,9 +4475,9 @@ async def callback_admin_blacklist(callback: CallbackQuery):
     await safe_edit_or_send(
         callback, text,
         InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Заблокировать", callback_data="blacklist_add")],
-            [InlineKeyboardButton(text="➖ Разблокировать", callback_data="blacklist_remove")],
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu")]
+            [make_inline_button("Заблокировать", callback_data="blacklist_add", button_key="block")],
+            [make_inline_button("Разблокировать", callback_data="blacklist_remove", button_key="unblock")],
+            [make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")]
         ])
     )
     await callback.answer()
