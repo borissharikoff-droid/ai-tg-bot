@@ -743,10 +743,13 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
     enhanced = await enhance_image_prompt(prompt)
     if enhanced:
         logging.info(f"Enhanced image prompt: {enhanced[:200]}")
+    else:
+        logging.warning(f"Prompt enhancement failed/skipped, using fallback for: {prompt[:100]}")
 
     last_error = "Не получилось нарисовать. Попробуй описать по-другому."
 
     # План моделей: сначала текущая, затем альтернативы.
+    # pollinations-flux-free всегда последний — бесплатный fallback
     enabled_models = set(get_enabled_models())
     preferred_order = ["flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"]
 
@@ -754,12 +757,19 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
     for m in preferred_order:
         if m in IMAGE_MODELS and m in enabled_models and m not in model_plan:
             model_plan.append(m)
+    # Гарантируем pollinations как последний fallback
+    if "pollinations-flux-free" not in model_plan:
+        model_plan.append("pollinations-flux-free")
+
+    logging.info(f"Image generation plan: {model_plan}")
 
     for model_idx, current_model in enumerate(model_plan):
         for attempt in range(1, max_attempts + 1):
+            logging.info(f"Image attempt {attempt}/{max_attempts} with model={current_model}")
             success, result = await generate_image(user_id, prompt, current_model, enhanced_prompt=enhanced)
             if not success:
                 last_error = result
+                logging.warning(f"Image failed: model={current_model}, attempt={attempt}, error={str(result)[:200]}")
                 lower_err = str(result).lower()
                 if any(x in lower_err for x in ("429", "rate limit", "bad argument", "credits", "spending limit")):
                     break
@@ -768,8 +778,9 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
             return True, result
 
         if model_idx < len(model_plan) - 1:
-            logging.warning(f"Switching image model fallback: {current_model} -> {model_plan[model_idx + 1]}")
+            logging.warning(f"All attempts failed for {current_model}, switching to {model_plan[model_idx + 1]}")
 
+    logging.error(f"All image models failed. Last error: {last_error}")
     return False, last_error
 
 
@@ -5345,11 +5356,11 @@ async def generate_image(user_id: int, prompt: str, model: str, enhanced_prompt:
                 f"https://pollinations.ai/p/{encoded_prompt}",
             ]
             retry_statuses = {429, 500, 502, 503, 504, 520, 522, 524, 530}
-            # Для бесплатного API делаем несколько попыток, так как он часто нестабилен.
+            # Для бесплатного API делаем несколько попыток с разными моделями.
             attempts = [
-                {"model": "flux", "nologo": "true", "width": "1024", "height": "1024"},
-                {"model": "flux", "nologo": "true", "width": "1024", "height": "1024", "enhance": "true"},
+                {"model": "sana", "nologo": "true", "width": "1024", "height": "1024"},
                 {"model": "turbo", "nologo": "true", "width": "1024", "height": "1024"},
+                {"model": "zimage", "nologo": "true", "width": "1024", "height": "1024"},
             ]
             last_status = None
             async with aiohttp.ClientSession() as session:
@@ -5359,12 +5370,19 @@ async def generate_image(user_id: int, prompt: str, model: str, enhanced_prompt:
                         params["seed"] = str(random.randint(1, 10_000_000))
                         try:
                             async with session.get(base_url, params=params, timeout=90) as response:
-                                if response.status == 200:
+                                content_type = response.headers.get("content-type", "")
+                                if response.status == 200 and "image" in content_type:
                                     image_bytes = await response.read()
-                                    if image_bytes:
+                                    if image_bytes and len(image_bytes) > 1000:
                                         increment_stat("total_messages")
+                                        logging.info(f"Pollinations success: size={len(image_bytes)}, attempt={i+1}")
                                         return True, image_bytes
                                     last_status = 200
+                                    logging.warning(f"Pollinations returned small/empty response: size={len(image_bytes) if image_bytes else 0}, content-type={content_type}")
+                                elif response.status == 200:
+                                    body = (await response.text())[:300]
+                                    last_status = 200
+                                    logging.warning(f"Pollinations returned non-image: content-type={content_type}, body={body}")
                                 else:
                                     body = (await response.text())[:500]
                                     last_status = response.status
@@ -5404,51 +5422,34 @@ async def generate_image(user_id: int, prompt: str, model: str, enhanced_prompt:
 
     headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
 
-    enabled_models = set(get_enabled_models())
-    ordered_candidates = ["flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin"]
-    model_attempts = [model]
-    for candidate in ordered_candidates:
-        if candidate in AVAILABLE_MODELS and candidate in IMAGE_MODELS and candidate != "pollinations-flux-free" and candidate not in model_attempts:
-            model_attempts.append(candidate)
-
-    last_status = None
-    last_body = ""
+    # Пробуем ТОЛЬКО указанную модель (fallback между моделями делает generate_image_with_guard)
+    logging.info(f"Image API request: model={model}, prompt={prompt_clean[:100]}...")
     try:
-        connector = aiohttp.TCPConnector()
-        async with aiohttp.ClientSession(connector=connector) as session:
-            for idx, model_name in enumerate(model_attempts):
-                send = {"model": model_name, "prompt": prompt_clean, "n": 1}
-                async with session.post(IMAGE_API_URL, json=send, headers=headers, timeout=90) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if "files" in data and isinstance(data["files"], list) and len(data["files"]) > 0:
-                            try:
-                                image_bytes = base64.b64decode(data["files"][0])
-                                increment_stat("total_messages")
-                                return True, image_bytes
-                            except Exception:
-                                return False, "Не получилось обработать картинку. Попробуй ещё раз."
-                        last_status = 200
-                        continue
+        async with aiohttp.ClientSession() as session:
+            send = {"model": model, "prompt": prompt_clean, "n": 1}
+            async with session.post(IMAGE_API_URL, json=send, headers=headers, timeout=90) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if "files" in data and isinstance(data["files"], list) and len(data["files"]) > 0:
+                        try:
+                            image_bytes = base64.b64decode(data["files"][0])
+                            increment_stat("total_messages")
+                            logging.info(f"Image generated successfully: model={model}, size={len(image_bytes)}")
+                            return True, image_bytes
+                        except Exception:
+                            return False, "Не получилось обработать картинку. Попробуй ещё раз."
+                    logging.warning(f"Image API 200 but no files: model={model}, data_keys={list(data.keys())}")
+                    return False, "Картинка не пришла. Попробуй ещё раз."
 
-                    body = (await response.text())[:500]
-                    last_status = response.status
-                    last_body = body
-                    logging.warning(f"Image API error {response.status} (model={model_name}): {body}")
-
-                    # На rate limit пробуем следующую onlysq image-модель.
-                    if response.status == 429 and idx < len(model_attempts) - 1:
-                        continue
-                    if response.status == 401:
-                        return False, "Ошибка авторизации API. Обратись к администратору."
-
-        # Если onlysq не справился (например, 429 на всех моделях) — пробуем бесплатный fallback.
-        if last_status in {429, 500, 502, 503, 504, 520, 522, 524, 530}:
-            return await generate_image(user_id, prompt_clean, "pollinations-flux-free", enhanced_prompt=enhanced_prompt)
-        if last_status:
-            return False, "Не получилось нарисовать. Попробуй ещё раз или выбери другую модель."
-        return False, "Картинка не пришла. Попробуй ещё раз."
+                body = (await response.text())[:500]
+                logging.warning(f"Image API error {response.status} (model={model}): {body}")
+                if response.status == 401:
+                    return False, "Ошибка авторизации API. Обратись к администратору."
+                if response.status == 429:
+                    return False, f"429 rate limit (model={model})"
+                return False, "Не получилось нарисовать. Попробуй ещё раз или выбери другую модель."
     except asyncio.TimeoutError:
+        logging.warning(f"Image API timeout: model={model}")
         return False, "Слишком долго рисовал. Попробуй ещё раз или опиши проще."
     except Exception as e:
         logging.error(f"Ошибка генерации: {e} | last_status={last_status} body={last_body}")
