@@ -1189,10 +1189,10 @@ DEFAULT_MESSAGES = {
         "{proof}"
         "<b>Бесплатные запросы закончились</b>\n\n"
         "Подключи PRO — и пользуйся без ограничений:\n"
-        "• Спрашивай что угодно — без лимитов\n"
+        "• Спрашивай что угодно, сколько угодно\n"
         "• Рисуй до {img_daily} картинок в день\n"
-        "• Выбирай любую модель и стиль ответа\n\n"
-        "<b>Всего {price_stars} Stars / {price_usd} USD за 30 дней</b>"
+        "• Выбирай стиль и скорость ответа\n\n"
+        "<b>Всего {price_stars} звёзд / {price_usd} USD за 30 дней</b>"
     ),
     "paywall_proof": "{active_subs} человек уже подключили PRO\n\n",
     "welcome_intro": (
@@ -1211,13 +1211,13 @@ DEFAULT_MESSAGES = {
     "subscription_outcome": "Пользуйся ботом без ограничений — спрашивай, рисуй, создавай.",
     "subscription_proof": "{active_subs} человек уже подключили PRO\n\n",
     "subscription_benefits": (
-        "• <b>Вопросы без лимита</b> — спрашивай что угодно, сколько угодно\n"
-        "• <b>Картинки по описанию</b> — мемы, логотипы, арты, аватарки\n"
-        "• <b>Лучшие модели</b> — GPT-5, Claude, Gemini, DeepSeek и др.\n"
-        "• <b>Стиль ответа</b> — серьёзный, весёлый, дружеский\n"
+        "• <b>Без ограничений</b> — спрашивай что угодно, сколько угодно\n"
+        "• <b>Картинки</b> — мемы, логотипы, арты, аватарки по описанию\n"
+        "• <b>Лучшие технологии</b> — самые умные и быстрые помощники\n"
+        "• <b>Стиль ответа</b> — деловой, весёлый или дружеский\n"
         "• <b>Фото и голос</b> — отправь фото или голосовое, бот поймёт"
     ),
-    "subscription_price_anchor": "<s>5 USD</s>  <b>{price_stars} Stars</b> или <b>{price_usd} USD</b> за 30 дней",
+    "subscription_price_anchor": "<s>5 USD</s>  <b>{price_stars} звёзд</b> или <b>{price_usd} USD</b> за 30 дней",
     "trial_reminder_1_left": (
         "<b>Бесплатные запросы почти закончились!</b>\n\n"
         "Попробуй напоследок:\n"
@@ -2237,7 +2237,7 @@ def get_models_keyboard(page: int, user_id: int):
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home")])
+    buttons.append([make_inline_button("На главную", callback_data="main_menu", button_key="home")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -2252,32 +2252,32 @@ def get_subscription_keyboard(user_id: int):
 
     if has_sub:
         buttons.append([make_inline_button(
-            f"Продлить за {price_stars} Stars",
+            f"Продлить за {price_stars} звёзд",
             callback_data="extend_stars",
             button_key="extend_stars",
             style="success"
         )])
         buttons.append([make_inline_button(
-            f"Продлить за {price_usd} USD (CryptoBot)",
+            f"Продлить за {price_usd} USD (крипто)",
             callback_data="extend_crypto",
             button_key="extend_crypto",
             style="primary"
         )])
     else:
         buttons.append([make_inline_button(
-            f"Оформить за {price_stars} Stars",
+            f"Оплатить {price_stars} звёзд",
             callback_data="buy_stars",
             button_key="buy_stars",
             style="success"
         )])
         buttons.append([make_inline_button(
-            f"Оформить за {price_usd} USD (CryptoBot)",
+            f"Оплатить {price_usd} USD (крипто)",
             callback_data="buy_crypto",
             button_key="buy_crypto",
             style="primary"
         )])
 
-    buttons.append([make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")])
+    buttons.append([make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -2355,14 +2355,14 @@ async def set_bot_commands():
     """Установить команды бота"""
     # Команды для всех
     user_commands = [
-        BotCommand(command="start", description="🏠 Главное меню"),
-        BotCommand(command="clear", description="🗑️ Очистить историю чата")
+        BotCommand(command="start", description="🏠 На главную"),
+        BotCommand(command="clear", description="🗑️ Начать чат заново")
     ]
 
     # Команды для админов (включая /admin)
     admin_commands = [
-        BotCommand(command="start", description="🏠 Главное меню"),
-        BotCommand(command="clear", description="🗑️ Очистить историю чата"),
+        BotCommand(command="start", description="🏠 На главную"),
+        BotCommand(command="clear", description="🗑️ Начать чат заново"),
         BotCommand(command="admin", description="⚙️ Админ-панель")
     ]
 
@@ -2648,7 +2648,7 @@ async def handle_business_photo(message: Message):
             else:
                 await bot.send_message(
                     message.chat.id,
-                    f"{result}\nПопробуйте уточнить правку (например: стиль, фон, цвет, ракурс).",
+                    f"{result}\nПопробуй описать точнее — что изменить (фон, цвет, стиль).",
                     business_connection_id=business_connection_id
                 )
             return
@@ -2967,7 +2967,7 @@ async def callback_check_channels(callback: CallbackQuery):
         await send_start_message(callback.message.chat.id, user_id, rotate_example=False)
         await callback.answer()
     else:
-        await callback.answer("Сначала подпишись на все каналы выше!", show_alert=True)
+        await callback.answer("Сначала подпишись на канал выше!", show_alert=True)
 
 
 @dp.message(Command("clear"))
@@ -2980,7 +2980,7 @@ async def cmd_clear(message: Message):
             "Бот забудет всё, о чём вы говорили.\nЭто нельзя отменить."
         ),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [make_inline_button(text="Да, очистить", callback_data="confirm_clear", button_key="confirm_clear", style="danger")],
+            [make_inline_button(text="Да, начать заново", callback_data="confirm_clear", button_key="confirm_clear", style="danger")],
             [make_inline_button(text="Отмена", callback_data="cancel_clear", button_key="cancel", style="primary")]
         ]),
         parse_mode="HTML"
@@ -3099,7 +3099,7 @@ async def callback_set_model(callback: CallbackQuery):
     user_id = callback.from_user.id
 
     if not has_active_subscription(user_id):
-        await callback.answer("Смена модели доступна с подпиской PRO", show_alert=True)
+        await callback.answer("Чтобы менять модели — подключи PRO", show_alert=True)
         return
 
     user_data = load_user_data(user_id)
@@ -3108,17 +3108,17 @@ async def callback_set_model(callback: CallbackQuery):
 
     model_mode = "картинки" if model in IMAGE_MODELS else "текст"
 
-    await callback.answer(f"Модель: {model}")
+    await callback.answer(f"Выбрано: {model}")
 
     await safe_edit_or_send(
         callback,
-        f"<b>Модель изменена</b>\n\n"
-        f"<b>Новая модель:</b> <code>{model}</code>\n"
-        f"<b>Режим:</b> {model_mode}\n\n"
-        "Просто напиши запрос — и я отвечу.",
+        f"<b>Готово!</b>\n\n"
+        f"Теперь используется: <b>{model}</b>\n"
+        f"Тип: {model_mode}\n\n"
+        "Просто напиши что-нибудь — и я отвечу.",
         InlineKeyboardMarkup(inline_keyboard=[
-            [make_inline_button("Назад к моделям", callback_data="models_0", button_key="models", style="primary")],
-            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+            [make_inline_button("Назад к выбору", callback_data="models_0", button_key="models", style="primary")],
+            [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
         ])
     )
 
@@ -3159,7 +3159,7 @@ async def callback_subscription(callback: CallbackQuery):
             "<b>Тебе доступно:</b>\n"
             f"  Вопросы без ограничений\n"
             f"  До {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
-            f"  Все модели и стили ответа\n"
+            f"  Любой стиль ответа\n"
         )
     else:
         price_stars = get_subscription_price()
@@ -3224,7 +3224,7 @@ async def callback_generate_image_prompt(callback: CallbackQuery):
     )
 
     buttons = [
-        [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+        [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
     ]
     if not has_active_subscription(user_id):
         text_rem, img_rem = get_free_trial_remaining(user_id)
@@ -3283,14 +3283,14 @@ async def callback_buy_crypto(callback: CallbackQuery):
             ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
-                [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+                [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
             ]),
             parse_mode="HTML"
         )
     else:
         await safe_edit_or_send(
             callback,
-            "Не получилось создать ссылку для оплаты. Попробуй позже или оплати звёздами.",
+            "Не получилось создать ссылку. Попробуй позже или оплати звёздами Telegram.",
             reply_markup=get_main_keyboard(user_id)
         )
 
@@ -3337,14 +3337,14 @@ async def callback_extend_crypto(callback: CallbackQuery):
             ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
-                [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+                [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
             ]),
             parse_mode="HTML"
         )
     else:
         await safe_edit_or_send(
             callback,
-            "Не получилось создать ссылку для оплаты. Попробуй позже или оплати звёздами.",
+            "Не получилось создать ссылку. Попробуй позже или оплати звёздами Telegram.",
             reply_markup=get_main_keyboard(user_id)
         )
 
@@ -3381,7 +3381,7 @@ async def process_successful_payment(message: Message):
             "<b>Теперь тебе доступно:</b>\n"
             "  Вопросы без ограничений\n"
             f"  До {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
-            "  Лучшие модели (GPT-5, Claude, Gemini...)\n"
+            "  Лучшие технологии для ответов\n"
             "  Настройка стиля ответа\n\n"
             "Попробуй прямо сейчас — напиши что угодно!"
         ),
@@ -4280,10 +4280,10 @@ async def callback_info(callback: CallbackQuery):
 
     text = (
         f"{text_emoji('info')} <b>Настройки</b>\n\n"
-        f"<b>Модель:</b> {current_model}\n"
-        f"<b>Стиль ответа:</b> {style_label}\n\n"
-        "<i>Бот сам выбирает лучшую модель под задачу.\n"
-        "Но ты можешь выбрать вручную ниже.</i>"
+        f"<b>Помощник:</b> {current_model}\n"
+        f"<b>Стиль:</b> {style_label}\n\n"
+        "<i>Бот сам подбирает лучший вариант под задачу.\n"
+        "Но ты можешь выбрать вручную.</i>"
     )
 
     admin_username = ADMIN_USERNAME.lstrip('@')
@@ -4297,8 +4297,8 @@ async def callback_info(callback: CallbackQuery):
     if not has_sub:
         buttons.append([make_inline_button(text="Подписка PRO", callback_data="subscription", button_key="subscription", style="success")])
     buttons.extend([
-        [make_inline_button(text="Связаться с нами", url=f"https://t.me/{admin_username}", button_key="contact_admin")],
-        [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
+        [make_inline_button(text="Написать поддержке", url=f"https://t.me/{admin_username}", button_key="contact_admin")],
+        [make_inline_button(text="На главную", callback_data="main_menu", button_key="home", style="primary")]
     ])
     try:
         await callback.message.delete()
@@ -4715,7 +4715,7 @@ async def callback_thinking_menu(callback: CallbackQuery):
             ],
             [make_inline_button("Изменить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
             [make_inline_button("Удалить", callback_data="thinking_delete", button_key="thinking_delete", style="danger")],
-            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+            [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
         ]
     else:
         text = (
@@ -4735,14 +4735,14 @@ async def callback_thinking_menu(callback: CallbackQuery):
                 make_inline_button("Друг", callback_data="stylepreset_friend", button_key="preset_friend")
             ],
             [make_inline_button("Настроить", callback_data="thinking_edit", button_key="thinking_edit", style="primary")],
-            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+            [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
         ]
 
     # Проверяем подписку
     if not has_active_subscription(user_id):
         buttons = [
             [make_inline_button("Подключить PRO", callback_data="subscription", button_key="subscription", style="success")],
-            [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
+            [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
         ]
         text = (
             f"{text_emoji('style')} <b>Стиль ответа</b>\n\n"
@@ -4778,11 +4778,11 @@ async def callback_style_preset(callback: CallbackQuery):
     preset = callback.data.replace("stylepreset_", "").strip()
 
     if not has_active_subscription(user_id):
-        await callback.answer("Для смены стиля нужна подписка PRO", show_alert=True)
+        await callback.answer("Чтобы менять стиль — подключи PRO", show_alert=True)
         return
 
     if preset not in STYLE_PRESET_PROMPTS:
-        await callback.answer("✖️ Неизвестный пресет", show_alert=True)
+        await callback.answer("Такой стиль не найден", show_alert=True)
         return
 
     set_response_style_preset(user_id, preset)
@@ -4795,24 +4795,17 @@ async def callback_thinking_edit(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
 
     if not has_active_subscription(user_id):
-        await callback.answer("Для настройки мышления нужна подписка PRO", show_alert=True)
+        await callback.answer("Тонкая настройка доступна с PRO", show_alert=True)
         return
 
     await safe_edit_or_send(
         callback,
-        "⚙️ <b>Настройка мышления</b>\n\n"
-        "Отправьте настройки в одном из форматов:\n\n"
-        "<b>Текст:</b>\n"
+        "⚙️ <b>Тонкая настройка</b>\n\n"
+        "Напиши, как бот должен с тобой общаться.\n\n"
+        "<b>Например:</b>\n"
         "<i>«общайся со мной как друг, пиши с маленькой буквы, используй эмодзи»</i>\n\n"
-        "<b>JSON:</b>\n"
-        "<code>{\n"
-        '  "tone": "friendly",\n'
-        '  "style": "informal",\n'
-        '  "lowercase": true,\n'
-        '  "emoji": true,\n'
-        '  "personality": "веселый помощник",\n'
-        '  "response_length": "short"\n'
-        "}</code>",
+        "<i>«отвечай коротко, по делу, без воды»</i>\n\n"
+        "<i>«пиши развёрнуто, с примерами и объяснениями»</i>",
         get_cancel_keyboard("thinking_menu")
     )
 
@@ -4832,7 +4825,7 @@ async def process_thinking_preference(message: Message, state: FSMContext):
     # Проверка на наличие текста
     if not message.text:
         await message.answer(
-            "✖️ Отправьте текстовое сообщение:",
+            "Напиши текстом, как бот должен общаться:",
             reply_markup=get_cancel_keyboard("thinking_menu")
         )
         return
@@ -4841,14 +4834,14 @@ async def process_thinking_preference(message: Message, state: FSMContext):
 
     if len(preference) < 5:
         await message.answer(
-            "✖️ Слишком короткое описание. Попробуйте подробнее:",
+            "Слишком коротко. Напиши подробнее — как бот должен отвечать:",
             reply_markup=get_cancel_keyboard("thinking_menu")
         )
         return
 
     if len(preference) > 10000:
         await message.answer(
-            "✖️ Слишком длинный конфиг (макс. 10000 символов). Сократите:",
+            "Слишком длинный текст (максимум 10000 символов). Сократи:",
             reply_markup=get_cancel_keyboard("thinking_menu")
         )
         return
@@ -4873,15 +4866,15 @@ async def process_thinking_preference(message: Message, state: FSMContext):
 
         except json.JSONDecodeError as e:
             await message.answer(
-                f"✖️ Ошибка в JSON:\n<code>{str(e)}</code>\n\n"
-                "Проверьте синтаксис и попробуйте снова:",
+                f"Ошибка в формате:\n<code>{str(e)}</code>\n\n"
+                "Проверь и попробуй снова:",
                 reply_markup=get_cancel_keyboard("thinking_menu"),
                 parse_mode="HTML"
             )
             return
         except ValueError as e:
             await message.answer(
-                f"✖️ {str(e)}\n\nПопробуйте снова:",
+                f"{str(e)}\n\nПопробуй снова:",
                 reply_markup=get_cancel_keyboard("thinking_menu")
             )
             return
@@ -4896,17 +4889,17 @@ async def process_thinking_preference(message: Message, state: FSMContext):
             keys_display += f" и ещё {len(top_keys) - 5}"
 
         await message.answer(
-            "✔️ <b>JSON конфиг сохранён!</b>\n\n"
-            f"📦 Секций: {len(top_keys)}\n"
-            f"🔑 Ключи: {keys_display}\n\n"
-            "ИИ будет использовать эти настройки при общении.",
+            "✔️ <b>Настройки сохранены!</b>\n\n"
+            f"Разделов: {len(top_keys)}\n"
+            f"Ключи: {keys_display}\n\n"
+            "Бот будет учитывать эти настройки в ответах.",
             reply_markup=get_main_keyboard(user_id),
             parse_mode="HTML"
         )
     else:
         await message.answer(
-            "✔️ <b>Предпочтения сохранены!</b>\n\n"
-            "ИИ будет учитывать ваши пожелания при общении.",
+            "✔️ <b>Сохранено!</b>\n\n"
+            "Бот будет учитывать твои пожелания в ответах.",
             reply_markup=get_main_keyboard(user_id),
             parse_mode="HTML"
         )
@@ -4926,7 +4919,7 @@ async def process_thinking_document(message: Message, state: FSMContext):
     # Проверяем расширение файла
     if not message.document.file_name.endswith('.json'):
         await message.answer(
-            "✖️ Отправьте файл формата .json",
+            "Отправь файл в формате .json",
             reply_markup=get_cancel_keyboard("thinking_menu")
         )
         return
@@ -4934,7 +4927,7 @@ async def process_thinking_document(message: Message, state: FSMContext):
     # Проверяем размер файла (макс 1 МБ)
     if message.document.file_size > 1024 * 1024:
         await message.answer(
-            "✖️ Файл слишком большой (макс. 1 МБ)",
+            "Файл слишком большой (максимум 1 МБ)",
             reply_markup=get_cancel_keyboard("thinking_menu")
         )
         return
@@ -4967,10 +4960,10 @@ async def process_thinking_document(message: Message, state: FSMContext):
             keys_display += f" и ещё {len(top_keys) - 5}"
 
         await message.answer(
-            "✔️ <b>JSON конфиг загружен из файла!</b>\n\n"
-            f"📦 Секций: {len(top_keys)}\n"
-            f"🔑 Ключи: {keys_display}\n\n"
-            "ИИ будет использовать эти настройки при общении.",
+            "✔️ <b>Настройки загружены из файла!</b>\n\n"
+            f"Разделов: {len(top_keys)}\n"
+            f"Ключи: {keys_display}\n\n"
+            "Бот будет учитывать эти настройки в ответах.",
             reply_markup=get_main_keyboard(user_id),
             parse_mode="HTML"
         )
@@ -4979,15 +4972,15 @@ async def process_thinking_document(message: Message, state: FSMContext):
 
     except json.JSONDecodeError as e:
         await message.answer(
-            f"✖️ Ошибка в JSON файле:\n<code>{str(e)}</code>\n\n"
-            "Проверьте синтаксис и попробуйте снова:",
+            f"Ошибка в файле:\n<code>{str(e)}</code>\n\n"
+            "Проверь файл и попробуй снова:",
             reply_markup=get_cancel_keyboard("thinking_menu"),
             parse_mode="HTML"
         )
     except Exception as e:
         logging.error(f"Ошибка загрузки JSON: {e}")
         await message.answer(
-            f"✖️ Ошибка: {str(e)}",
+            f"Не получилось загрузить файл. Попробуй ещё раз.",
             reply_markup=get_cancel_keyboard("thinking_menu")
         )
 
@@ -5000,8 +4993,8 @@ async def callback_thinking_delete(callback: CallbackQuery):
 
     await safe_edit_or_send(
         callback,
-        "✔️ Предпочтения удалены!\n\n"
-        "ИИ будет общаться в стандартном режиме.",
+        "✔️ Настройки сброшены!\n\n"
+        "Бот вернулся к обычному стилю общения.",
         get_main_keyboard(user_id)
     )
     await callback.answer()
@@ -5423,7 +5416,7 @@ async def generate_image(user_id: int, prompt: str, model: str, enhanced_prompt:
             if last_status:
                 if last_status in retry_statuses or last_status == 0:
                     return False, "Сейчас много запросов — попробуй через 10–30 секунд."
-                return False, "Не получилось нарисовать. Попробуй ещё раз или выбери другую модель."
+                return False, "Не получилось нарисовать. Попробуй ещё раз или опиши по-другому."
             return False, "Картинка не пришла. Попробуй ещё раз."
         except asyncio.TimeoutError:
             return False, "Слишком долго рисовал. Попробуй ещё раз или опиши проще."
@@ -5463,10 +5456,10 @@ async def generate_image(user_id: int, prompt: str, model: str, enhanced_prompt:
                 body = (await response.text())[:500]
                 logging.warning(f"Image API error {response.status} (model={model}): {body}")
                 if response.status == 401:
-                    return False, "Ошибка авторизации API. Обратись к администратору."
+                    return False, "Сервис временно недоступен. Попробуй позже."
                 if response.status == 429:
                     return False, f"429 rate limit (model={model})"
-                return False, "Не получилось нарисовать. Попробуй ещё раз или выбери другую модель."
+                return False, "Не получилось нарисовать. Попробуй ещё раз или опиши по-другому."
     except asyncio.TimeoutError:
         logging.warning(f"Image API timeout: model={model}")
         return False, "Слишком долго рисовал. Попробуй ещё раз или опиши проще."
@@ -5688,7 +5681,7 @@ async def handle_photo(message: Message, state: FSMContext):
                     await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
             else:
                 await message.answer(
-                    f"{result}\nПопробуйте уточнить правку (например: стиль, фон, цвет, ракурс)."
+                    f"{result}\nПопробуй описать точнее — что изменить (фон, цвет, стиль)."
                 )
             return
 
