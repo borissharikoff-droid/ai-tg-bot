@@ -590,7 +590,7 @@ def build_photo_edit_prompt(user_instruction: str, photo_context: str) -> str:
 
 
 ENHANCE_IMAGE_PROMPT_SYSTEM = (
-    "You are an expert image prompt engineer for AI image generators (Flux, Stable Diffusion). "
+    "You are an expert image prompt engineer for AI image generators (DALL-E 3, GPT Image, Flux). "
     "The user gives you a description (often in Russian). "
     "Your job: translate it to English and rewrite as a vivid, detailed image generation prompt.\n\n"
     "RULES:\n"
@@ -771,7 +771,7 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
     # План моделей: сначала текущая, затем альтернативы.
     # pollinations-flux-free всегда последний — бесплатный fallback
     enabled_models = set(get_enabled_models())
-    preferred_order = ["flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"]
+    preferred_order = ["gpt-image-1", "dall-e-3", "flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"]
 
     model_plan = [model]
     for m in preferred_order:
@@ -816,8 +816,8 @@ def pick_image_model(user_id: int) -> Optional[str]:
     if preferred_model in enabled_image_models:
         return preferred_model
 
-    # По умолчанию предпочитаем onlysq image-модели.
-    for candidate in ("flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
+    # По умолчанию предпочитаем GPT image-модели.
+    for candidate in ("gpt-image-1", "dall-e-3", "flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
         if candidate in enabled_image_models:
             return candidate
     return enabled_image_models[0]
@@ -838,7 +838,7 @@ def pick_image_model_for_prompt(user_id: int, prompt_text: str) -> Optional[str]
     object_scene = any(x in t for x in ("обои", "рулон", "валик", "ролик", "краск", "стол", "предмет", "product"))
 
     if object_scene and not has_animal:
-        for candidate in ("lucid-origin", "phoenix-1.0", "flux-2-dev", "flux"):
+        for candidate in ("gpt-image-1", "dall-e-3", "lucid-origin", "phoenix-1.0", "flux-2-dev", "flux"):
             if candidate in enabled_image_models:
                 return candidate
 
@@ -1030,6 +1030,8 @@ AVAILABLE_MODELS = [
     "llama3.1-8b",
     "llama-3.3-70b",
     "qwen-3-32b",
+    "gpt-image-1",
+    "dall-e-3",
     "p-flux",
     "grok-2-image",
     "flux-2-dev",
@@ -1040,6 +1042,7 @@ AVAILABLE_MODELS = [
 ]
 
 IMAGE_MODELS = {
+    "gpt-image-1", "dall-e-3",
     "p-flux", "grok-2-image", "flux-2-dev", "phoenix-1.0", "lucid-origin", "flux",
     "pollinations-flux-free"
 }
@@ -1320,7 +1323,7 @@ DEFAULT_ENABLED_MODELS = [
     "deepseek-v3",
     "deepseek-r1",
     "gemini-3-flash",
-    "flux"
+    "gpt-image-1"
 ]
 
 
@@ -1339,7 +1342,7 @@ def get_enabled_models() -> list:
     # Авто-страховка: если нет ни одной image-модели, добавляем первую доступную.
     has_image_model = any(m in IMAGE_MODELS for m in enabled)
     if not has_image_model:
-        for candidate in ("flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
+        for candidate in ("gpt-image-1", "dall-e-3", "flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"):
             if candidate in AVAILABLE_MODELS and candidate not in enabled:
                 enabled.append(candidate)
                 break
@@ -2194,6 +2197,8 @@ def get_models_keyboard(page: int, user_id: int):
         "phoenix-1.0": "Phoenix 1.0",
         "lucid-origin": "Lucid Origin",
         "pollinations-flux-free": "Flux Free",
+        "gpt-image-1": "GPT Image",
+        "dall-e-3": "DALL-E 3",
     }
 
     # Объединяем в один список с разделителями для пагинации
