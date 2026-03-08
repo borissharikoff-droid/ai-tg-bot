@@ -1190,7 +1190,7 @@ DEFAULT_MESSAGES = {
         "• <b>Стиль ответа</b> — серьёзный, весёлый, дружеский\n"
         "• <b>Фото и голос</b> — отправь фото или голосовое, бот поймёт"
     ),
-    "subscription_price_anchor": "<s>15 USD</s>  <b>{price_stars} Stars</b> или <b>{price_usd} USD</b> за 30 дней",
+    "subscription_price_anchor": "<s>5 USD</s>  <b>{price_stars} Stars</b> или <b>{price_usd} USD</b> за 30 дней",
     "trial_reminder_1_left": (
         "<b>Бесплатные запросы почти закончились!</b>\n\n"
         "Попробуй напоследок:\n"
@@ -1244,8 +1244,8 @@ def load_config():
     if data and isinstance(data, dict):
         return data
     return {
-        "subscription_price": 100,
-        "subscription_price_usd": 5,
+        "subscription_price": 99,
+        "subscription_price_usd": 1,
         "system_gif_urls": [],
         "button_emoji_pack": DEFAULT_BUTTON_EMOJI_PACK.copy()
     }
@@ -1259,13 +1259,13 @@ def save_config(config):
 def get_subscription_price():
     """Получить цену подписки в звездах"""
     config = load_config()
-    return config.get("subscription_price", 100)
+    return config.get("subscription_price", 99)
 
 
 def get_subscription_price_usd():
     """Получить цену подписки в USD"""
     config = load_config()
-    return config.get("subscription_price_usd", 5)
+    return config.get("subscription_price_usd", 1)
 
 
 def set_subscription_price(price: int):
@@ -2114,18 +2114,12 @@ def get_main_keyboard(user_id: int = None):
             make_inline_button("Нарисовать картинку", callback_data="generate_image_prompt", button_key="image", style="primary")
         ],
         [
-            make_inline_button("Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary"),
-            make_inline_button("Выбрать модель", callback_data="models_0", button_key="models")
+            make_inline_button("Настройки", callback_data="settings", button_key="info", style="primary")
         ],
     ]
     if not has_sub:
         buttons.append([
             make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success")
-        ])
-    else:
-        buttons.append([
-            make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription"),
-            make_inline_button("Настройки", callback_data="settings", button_key="info")
         ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -4259,28 +4253,26 @@ async def callback_info(callback: CallbackQuery):
 
     text = (
         f"{text_emoji('info')} <b>Настройки</b>\n\n"
-        f"<b>Модель:</b> <code>{current_model}</code> ({model_mode})\n"
+        f"<b>Модель:</b> {current_model}\n"
         f"<b>Стиль ответа:</b> {style_label}\n\n"
-        "<b>Что умеет бот:</b>\n"
-        "  Отвечает на любые вопросы\n"
-        "  Рисует картинки по описанию\n"
-        "  Понимает фото и скриншоты\n"
-        "  Понимает голосовые сообщения\n"
-        "  Можно выбрать стиль ответа\n\n"
-        "<b>Команды:</b>\n"
-        "/start — на главную\n"
-        "/clear — начать чат заново"
+        "<i>Бот сам выбирает лучшую модель под задачу.\n"
+        "Но ты можешь выбрать вручную ниже.</i>"
     )
 
     admin_username = ADMIN_USERNAME.lstrip('@')
 
+    has_sub = has_active_subscription(user_id)
     buttons = [
         [make_inline_button(text="Выбрать модель", callback_data="models_0", button_key="models", style="primary")],
         [make_inline_button(text="Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")],
         [make_inline_button(text="Начать чат заново", callback_data="confirm_clear", button_key="confirm_clear")],
+    ]
+    if not has_sub:
+        buttons.append([make_inline_button(text="Подписка PRO", callback_data="subscription", button_key="subscription", style="success")])
+    buttons.extend([
         [make_inline_button(text="Связаться с нами", url=f"https://t.me/{admin_username}", button_key="contact_admin")],
         [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
-    ]
+    ])
     try:
         await callback.message.delete()
     except Exception:
