@@ -588,17 +588,57 @@ def build_photo_edit_prompt(user_instruction: str, photo_context: str) -> str:
     return sanitize_user_input(composed, max_length=1800) or composed
 
 
+ENHANCE_IMAGE_PROMPT_SYSTEM = (
+    "You are an expert image prompt engineer. "
+    "The user gives you a description (often in Russian). "
+    "Your job: translate it to English and rewrite as a concise, vivid image generation prompt. "
+    "Rules:\n"
+    "- Output ONLY the English prompt, nothing else\n"
+    "- Keep it under 120 words\n"
+    "- Preserve every detail the user asked for (subject, style, colors, mood)\n"
+    "- Add artistic quality keywords: detailed, high quality, 4k, sharp focus\n"
+    "- Do NOT add subjects/objects the user didn't ask for\n"
+    "- End with: --no text, watermark, logo, blurry"
+)
+
+
+async def enhance_image_prompt(user_text: str) -> Optional[str]:
+    """Перевести и улучшить промпт через быстрый LLM."""
+    if not API_BEARER_TOKEN:
+        return None
+    try:
+        payload = {
+            "model": "gemini-3-flash",
+            "request": {
+                "messages": [
+                    {"role": "system", "content": ENHANCE_IMAGE_PROMPT_SYSTEM},
+                    {"role": "user", "content": user_text}
+                ]
+            }
+        }
+        headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
+        async with aiohttp.ClientSession() as session:
+            async with session.post(API_URL, json=payload, headers=headers, timeout=15) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    result = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                    if result and len(result) > 5:
+                        return result
+    except Exception as e:
+        logging.warning(f"Prompt enhancement failed: {e}")
+    return None
+
+
 def build_image_prompt(user_text: str) -> str:
     """
-    Нормализовать пользовательский запрос в более строгий prompt для генерации изображения.
-    Это снижает шанс подмены главного объекта (например, кот -> собака).
+    Быстрый fallback-промпт (если LLM-улучшение недоступно).
+    Очищает русский текст от мусора и добавляет минимальные инструкции.
     """
     src = sanitize_user_input(user_text, max_length=1500)
     if not src:
         return ""
 
     core = src.strip()
-    # Убираем частые "обертки" запроса, оставляя суть сцены.
     core = re.sub(
         r'(?i)\b(привет|здравствуйте|братка|бро|пожалуйста|плиз|pls|please)\b',
         '',
@@ -611,7 +651,7 @@ def build_image_prompt(user_text: str) -> str:
     )
     core = re.sub(r'(?i)\b(мне|me)\b', '', core)
     core = re.sub(
-        r'(?i)\b(картинку|картинку|картинка|изображение|фото|арт|image|picture)\b',
+        r'(?i)\b(картинку|картинка|изображение|фото|арт|image|picture)\b',
         '',
         core
     )
@@ -619,30 +659,7 @@ def build_image_prompt(user_text: str) -> str:
     if not core:
         core = src
 
-    core_l = core.lower()
-    animal_words = (
-        "кот", "кошка", "кошк", "cat", "kitten",
-        "собак", "dog", "puppy",
-        "птиц", "bird", "лошад", "horse", "медвед", "bear",
-        "животн", "animal"
-    )
-    has_animal = any(w in core_l for w in animal_words)
-
-    strict_prompt = (
-        f"USER REQUEST (literal): {core}. "
-        "Follow the user request exactly and literally. "
-        "Build ONE coherent scene from the request. "
-        "Keep all explicitly requested entities, attributes and relations (object, color, material, position, style). "
-        "Do not replace the main subject with a different object/animal/person even if it seems more aesthetic. "
-        "Do not add unrelated dominant subjects. "
-        "If request is ambiguous, prefer the most literal interpretation."
-    )
-
-    if not has_animal:
-        strict_prompt += " No animals or pets unless explicitly requested."
-
-    strict_prompt += " NEGATIVE: text, logo, watermark, captions."
-    return strict_prompt
+    return f"{core}, detailed, high quality, 4k, sharp focus. --no text, watermark, logo, blurry"
 
 
 def prompt_requests_animals(prompt_text: str) -> bool:
@@ -717,22 +734,21 @@ async def image_contains_animal(image_bytes: bytes) -> Optional[bool]:
         return None
 
 
-async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_attempts: int = 3) -> tuple:
+async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_attempts: int = 2) -> tuple:
     """
-    Генерация с авто-проверкой:
-    если пользователь не просил животных, но на картинке есть животное, делаем автоповтор.
+    Генерация картинки с fallback на другие модели при ошибках.
+    Промпт улучшается через LLM один раз перед генерацией.
     """
-    animal_allowed = prompt_requests_animals(prompt)
+    # Улучшаем промпт через LLM один раз
+    enhanced = await enhance_image_prompt(prompt)
+    if enhanced:
+        logging.info(f"Enhanced image prompt: {enhanced[:200]}")
+
     last_error = "Не получилось нарисовать. Попробуй описать по-другому."
 
     # План моделей: сначала текущая, затем альтернативы.
-    t = (prompt or "").lower()
-    object_scene = any(x in t for x in ("обои", "рулон", "валик", "ролик", "краск", "стол", "предмет", "product"))
     enabled_models = set(get_enabled_models())
-    if object_scene and not animal_allowed:
-        preferred_order = ["lucid-origin", "phoenix-1.0", "flux-2-dev", "flux", "grok-2-image", "pollinations-flux-free"]
-    else:
-        preferred_order = ["flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"]
+    preferred_order = ["flux", "flux-2-dev", "grok-2-image", "phoenix-1.0", "lucid-origin", "pollinations-flux-free"]
 
     model_plan = [model]
     for m in preferred_order:
@@ -740,36 +756,17 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
             model_plan.append(m)
 
     for model_idx, current_model in enumerate(model_plan):
-        current_prompt = prompt
         for attempt in range(1, max_attempts + 1):
-            success, result = await generate_image(user_id, current_prompt, current_model)
+            success, result = await generate_image(user_id, prompt, current_model, enhanced_prompt=enhanced)
             if not success:
                 last_error = result
-                # Если модель явно недоступна/лимитирована — сразу пробуем следующую модель.
                 lower_err = str(result).lower()
                 if any(x in lower_err for x in ("429", "rate limit", "bad argument", "credits", "spending limit")):
                     break
                 continue
 
-            # Если результат не bytes (например URL), пропускаем валидацию.
-            if not isinstance(result, (bytes, bytearray)):
-                return True, result
+            return True, result
 
-            if animal_allowed:
-                return True, result
-
-            contains_animal = await image_contains_animal(bytes(result))
-            if contains_animal is False:
-                return True, result
-            if contains_animal is None:
-                # Валидация недоступна — не блокируем пользователя.
-                return True, result
-
-            # contains_animal == True -> усиливаем негатив и пробуем еще.
-            current_prompt = _image_retry_prompt_no_animals(prompt, attempt)
-            last_error = "Результат не совпал с запросом. Попробуй уточнить — например, добавь детали или стиль."
-
-        # Переход на следующую модель после серии неудач.
         if model_idx < len(model_plan) - 1:
             logging.warning(f"Switching image model fallback: {current_model} -> {model_plan[model_idx + 1]}")
 
@@ -5334,10 +5331,10 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
         logging.error(f"Ошибка AI: {e}")
         return "Ошибка соединения с сервисом. Попробуй через минуту."
 
-async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
-    """Сгенерировать изображение"""
+async def generate_image(user_id: int, prompt: str, model: str, enhanced_prompt: str = None) -> tuple:
+    """Сгенерировать изображение. enhanced_prompt — уже улучшенный промпт от LLM."""
     if model == "pollinations-flux-free":
-        clean_prompt = build_image_prompt(prompt)
+        clean_prompt = enhanced_prompt or build_image_prompt(prompt)
         clean_prompt = sanitize_user_input(clean_prompt, max_length=800)
         if not clean_prompt:
             return False, "Не получилось понять, что нарисовать. Попробуй описать подробнее."
@@ -5400,7 +5397,7 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     if not API_BEARER_TOKEN:
         return False, "Рисование картинок сейчас недоступно. Попробуй позже."
 
-    prompt_clean = build_image_prompt(prompt)
+    prompt_clean = enhanced_prompt or build_image_prompt(prompt)
     prompt_clean = sanitize_user_input(prompt_clean, max_length=1500)
     if not prompt_clean:
         return False, "Не получилось понять, что нарисовать. Попробуй описать подробнее."
@@ -5447,7 +5444,7 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
 
         # Если onlysq не справился (например, 429 на всех моделях) — пробуем бесплатный fallback.
         if last_status in {429, 500, 502, 503, 504, 520, 522, 524, 530}:
-            return await generate_image(user_id, prompt_clean, "pollinations-flux-free")
+            return await generate_image(user_id, prompt_clean, "pollinations-flux-free", enhanced_prompt=enhanced_prompt)
         if last_status:
             return False, "Не получилось нарисовать. Попробуй ещё раз или выбери другую модель."
         return False, "Картинка не пришла. Попробуй ещё раз."
