@@ -2831,7 +2831,14 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     has_sub = has_active_subscription(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
-    text = "👋 <b>Привет! Я твой ИИ-помощник.</b>\n\n"
+    start_title_emoji = (
+        text_emoji("wave")
+        or text_emoji("star")
+        or button_emoji_tag("subscription")
+        or button_emoji_tag("info")
+        or "👋"
+    )
+    text = f"{start_title_emoji} <b>Привет! Я твой ИИ-помощник.</b>\n\n"
     text += (
         "Просто напиши — и я помогу:\n\n"
         "✏️ <b>Текст</b> — посты, идеи, код, переводы\n"
