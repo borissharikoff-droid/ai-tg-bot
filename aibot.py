@@ -19,6 +19,7 @@ import subprocess
 import re
 import html
 import random
+import shutil
 from urllib.parse import quote
 
 try:
@@ -217,9 +218,79 @@ BLACKLIST_FILE = os.path.join(DATA_DIR, "blacklist.json")
 PENDING_INVOICES_FILE = os.path.join(DATA_DIR, "pending_invoices.json")
 BUSINESS_CONNECTIONS_FILE = os.path.join(DATA_DIR, "business_connections.json")
 
+PAYMENTS_LOG_FILE = os.path.join(DATA_DIR, "payments.log")
+
 # Создаем директории
 os.makedirs(USERS_DIR, exist_ok=True)
 logging.info(f"📁 Данные: {DATA_DIR}")
+
+
+# ==================== БЕЗОПАСНАЯ РАБОТА С ФАЙЛАМИ ====================
+def _safe_write_json(file_path: str, data):
+    """Атомарная запись JSON: пишем во временный файл, затем переименовываем.
+    Это гарантирует, что файл не повредится при краше/рестарте."""
+    tmp_path = file_path + ".tmp"
+    try:
+        with open(tmp_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, file_path)
+    except Exception as e:
+        logging.error(f"Ошибка записи {file_path}: {e}")
+        # Удаляем битый tmp если остался
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _safe_read_json(file_path: str, default=None):
+    """Безопасное чтение JSON с восстановлением из .bak при повреждении."""
+    for path in [file_path, file_path + ".bak"]:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    content = f.read().strip()
+                    if not content:
+                        continue
+                    data = json.loads(content)
+                    # Если прочитали из .bak — восстанавливаем основной файл
+                    if path.endswith(".bak"):
+                        logging.warning(f"⚠️ Восстановлено из бэкапа: {file_path}")
+                        _safe_write_json(file_path, data)
+                    else:
+                        # Основной файл OK — обновляем бэкап
+                        try:
+                            shutil.copy2(file_path, file_path + ".bak")
+                        except Exception:
+                            pass
+                    return data
+            except (json.JSONDecodeError, ValueError) as e:
+                logging.warning(f"⚠️ Повреждён {path}: {e}, пробую бэкап...")
+                continue
+            except Exception as e:
+                logging.error(f"Ошибка чтения {path}: {e}")
+                continue
+    return default() if callable(default) else (default if default is not None else None)
+
+
+def _append_payment_log(user_id: int, amount, currency: str, method: str):
+    """Дописать запись об оплате в append-only лог (никогда не перезаписывается)."""
+    try:
+        line = json.dumps({
+            "ts": datetime.now().isoformat(),
+            "user_id": user_id,
+            "amount": amount,
+            "currency": currency,
+            "method": method
+        }, ensure_ascii=False)
+        with open(PAYMENTS_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(line + "\n")
+            f.flush()
+    except Exception as e:
+        logging.error(f"Ошибка записи payment log: {e}")
 
 # ==================== ПРОВЕРКА ЗАВИСИМОСТЕЙ ДЛЯ ГОЛОСА ====================
 logging.basicConfig(level=logging.INFO)
@@ -287,16 +358,21 @@ def _unicode_to_custom_emoji_tag(emoji_char: str) -> str:
 
 
 def normalize_text_emojis(text: str) -> str:
-    """Заменить обычные emoji в тексте на custom emoji-теги (если есть маппинг)."""
-    if not text:
+    """Заменить обычные emoji в тексте на custom emoji-теги (если есть маппинг).
+    Не трогает emoji внутри существующих <tg-emoji> тегов."""
+    if not text or not EMOJI_TO_CUSTOM_ID:
         return text
 
-    normalized = text
-    if EMOJI_TO_CUSTOM_ID:
-        for emoji_char in sorted(EMOJI_TO_CUSTOM_ID.keys(), key=len, reverse=True):
-            if emoji_char in normalized:
-                normalized = normalized.replace(emoji_char, _unicode_to_custom_emoji_tag(emoji_char))
-    return normalized
+    # Разбиваем текст на части: внутри <tg-emoji> тегов и вне их
+    parts = re.split(r'(<tg-emoji[^>]*>.*?</tg-emoji>)', text)
+    for i, part in enumerate(parts):
+        # Четные индексы — текст вне тегов, нечетные — сами теги
+        if i % 2 == 0:
+            for emoji_char in sorted(EMOJI_TO_CUSTOM_ID.keys(), key=len, reverse=True):
+                if emoji_char in part:
+                    part = part.replace(emoji_char, _unicode_to_custom_emoji_tag(emoji_char))
+            parts[i] = part
+    return "".join(parts)
 
 
 def get_default_header_emoji_tag() -> str:
@@ -335,11 +411,11 @@ def strip_custom_emoji_outside_first_header(text: str) -> str:
             header_idx = i
             break
 
-    tg_emoji_re = re.compile(r'\s*<tg-emoji[^>]*>.*?</tg-emoji>\s*')
     cleaned = []
     for i, line in enumerate(lines):
         if i != header_idx:
-            line = tg_emoji_re.sub('', line)
+            line = _tg_emoji_open_re.sub('', line)
+            line = _tg_emoji_close_re.sub('', line)
         cleaned.append(line)
     return "\n".join(cleaned)
 
@@ -736,7 +812,7 @@ def validate_json_structure(value, depth: int = 0, max_depth: int = 8, max_items
 
 async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_mode: str = "HTML"):
     """Отправить системное сообщение с GIF/анимацией в caption, если задана."""
-    text = normalize_system_text(text)
+    # НЕ нормализуем здесь — monkey-patched send_message/send_animation сделают это сами
     gif_pool = []
     env_gif_urls = os.getenv("SYSTEM_GIF_URLS", "").strip()
     if env_gif_urls:
@@ -780,7 +856,7 @@ async def send_system_message(chat_id: int, text: str, reply_markup=None, parse_
 
 async def send_section_media_message(chat_id: int, text: str, reply_markup, section: str, parse_mode: str = "HTML") -> bool:
     """Отправить сообщение с локальным медиа (gif/photo) для конкретного экрана."""
-    text = normalize_system_text(text)
+    # НЕ нормализуем здесь — monkey-patched send_animation/send_photo сделают это сами
     media_path = SECTION_MEDIA_PATHS.get(section)
     if not media_path or not os.path.exists(media_path):
         return False
@@ -932,12 +1008,18 @@ _original_bot_send_video = Bot.send_video
 _original_bot_send_animation = Bot.send_animation
 
 
-_tg_emoji_re_strip = re.compile(r'<tg-emoji[^>]*>.*?</tg-emoji>\s*')
+_tg_emoji_open_re = re.compile(r'<tg-emoji[^>]*>')
+_tg_emoji_close_re = re.compile(r'</tg-emoji>')
 
 
 def _strip_tg_emoji(text: str) -> str:
-    """Убрать все <tg-emoji> теги из текста (fallback если бот не может отправить custom emoji)."""
-    return _tg_emoji_re_strip.sub('', text) if text else text
+    """Убрать все <tg-emoji> теги из текста (fallback если бот не может отправить custom emoji).
+    Обрабатывает вложенные теги, удаляя открывающие и закрывающие по отдельности."""
+    if not text:
+        return text
+    text = _tg_emoji_open_re.sub('', text)
+    text = _tg_emoji_close_re.sub('', text)
+    return text
 
 
 async def _bot_send_message_with_custom_emoji(self, *args, **kwargs):
@@ -1111,12 +1193,9 @@ DEFAULT_MESSAGES = {
 
 def load_messages() -> dict:
     """Загрузить сообщения из файла (для A/B тестов)"""
-    if os.path.exists(MESSAGES_FILE):
-        try:
-            with open(MESSAGES_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            logging.warning(f"Ошибка загрузки messages.json: {e}")
+    data = _safe_read_json(MESSAGES_FILE)
+    if data and isinstance(data, dict):
+        return data
     return {}
 
 
@@ -1135,12 +1214,12 @@ def get_message(key: str, default: str = None, **kwargs) -> str:
 # ==================== РАБОТА С КОНФИГОМ ====================
 def load_config():
     """Загрузить конфигурацию"""
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    data = _safe_read_json(CONFIG_FILE)
+    if data and isinstance(data, dict):
+        return data
     return {
-        "subscription_price": 100,  # Цена в звездах
-        "subscription_price_usd": 5,  # Цена в USD для CryptoBot
+        "subscription_price": 100,
+        "subscription_price_usd": 5,
         "system_gif_urls": [],
         "button_emoji_pack": DEFAULT_BUTTON_EMOJI_PACK.copy()
     }
@@ -1148,8 +1227,7 @@ def load_config():
 
 def save_config(config):
     """Сохранить конфигурацию"""
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    _safe_write_json(CONFIG_FILE, config)
 
 
 def get_subscription_price():
@@ -1243,11 +1321,7 @@ def is_model_enabled(model: str) -> bool:
 
 
 # ==================== РАБОТА СО СТАТИСТИКОЙ ====================
-def load_stats():
-    """Загрузить статистику"""
-    if os.path.exists(STATS_FILE):
-        with open(STATS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+def _default_stats():
     return {
         "total_users": 0,
         "total_starts": 0,
@@ -1260,10 +1334,21 @@ def load_stats():
     }
 
 
+def load_stats():
+    """Загрузить статистику (с восстановлением из бэкапа при повреждении)"""
+    data = _safe_read_json(STATS_FILE)
+    if data and isinstance(data, dict):
+        # Добавляем отсутствующие ключи, не затирая существующие
+        defaults = _default_stats()
+        for k, v in defaults.items():
+            data.setdefault(k, v)
+        return data
+    return _default_stats()
+
+
 def save_stats(stats):
-    """Сохранить статистику"""
-    with open(STATS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(stats, f, ensure_ascii=False, indent=2)
+    """Сохранить статистику (атомарно)"""
+    _safe_write_json(STATS_FILE, stats)
 
 
 def increment_stat(key: str, value=1):
@@ -1275,23 +1360,17 @@ def increment_stat(key: str, value=1):
 # ==================== РАБОТА С БИЗНЕС-ПОДКЛЮЧЕНИЯМИ ====================
 def load_business_connections():
     """Загрузить бизнес-подключения из файла"""
-    if os.path.exists(BUSINESS_CONNECTIONS_FILE):
-        try:
-            with open(BUSINESS_CONNECTIONS_FILE, 'r', encoding='utf-8') as f:
-                connections = json.load(f)
-                logging.info(f"✅ Загружено {len(connections)} бизнес-подключений")
-                return connections
-        except Exception as e:
-            logging.error(f"❌ Ошибка загрузки подключений: {e}")
-            return {}
+    data = _safe_read_json(BUSINESS_CONNECTIONS_FILE)
+    if data and isinstance(data, dict):
+        logging.info(f"✅ Загружено {len(data)} бизнес-подключений")
+        return data
     return {}
 
 
 def save_business_connections(connections):
     """Сохранить бизнес-подключения в файл"""
     try:
-        with open(BUSINESS_CONNECTIONS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(connections, f, ensure_ascii=False, indent=2)
+        _safe_write_json(BUSINESS_CONNECTIONS_FILE, connections)
         logging.info(f"💾 Сохранено {len(connections)} бизнес-подключений")
     except Exception as e:
         logging.error(f"❌ Ошибка сохранения подключений: {e}")
@@ -1321,11 +1400,11 @@ def get_user_history_path(user_id: int) -> str:
 
 
 def load_user_data(user_id: int) -> dict:
-    """Загрузить данные пользователя"""
+    """Загрузить данные пользователя (с восстановлением из бэкапа)"""
     path = get_user_data_path(user_id)
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    data = _safe_read_json(path)
+    if data and isinstance(data, dict):
+        return data
     return {
         "user_id": user_id,
         "model": DEFAULT_MODEL,
@@ -1337,26 +1416,24 @@ def load_user_data(user_id: int) -> dict:
 
 
 def save_user_data(user_id: int, data: dict):
-    """Сохранить данные пользователя"""
+    """Сохранить данные пользователя (атомарно)"""
     path = get_user_data_path(user_id)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    _safe_write_json(path, data)
 
 
 def load_chat_history(user_id: int) -> list:
     """Загрузить историю чата"""
     path = get_user_history_path(user_id)
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    data = _safe_read_json(path)
+    if data and isinstance(data, list):
+        return data
     return []
 
 
 def save_chat_history(user_id: int, history: list):
     """Сохранить историю чата"""
     path = get_user_history_path(user_id)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+    _safe_write_json(path, history)
 
 
 def add_message_to_history(user_id: int, role: str, content: str):
@@ -1395,17 +1472,16 @@ def get_business_chat_history_path(business_connection_id: str, client_chat_id: 
 def load_business_chat_history(business_connection_id: str, client_chat_id: int) -> list:
     """Загрузить историю бизнес-чата"""
     path = get_business_chat_history_path(business_connection_id, client_chat_id)
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    data = _safe_read_json(path)
+    if data and isinstance(data, list):
+        return data
     return []
 
 
 def save_business_chat_history(business_connection_id: str, client_chat_id: int, history: list):
     """Сохранить историю бизнес-чата"""
     path = get_business_chat_history_path(business_connection_id, client_chat_id)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+    _safe_write_json(path, history)
 
 
 def add_message_to_business_history(business_connection_id: str, client_chat_id: int, role: str, content: str):
@@ -1849,16 +1925,15 @@ def set_channel_media(media_type: Optional[str], file_id: Optional[str]):
 # ==================== ЧЕРНЫЙ СПИСОК ====================
 def load_blacklist() -> list:
     """Загрузить черный список"""
-    if os.path.exists(BLACKLIST_FILE):
-        with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    data = _safe_read_json(BLACKLIST_FILE)
+    if data and isinstance(data, list):
+        return data
     return []
 
 
 def save_blacklist(blacklist: list):
     """Сохранить черный список"""
-    with open(BLACKLIST_FILE, 'w', encoding='utf-8') as f:
-        json.dump(blacklist, f, ensure_ascii=False, indent=2)
+    _safe_write_json(BLACKLIST_FILE, blacklist)
 
 
 def is_blacklisted(user_id: int) -> bool:
@@ -1883,16 +1958,15 @@ def remove_from_blacklist(user_id: int):
 
 def load_pending_invoices() -> dict:
     """Загрузить ожидающие инвойсы"""
-    if os.path.exists(PENDING_INVOICES_FILE):
-        with open(PENDING_INVOICES_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    data = _safe_read_json(PENDING_INVOICES_FILE)
+    if data and isinstance(data, dict):
+        return data
     return {}
 
 
 def save_pending_invoices(invoices: dict):
     """Сохранить ожидающие инвойсы"""
-    with open(PENDING_INVOICES_FILE, 'w', encoding='utf-8') as f:
-        json.dump(invoices, f, ensure_ascii=False, indent=2)
+    _safe_write_json(PENDING_INVOICES_FILE, invoices)
 
 
 def add_pending_invoice(invoice_id: str, user_id: int):
@@ -2757,13 +2831,7 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     has_sub = has_active_subscription(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
-    start_title_emoji = (
-        text_emoji("wave")
-        or text_emoji("star")
-        or button_emoji_tag("subscription")
-        or button_emoji_tag("info")
-    )
-    text = f"{start_title_emoji} <b>Привет! Я твой ИИ-помощник.</b>\n\n"
+    text = "👋 <b>Привет! Я твой ИИ-помощник.</b>\n\n"
     text += (
         "Просто напиши — и я помогу:\n\n"
         "✏️ <b>Текст</b> — посты, идеи, код, переводы\n"
@@ -3238,6 +3306,7 @@ async def process_successful_payment(message: Message):
     price = get_subscription_price()
     increment_stat("total_payments")
     increment_stat("total_revenue", price)
+    _append_payment_log(user_id, price, "XTR", "telegram_stars")
 
     sub_end = get_subscription_end(user_id)
 
@@ -5927,6 +5996,7 @@ async def check_pending_invoices():
                         price_usd = get_subscription_price_usd()
                         increment_stat("total_payments")
                         increment_stat("total_revenue_usd", price_usd)
+                        _append_payment_log(user_id, price_usd, "USD", "crypto_bot")
 
                         # Уведомляем пользователя
                         try:
