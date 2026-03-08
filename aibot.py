@@ -165,25 +165,25 @@ STYLE_PRESET_LABELS = {
 
 # Короткие описания пресетов для юзера (чем отличаются)
 STYLE_PRESET_DESCRIPTIONS = {
-    "serious": "Сухо и по делу: минимум эмоций, чёткая структура, без сленга. Для рабочих задач и формального тона.",
-    "neutral": "Спокойно и универсально: понятно, дружелюбно, без лишней эмоциональности. Подходит для большинства запросов.",
-    "funny": "С юмором и легко: уместные шутки, но с пользой и без перегибов. Идеально для креатива и развлечения.",
-    "friend": "Как близкий друг: тепло, просто, с поддержкой и разговорным стилем. Для неформального общения."
+    "serious": "Коротко и по делу, без лишних слов. Подойдёт для работы и учёбы.",
+    "neutral": "Спокойно и понятно. Подходит для любых вопросов.",
+    "funny": "С юмором и легко. Для творчества и развлечений.",
+    "friend": "Как будто пишет друг — тепло и просто. Для обычного общения."
 }
 
 START_EXAMPLES = [
-    "«Нарисуй кота-программиста за ноутбуком с кофе»",
-    "«Придумай 5 идей для поста в Telegram про мотивацию»",
-    "«Сгенери мем-картинку про дедлайны и прокрастинацию»",
-    "«Напиши поздравление другу с днём рождения в стихах»",
-    "«Объясни квантовую физику как будто мне 5 лет»",
-    "«Нарисуй закат на Марсе в стиле киберпанк»",
-    "«Составь план питания на неделю для похудения»",
-    "«Придумай подпись к фото для сторис — смешную и цепляющую»",
-    "«Нарисуй милую собаку-астронавта в открытом космосе»",
-    "«Помоги написать сопроводительное письмо для резюме»",
-    "«Сделай логотип для кофейни в минималистичном стиле»",
-    "«Напиши пост для соцсетей про выходные с юмором»",
+    "«Нарисуй милого кота с чашкой кофе»",
+    "«Придумай 5 идей для поста в Telegram»",
+    "«Нарисуй смешную картинку про понедельник»",
+    "«Напиши поздравление с днём рождения в стихах»",
+    "«Объясни простыми словами, как работает интернет»",
+    "«Составь меню на неделю для правильного питания»",
+    "«Придумай подпись к фото для сторис»",
+    "«Нарисуй собаку-космонавта в открытом космосе»",
+    "«Помоги составить резюме»",
+    "«Нарисуй красивый логотип для магазина»",
+    "«Напиши смешной пост про выходные»",
+    "«Что подарить маме на день рождения?»",
 ]
 
 RESPONSE_STYLE_SYSTEM_PROMPT = (
@@ -723,7 +723,7 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
     если пользователь не просил животных, но на картинке есть животное, делаем автоповтор.
     """
     animal_allowed = prompt_requests_animals(prompt)
-    last_error = "Не удалось сгенерировать изображение. Попробуй переформулировать запрос."
+    last_error = "Не получилось нарисовать. Попробуй описать по-другому."
 
     # План моделей: сначала текущая, затем альтернативы.
     t = (prompt or "").lower()
@@ -1161,58 +1161,58 @@ DEFAULT_MESSAGES = {
     "paywall": (
         "{proof}"
         "<b>Бесплатные запросы закончились</b>\n\n"
-        "Оформи PRO — и пользуйся без ограничений:\n"
-        "• Безлимитные запросы к ИИ\n"
-        "• Генерация картинок до {img_daily}/день\n"
-        "• Все модели + настройка стиля\n\n"
+        "Подключи PRO — и пользуйся без ограничений:\n"
+        "• Спрашивай что угодно — без лимитов\n"
+        "• Рисуй до {img_daily} картинок в день\n"
+        "• Выбирай любую модель и стиль ответа\n\n"
         "<b>Всего {price_stars} Stars / {price_usd} USD за 30 дней</b>"
     ),
-    "paywall_proof": "{active_subs} пользователей уже на PRO\n\n",
+    "paywall_proof": "{active_subs} человек уже подключили PRO\n\n",
     "welcome_intro": (
-        "{greeting} Сэкономь часы на рутине — напиши, что нужно, и получи готовый результат."
+        "{greeting} Просто напиши, что тебе нужно — бот сделает за тебя."
     ),
     "welcome_free_requests": "<b>Бесплатных запросов:</b> {remaining}",
-    "welcome_example_intro": "<b>Например, напиши:</b>",
-    "welcome_subscribe_cta": "<b>Для использования без ограничений оформите подписку PRO.</b>",
+    "welcome_example_intro": "<b>Попробуй написать:</b>",
+    "welcome_subscribe_cta": "<b>Чтобы пользоваться без ограничений — подключи PRO.</b>",
     "channel_subscribe": (
-        "<b>Подпишись на канал — и получи доступ к боту</b>\n\n"
-        "Советы по AI, обновления бота и эксклюзивные промпты.\n\n"
+        "<b>Подпишись на канал, чтобы начать</b>\n\n"
+        "Там полезные советы, новости бота и примеры запросов.\n\n"
         "{proof}"
         "Нажми на канал ниже и подпишись:"
     ),
-    "channel_proof": "Уже {subs_count} пользователей в боте.\n\n",
-    "subscription_outcome": "Сними все ограничения — пользуйся ИИ на максимум.",
-    "subscription_proof": "{active_subs} пользователей уже выбрали PRO\n\n",
+    "channel_proof": "В боте уже {subs_count} человек.\n\n",
+    "subscription_outcome": "Пользуйся ботом без ограничений — спрашивай, рисуй, создавай.",
+    "subscription_proof": "{active_subs} человек уже подключили PRO\n\n",
     "subscription_benefits": (
-        "• <b>Безлимитные запросы</b> — текст, код, идеи без ограничений\n"
-        "• <b>Генерация картинок</b> — мемы, логотипы, арты по описанию\n"
-        "• <b>Все модели AI</b> — GPT-5, Claude, Gemini, DeepSeek и др.\n"
+        "• <b>Вопросы без лимита</b> — спрашивай что угодно, сколько угодно\n"
+        "• <b>Картинки по описанию</b> — мемы, логотипы, арты, аватарки\n"
+        "• <b>Лучшие модели</b> — GPT-5, Claude, Gemini, DeepSeek и др.\n"
         "• <b>Стиль ответа</b> — серьёзный, весёлый, дружеский\n"
-        "• <b>Фото + голос</b> — анализ скриншотов и голосовых"
+        "• <b>Фото и голос</b> — отправь фото или голосовое, бот поймёт"
     ),
     "subscription_price_anchor": "<s>15 USD</s>  <b>{price_stars} Stars</b> или <b>{price_usd} USD</b> за 30 дней",
     "trial_reminder_1_left": (
         "<b>Бесплатные запросы почти закончились!</b>\n\n"
-        "Попробуй что-нибудь крутое напоследок:\n"
-        "• <i>«Нарисуй кота-самурая в неоновых огнях»</i>\n"
-        "• <i>«Составь бизнес-план кофейни за 5 минут»</i>\n\n"
-        "Чтобы продолжить — оформи PRO."
+        "Попробуй напоследок:\n"
+        "• <i>«Нарисуй кота в космосе»</i>\n"
+        "• <i>«Составь план на выходные»</i>\n\n"
+        "Чтобы продолжить — подключи PRO."
     ),
     "trial_reminder_24h": (
         "<b>Привет! Как тебе бот?</b>\n\n"
-        "Ты уже попробовал возможности ИИ-ассистента.\n"
-        "С PRO ты получишь:\n"
-        "• Безлимитные запросы\n"
-        "• Генерацию картинок\n"
-        "• Все модели AI\n\n"
-        "Оформи PRO — и забудь про ограничения."
+        "Ты уже попробовал — и это только начало.\n"
+        "С PRO можно:\n"
+        "• Спрашивать без ограничений\n"
+        "• Рисовать картинки каждый день\n"
+        "• Выбирать лучшие модели\n\n"
+        "Подключи PRO — и пользуйся на полную."
     ),
     "image_generation_progress": (
-        "Генерирую изображение...\n"
-        "Обычно это занимает 10-30 секунд."
+        "Рисую картинку...\n"
+        "Обычно это 10-30 секунд."
     ),
     "image_success_free_cta": (
-        "\n\n<i>С PRO — до {img_daily} картинок в день + все модели AI</i>"
+        "\n\n<i>С PRO — до {img_daily} картинок в день и никаких ограничений</i>"
     ),
 }
 
@@ -2111,11 +2111,11 @@ def get_main_keyboard(user_id: int = None):
     has_sub = has_active_subscription(user_id) if user_id else False
     buttons = [
         [
-            make_inline_button("Генерация картинок", callback_data="generate_image_prompt", button_key="image", style="primary")
+            make_inline_button("Нарисовать картинку", callback_data="generate_image_prompt", button_key="image", style="primary")
         ],
         [
             make_inline_button("Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary"),
-            make_inline_button("Модели AI", callback_data="models_0", button_key="models")
+            make_inline_button("Выбрать модель", callback_data="models_0", button_key="models")
         ],
     ]
     if not has_sub:
@@ -2175,11 +2175,11 @@ def get_models_keyboard(page: int, user_id: int):
     # Объединяем в один список с разделителями для пагинации
     combined = []
     if text_models:
-        combined.append(("header", "✏️ ТЕКСТОВЫЕ МОДЕЛИ"))
+        combined.append(("header", "✏️ ОТВЕЧАЮТ НА ВОПРОСЫ"))
         for m in text_models:
             combined.append(("model", m))
     if image_models_list:
-        combined.append(("header", "🎨 МОДЕЛИ ДЛЯ КАРТИНОК"))
+        combined.append(("header", "🎨 РИСУЮТ КАРТИНКИ"))
         for m in image_models_list:
             combined.append(("model", m))
 
@@ -2448,7 +2448,7 @@ async def handle_business_text_message(message: Message):
             if not image_model:
                 await bot.send_message(
                     message.chat.id,
-                    "Генерация изображений временно недоступна. Попробуй позже.",
+                    "Рисование картинок сейчас недоступно. Попробуй позже.",
                     business_connection_id=business_connection_id
                 )
                 return
@@ -2572,7 +2572,7 @@ async def handle_business_photo(message: Message):
             if not image_model:
                 await bot.send_message(
                     message.chat.id,
-                    "Генерация изображений временно недоступна. Попробуй позже.",
+                    "Рисование картинок сейчас недоступно. Попробуй позже.",
                     business_connection_id=business_connection_id
                 )
                 return
@@ -2698,7 +2698,7 @@ async def handle_business_voice(message: Message):
         if not transcribed_text:
             await bot.send_message(
                 message.chat.id,
-                "Не удалось распознать голосовое. Попробуй ещё раз.",
+                "Не получилось разобрать голосовое. Попробуй записать ещё раз.",
                 business_connection_id=business_connection_id
             )
             return
@@ -2873,26 +2873,26 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
         or button_emoji_tag("info")
         or "👋"
     )
-    text = f"{start_title_emoji} <b>Привет! Я твой ИИ-помощник.</b>\n\n"
+    text = f"{start_title_emoji} <b>Привет! Я — твой умный помощник.</b>\n\n"
     text += (
-        "Просто напиши — и я помогу:\n\n"
-        "✏️ <b>Текст</b> — посты, идеи, код, переводы\n"
-        "🎨 <b>Картинки</b> — мемы, арты, логотипы по описанию\n"
-        "📷 <b>Фото</b> — отправь фото и задай вопрос\n"
-        "🎤 <b>Голос</b> — отправь голосовое, я отвечу текстом\n"
+        "Напиши мне что угодно — я помогу:\n\n"
+        "✏️ <b>Ответить на вопрос</b> — любой, от простого до сложного\n"
+        "🎨 <b>Нарисовать картинку</b> — опиши словами, я нарисую\n"
+        "📷 <b>Разобрать фото</b> — отправь фото и спроси про него\n"
+        "🎤 <b>Понять голосовое</b> — отправь голосовое, отвечу текстом\n"
     )
 
     if not has_sub:
         text_rem, img_rem = get_free_trial_remaining(user_id)
         if text_rem > 0 or img_rem > 0:
             text += (
-                f"\n<b>Бесплатно:</b> {text_rem} текстовых + {img_rem} картинок\n"
+                f"\n<b>Бесплатно:</b> {text_rem} вопросов + {img_rem} картинок\n"
             )
         else:
-            text += "\nБесплатные запросы закончились. Оформи PRO!\n"
+            text += "\nБесплатные запросы закончились. Подключи PRO!\n"
 
     text += (
-        "\n<b>Попробуй прямо сейчас:</b>\n"
+        "\n<b>Попробуй прямо сейчас — напиши:</b>\n"
         f"<blockquote>{start_example}</blockquote>\n"
     )
 
@@ -2955,8 +2955,8 @@ async def cmd_clear(message: Message):
     await send_system_message(
         chat_id=message.chat.id,
         text=(
-            "<b>Очистить историю чата?</b>\n\n"
-            "Бот забудет весь контекст переписки.\nЭто действие нельзя отменить."
+            "<b>Начать чат заново?</b>\n\n"
+            "Бот забудет всё, о чём вы говорили.\nЭто нельзя отменить."
         ),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [make_inline_button(text="Да, очистить", callback_data="confirm_clear", button_key="confirm_clear", style="danger")],
@@ -2970,7 +2970,7 @@ async def cmd_clear(message: Message):
 async def callback_confirm_clear(callback: CallbackQuery):
     """Подтверждение очистки истории"""
     clear_chat_history(callback.from_user.id)
-    await safe_edit_or_send(callback, "История чата очищена. Начинаем с чистого листа!")
+    await safe_edit_or_send(callback, "Готово! Чат очищен — можно начинать заново.")
     await callback.answer()
 
 
@@ -3025,7 +3025,7 @@ async def callback_models(callback: CallbackQuery):
 
     if user_id not in ADMIN_IDS and get_required_channels():
         if not await check_channel_subscription(user_id):
-            await callback.answer("Сначала подпишись на каналы!", show_alert=True)
+            await callback.answer("Сначала подпишись на канал!", show_alert=True)
             return
 
     try:
@@ -3037,11 +3037,11 @@ async def callback_models(callback: CallbackQuery):
         model_mode = "картинки" if current_model in IMAGE_MODELS else "текст"
 
         text = (
-            "🤖 <b>Модели AI</b>\n\n"
-            f"Сейчас выбрана: <b>{current_model}</b> ({model_mode})\n\n"
-            "✏️ — отвечает текстом на любые вопросы\n"
-            "🎨 — рисует картинки по описанию\n\n"
-            "Выбери модель ниже:"
+            "🤖 <b>Выбор модели</b>\n\n"
+            f"Сейчас: <b>{current_model}</b> ({model_mode})\n\n"
+            "✏️ <b>Текстовые</b> — отвечают на вопросы, пишут тексты\n"
+            "🎨 <b>Для картинок</b> — рисуют по твоему описанию\n\n"
+            "Нажми на нужную модель:"
         )
 
         keyboard = get_models_keyboard(page, user_id)
@@ -3062,7 +3062,7 @@ async def callback_models(callback: CallbackQuery):
         try:
             await bot.send_message(
                 chat_id=chat_id,
-                text="Не удалось загрузить список моделей. Попробуй ещё раз.",
+                text="Не получилось загрузить модели. Попробуй ещё раз.",
                 parse_mode="HTML"
             )
         except Exception:
@@ -3078,7 +3078,7 @@ async def callback_set_model(callback: CallbackQuery):
     user_id = callback.from_user.id
 
     if not has_active_subscription(user_id):
-        await callback.answer("Для смены модели нужна подписка PRO", show_alert=True)
+        await callback.answer("Смена модели доступна с подпиской PRO", show_alert=True)
         return
 
     user_data = load_user_data(user_id)
@@ -3128,17 +3128,17 @@ async def callback_subscription(callback: CallbackQuery):
         text = f"{text_emoji('star')} <b>Подписка</b>\n\n"
         text += "Вы администратор бота и имеете неограниченный доступ."
     elif has_sub:
-        text = f"{text_emoji('star')} <b>Подписка PRO активна</b>\n\n"
+        text = f"{text_emoji('star')} <b>PRO подключён</b>\n\n"
         text += f"<b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
         time_left = sub_end - datetime.now()
         days = time_left.days
         hours = time_left.seconds // 3600
         text += f"<b>Осталось:</b> {days}д {hours}ч\n\n"
         text += (
-            "<b>Доступно:</b>\n"
-            f"  Безлимитные запросы к ИИ\n"
-            f"  Генерация картинок: {IMAGE_DAILY_LIMIT_PRO}/день\n"
-            f"  Все модели + настройка стиля\n"
+            "<b>Тебе доступно:</b>\n"
+            f"  Вопросы без ограничений\n"
+            f"  До {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
+            f"  Все модели и стили ответа\n"
         )
     else:
         price_stars = get_subscription_price()
@@ -3153,7 +3153,7 @@ async def callback_subscription(callback: CallbackQuery):
         text += f"<blockquote>{get_message('subscription_benefits')}</blockquote>\n\n"
         text += get_message("subscription_price_anchor", price_stars=price_stars, price_usd=price_usd)
         if text_rem > 0 or img_rem > 0:
-            text += f"\n\n<i>Осталось бесплатно: {text_rem} текстовых, {img_rem} картинок</i>"
+            text += f"\n\n<i>Осталось бесплатно: {text_rem} вопросов, {img_rem} картинок</i>"
 
     try:
         await callback.message.delete()
@@ -3194,12 +3194,12 @@ async def callback_generate_image_prompt(callback: CallbackQuery):
     example = random.choice(examples)
 
     text = (
-        f"{text_emoji('image')} <b>Генерация картинок</b>\n\n"
-        "Просто напиши, что хочешь увидеть — и я нарисую!\n\n"
-        "<b>Примеры запросов:</b>\n"
+        f"{text_emoji('image')} <b>Рисую картинки по описанию</b>\n\n"
+        "Напиши словами, что хочешь увидеть — и я нарисую.\n\n"
+        "<b>Например:</b>\n"
         f"<blockquote>{example}</blockquote>\n\n"
-        "Поддерживаются: мемы, арты, логотипы, иллюстрации, аватарки и многое другое.\n\n"
-        "<i>Напиши запрос прямо в чат:</i>"
+        "Можно рисовать: мемы, аватарки, логотипы, арты — что угодно.\n\n"
+        "<i>Просто напиши в чат, что нарисовать:</i>"
     )
 
     buttons = [
@@ -3208,9 +3208,9 @@ async def callback_generate_image_prompt(callback: CallbackQuery):
     if not has_active_subscription(user_id):
         text_rem, img_rem = get_free_trial_remaining(user_id)
         if text_rem > 0 or img_rem > 0:
-            text += f"\n\nБесплатно: <b>{text_rem} текстовых, {img_rem} картинок</b>"
+            text += f"\n\nБесплатно: <b>{text_rem} вопросов, {img_rem} картинок</b>"
         else:
-            buttons.insert(0, [make_inline_button("Оформить PRO", callback_data="subscription", button_key="subscription", style="success")])
+            buttons.insert(0, [make_inline_button("Подключить PRO", callback_data="subscription", button_key="subscription", style="success")])
 
     await safe_edit_or_send(
         callback,
@@ -3269,7 +3269,7 @@ async def callback_buy_crypto(callback: CallbackQuery):
     else:
         await safe_edit_or_send(
             callback,
-            "Не удалось создать ссылку для оплаты. Попробуй позже или выбери оплату звёздами.",
+            "Не получилось создать ссылку для оплаты. Попробуй позже или оплати звёздами.",
             reply_markup=get_main_keyboard(user_id)
         )
 
@@ -3323,7 +3323,7 @@ async def callback_extend_crypto(callback: CallbackQuery):
     else:
         await safe_edit_or_send(
             callback,
-            "Не удалось создать ссылку для оплаты. Попробуй позже или выбери оплату звёздами.",
+            "Не получилось создать ссылку для оплаты. Попробуй позже или оплати звёздами.",
             reply_markup=get_main_keyboard(user_id)
         )
 
@@ -3355,12 +3355,12 @@ async def process_successful_payment(message: Message):
     await send_system_message(
         chat_id=message.chat.id,
         text=(
-            "<b>Оплата прошла успешно!</b>\n\n"
-            f"Подписка активна до: <b>{sub_end.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+            "<b>Готово! PRO подключён.</b>\n\n"
+            f"Действует до: <b>{sub_end.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
             "<b>Теперь тебе доступно:</b>\n"
-            "  Безлимитные запросы к ИИ\n"
-            f"  Генерация до {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
-            "  Все модели AI (GPT-5, Claude, Gemini...)\n"
+            "  Вопросы без ограничений\n"
+            f"  До {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
+            "  Лучшие модели (GPT-5, Claude, Gemini...)\n"
             "  Настройка стиля ответа\n\n"
             "Попробуй прямо сейчас — напиши что угодно!"
         ),
@@ -4260,24 +4260,24 @@ async def callback_info(callback: CallbackQuery):
     text = (
         f"{text_emoji('info')} <b>Настройки</b>\n\n"
         f"<b>Модель:</b> <code>{current_model}</code> ({model_mode})\n"
-        f"<b>Стиль:</b> {style_label}\n\n"
+        f"<b>Стиль ответа:</b> {style_label}\n\n"
         "<b>Что умеет бот:</b>\n"
-        "  Ответы на любые вопросы\n"
-        "  Генерация картинок по описанию\n"
-        "  Анализ фото и скриншотов\n"
-        "  Распознавание голосовых\n"
-        "  Настройка стиля общения\n\n"
+        "  Отвечает на любые вопросы\n"
+        "  Рисует картинки по описанию\n"
+        "  Понимает фото и скриншоты\n"
+        "  Понимает голосовые сообщения\n"
+        "  Можно выбрать стиль ответа\n\n"
         "<b>Команды:</b>\n"
-        "/start — главное меню\n"
-        "/clear — очистить историю чата"
+        "/start — на главную\n"
+        "/clear — начать чат заново"
     )
 
     admin_username = ADMIN_USERNAME.lstrip('@')
 
     buttons = [
-        [make_inline_button(text="Модели AI", callback_data="models_0", button_key="models", style="primary")],
+        [make_inline_button(text="Выбрать модель", callback_data="models_0", button_key="models", style="primary")],
         [make_inline_button(text="Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")],
-        [make_inline_button(text="Очистить историю", callback_data="confirm_clear", button_key="confirm_clear")],
+        [make_inline_button(text="Начать чат заново", callback_data="confirm_clear", button_key="confirm_clear")],
         [make_inline_button(text="Связаться с нами", url=f"https://t.me/{admin_username}", button_key="contact_admin")],
         [make_inline_button(text="Главная", callback_data="main_menu", button_key="home", style="primary")]
     ]
@@ -4628,7 +4628,7 @@ async def callback_thinking_menu(callback: CallbackQuery):
 
     if user_id not in ADMIN_IDS and get_required_channels():
         if not await check_channel_subscription(user_id):
-            await callback.answer("Сначала подпишись на каналы!", show_alert=True)
+            await callback.answer("Сначала подпишись на канал!", show_alert=True)
             return
 
     current_pref = get_thinking_preference(user_id)
@@ -4636,12 +4636,12 @@ async def callback_thinking_menu(callback: CallbackQuery):
     preset_human = STYLE_PRESET_LABELS.get(current_preset, "Нейтральный")
     preset_desc = STYLE_PRESET_DESCRIPTIONS.get(current_preset, "")
     preset_block = (
-        f"<b>Стиль ответа</b>\n"
-        "Выберите, как ИИ будет отвечать:\n"
-        "• <b>Серьезный</b> — коротко и по делу\n"
-        "• <b>Нейтральный</b> — спокойно и универсально\n"
-        "• <b>Веселый</b> — легко, с уместным юмором\n"
-        "• <b>Друг</b> — просто и по-человечески\n\n"
+        f"<b>Как бот будет отвечать</b>\n"
+        "Выбери стиль — и бот подстроится:\n"
+        "• <b>Серьёзный</b> — коротко и по делу\n"
+        "• <b>Нейтральный</b> — спокойно и понятно\n"
+        "• <b>Весёлый</b> — легко, с юмором\n"
+        "• <b>Друг</b> — как будто пишет друг\n\n"
         f"<b>Сейчас: {preset_human}</b>\n"
         f"<i>{preset_desc}</i>\n"
     )
@@ -4668,20 +4668,20 @@ async def callback_thinking_menu(callback: CallbackQuery):
             total_params = count_params(pref_json)
 
             text = (
-                f"{text_emoji('style')} <b>Мышление</b>\n\n"
+                f"{text_emoji('style')} <b>Стиль ответа</b>\n\n"
                 f"{preset_block}\n"
-                "<b>JSON конфиг загружен</b>\n"
+                "<b>Дополнительные настройки загружены</b>\n"
                 f"Секций: {len(top_keys)}\n"
                 f"Параметров: {total_params}\n"
-                f"📝 Ключи: <code>{keys_display}</code>"
+                f"Ключи: <code>{keys_display}</code>"
             )
         except:
             # Обычный текст
             pref_display = f"<blockquote>{current_pref[:200]}{'...' if len(current_pref) > 200 else ''}</blockquote>"
             text = (
-                f"{text_emoji('style')} <b>Мышление</b>\n\n"
+                f"{text_emoji('style')} <b>Стиль ответа</b>\n\n"
                 f"{preset_block}\n"
-                "<b>Текущие предпочтения:</b>\n"
+                "<b>Твои настройки:</b>\n"
                 f"{pref_display}"
             )
 
@@ -4700,11 +4700,11 @@ async def callback_thinking_menu(callback: CallbackQuery):
         ]
     else:
         text = (
-            f"{text_emoji('style')} <b>Мышление</b>\n\n"
+            f"{text_emoji('style')} <b>Стиль ответа</b>\n\n"
             f"{preset_block}\n"
-            "<blockquote>Хотите тоньше настроить стиль?\n"
-            "Нажмите «Настроить» и отправьте:\n"
-            "• обычный текст (например: «пиши кратко и просто»)</blockquote>"
+            "<blockquote>Хочешь настроить точнее?\n"
+            "Нажми «Настроить» и напиши, как бот должен отвечать.\n"
+            "Например: «пиши коротко и просто»</blockquote>"
         )
         buttons = [
             [
@@ -4722,13 +4722,13 @@ async def callback_thinking_menu(callback: CallbackQuery):
     # Проверяем подписку
     if not has_active_subscription(user_id):
         buttons = [
-            [make_inline_button("Оформить подписку", callback_data="subscription", button_key="subscription", style="success")],
+            [make_inline_button("Подключить PRO", callback_data="subscription", button_key="subscription", style="success")],
             [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
         ]
         text = (
             f"{text_emoji('style')} <b>Стиль ответа</b>\n\n"
             f"{preset_block}\n"
-            "Настройка стиля доступна с подпиской PRO."
+            "Чтобы менять стиль — подключи PRO."
         )
 
     try:
@@ -5348,7 +5348,7 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
         clean_prompt = build_image_prompt(prompt)
         clean_prompt = sanitize_user_input(clean_prompt, max_length=800)
         if not clean_prompt:
-            return False, "Не удалось распознать описание для картинки. Попробуй описать подробнее."
+            return False, "Не получилось понять, что нарисовать. Попробуй описать подробнее."
         try:
             encoded_prompt = quote(clean_prompt, safe="")
             urls = [
@@ -5396,22 +5396,22 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
 
             if last_status:
                 if last_status in retry_statuses or last_status == 0:
-                    return False, "Сервер генерации сейчас перегружен. Попробуй через 10–30 секунд 🔄"
-                return False, "Не удалось сгенерировать картинку. Попробуй ещё раз или смени модель."
-            return False, "Сервер не вернул изображение. Попробуй ещё раз."
+                    return False, "Сейчас много запросов — попробуй через 10–30 секунд."
+                return False, "Не получилось нарисовать. Попробуй ещё раз или выбери другую модель."
+            return False, "Картинка не пришла. Попробуй ещё раз."
         except asyncio.TimeoutError:
-            return False, "Генерация заняла слишком много времени. Попробуй ещё раз или упрости описание."
+            return False, "Слишком долго рисовал. Попробуй ещё раз или опиши проще."
         except Exception as e:
             logging.error(f"Ошибка бесплатной генерации: {e}")
-            return False, "Произошла ошибка при генерации. Попробуй ещё раз."
+            return False, "Что-то пошло не так. Попробуй ещё раз."
 
     if not API_BEARER_TOKEN:
-        return False, "Генерация изображений временно недоступна. Попробуй позже."
+        return False, "Рисование картинок сейчас недоступно. Попробуй позже."
 
     prompt_clean = build_image_prompt(prompt)
     prompt_clean = sanitize_user_input(prompt_clean, max_length=1500)
     if not prompt_clean:
-        return False, "Не удалось распознать описание для картинки. Попробуй описать подробнее."
+        return False, "Не получилось понять, что нарисовать. Попробуй описать подробнее."
 
     headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
 
@@ -5438,7 +5438,7 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
                                 increment_stat("total_messages")
                                 return True, image_bytes
                             except Exception:
-                                return False, "Не удалось обработать изображение. Попробуй ещё раз."
+                                return False, "Не получилось обработать картинку. Попробуй ещё раз."
                         last_status = 200
                         continue
 
@@ -5457,13 +5457,13 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
         if last_status in {429, 500, 502, 503, 504, 520, 522, 524, 530}:
             return await generate_image(user_id, prompt_clean, "pollinations-flux-free")
         if last_status:
-            return False, "Не удалось сгенерировать картинку. Попробуй ещё раз или смени модель."
-        return False, "Сервер не вернул изображение. Попробуй ещё раз."
+            return False, "Не получилось нарисовать. Попробуй ещё раз или выбери другую модель."
+        return False, "Картинка не пришла. Попробуй ещё раз."
     except asyncio.TimeoutError:
-        return False, "Генерация заняла слишком много времени. Попробуй ещё раз или упрости описание."
+        return False, "Слишком долго рисовал. Попробуй ещё раз или опиши проще."
     except Exception as e:
         logging.error(f"Ошибка генерации: {e} | last_status={last_status} body={last_body}")
-        return False, "Произошла ошибка при генерации. Попробуй ещё раз."
+        return False, "Что-то пошло не так. Попробуй ещё раз."
 
 
 async def transcribe_voice(voice_file_path: str) -> str:
@@ -5639,7 +5639,7 @@ async def handle_photo(message: Message, state: FSMContext):
         if is_photo_edit_request(user_text):
             image_model = pick_image_model_for_prompt(user_id, user_text)
             if not image_model:
-                await message.answer("Генерация изображений временно недоступна. Попробуй позже.")
+                await message.answer("Рисование картинок сейчас недоступно. Попробуй позже.")
                 return
 
             ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
@@ -5690,7 +5690,7 @@ async def handle_photo(message: Message, state: FSMContext):
             await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
     except Exception as e:
         logging.error(f"Ошибка фото: {e}")
-        await message.answer("Не удалось обработать фото. Попробуй отправить другое или уменьши размер.")
+        await message.answer("Не получилось разобрать фото. Попробуй отправить другое.")
 
 
 @dp.message(F.voice)
@@ -5736,13 +5736,13 @@ async def handle_voice(message: Message, state: FSMContext):
         transcribed_text = await transcribe_voice(voice_path)
 
         if not transcribed_text:
-            await message.answer("Не удалось распознать голосовое сообщение. Попробуй записать ещё раз — чётче и без фонового шума.")
+            await message.answer("Не получилось разобрать голосовое. Попробуй записать ещё раз — говори чётче.")
             return
 
         if is_image_generation_request(transcribed_text):
             image_model = pick_image_model_for_prompt(user_id, transcribed_text)
             if not image_model:
-                await message.answer("Генерация изображений временно недоступна. Попробуй позже.")
+                await message.answer("Рисование картинок сейчас недоступно. Попробуй позже.")
                 return
             ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
             if not ok_limit:
@@ -5779,7 +5779,7 @@ async def handle_voice(message: Message, state: FSMContext):
 
     except Exception as e:
         logging.error(f"Ошибка голоса: {e}")
-        await message.answer("Не удалось обработать голосовое сообщение. Попробуй ещё раз.")
+        await message.answer("Не получилось обработать голосовое. Попробуй ещё раз.")
 
 
 @dp.message(F.text)
@@ -5820,7 +5820,7 @@ async def handle_message(message: Message, state: FSMContext):
     if is_image_generation_request(message.text):
         image_model = pick_image_model_for_prompt(user_id, message.text)
         if not image_model:
-            await message.answer("Генерация изображений временно недоступна. Попробуй позже.")
+            await message.answer("Рисование картинок сейчас недоступно. Попробуй позже.")
             return
 
         ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
@@ -5864,7 +5864,7 @@ async def handle_message(message: Message, state: FSMContext):
                     consume_free_trial(user_id, is_image=True)
                     await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
             except Exception as e:
-                await message.answer("Не удалось отправить изображение. Попробуй ещё раз.")
+                await message.answer("Не получилось отправить картинку. Попробуй ещё раз.")
         else:
             await message.answer(result)
         return
