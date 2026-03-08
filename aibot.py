@@ -620,7 +620,7 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
     если пользователь не просил животных, но на картинке есть животное, делаем автоповтор.
     """
     animal_allowed = prompt_requests_animals(prompt)
-    last_error = "✖️ Не удалось сгенерировать изображение."
+    last_error = "Не удалось сгенерировать изображение. Попробуй переформулировать запрос."
 
     # План моделей: сначала текущая, затем альтернативы.
     t = (prompt or "").lower()
@@ -664,7 +664,7 @@ async def generate_image_with_guard(user_id: int, prompt: str, model: str, max_a
 
             # contains_animal == True -> усиливаем негатив и пробуем еще.
             current_prompt = _image_retry_prompt_no_animals(prompt, attempt)
-            last_error = "✖️ Модель упорно добавляет лишние объекты. Попробуйте уточнить запрос."
+            last_error = "Результат не совпал с запросом. Попробуй уточнить — например, добавь детали или стиль."
 
         # Переход на следующую модель после серии неудач.
         if model_idx < len(model_plan) - 1:
@@ -931,8 +931,17 @@ _original_bot_send_video = Bot.send_video
 _original_bot_send_animation = Bot.send_animation
 
 
+_tg_emoji_re_strip = re.compile(r'<tg-emoji[^>]*>.*?</tg-emoji>\s*')
+
+
+def _strip_tg_emoji(text: str) -> str:
+    """Убрать все <tg-emoji> теги из текста (fallback если бот не может отправить custom emoji)."""
+    return _tg_emoji_re_strip.sub('', text) if text else text
+
+
 async def _bot_send_message_with_custom_emoji(self, *args, **kwargs):
     parse_mode = kwargs.get("parse_mode")
+    original_text = kwargs.get("text") if "text" in kwargs else (args[1] if len(args) >= 2 else None)
     if _is_html_parse_mode(parse_mode):
         if "text" in kwargs and isinstance(kwargs["text"], str):
             kwargs["text"] = normalize_html_outgoing_text(kwargs["text"])
@@ -940,35 +949,72 @@ async def _bot_send_message_with_custom_emoji(self, *args, **kwargs):
             args = list(args)
             args[1] = normalize_html_outgoing_text(args[1])
             args = tuple(args)
-    return await _original_bot_send_message(self, *args, **kwargs)
+    try:
+        return await _original_bot_send_message(self, *args, **kwargs)
+    except Exception:
+        # Fallback: убираем custom emoji и пробуем снова
+        if _is_html_parse_mode(parse_mode):
+            if "text" in kwargs and isinstance(kwargs["text"], str):
+                kwargs["text"] = _strip_tg_emoji(kwargs["text"])
+            elif len(args) >= 2 and isinstance(args[1], str):
+                args = list(args)
+                args[1] = _strip_tg_emoji(args[1])
+                args = tuple(args)
+            return await _original_bot_send_message(self, *args, **kwargs)
+        raise
 
 
 async def _message_answer_with_custom_emoji(self, text, *args, **kwargs):
     parse_mode = kwargs.get("parse_mode")
+    original_text = text
     if _is_html_parse_mode(parse_mode) and isinstance(text, str):
         text = normalize_html_outgoing_text(text)
-    return await _original_message_answer(self, text, *args, **kwargs)
+    try:
+        return await _original_message_answer(self, text, *args, **kwargs)
+    except Exception:
+        if _is_html_parse_mode(parse_mode) and isinstance(text, str):
+            text = _strip_tg_emoji(text)
+            return await _original_message_answer(self, text, *args, **kwargs)
+        raise
 
 
 async def _bot_send_photo_with_custom_emoji(self, *args, **kwargs):
     parse_mode = kwargs.get("parse_mode")
     if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
         kwargs["caption"] = normalize_html_outgoing_text(kwargs["caption"])
-    return await _original_bot_send_photo(self, *args, **kwargs)
+    try:
+        return await _original_bot_send_photo(self, *args, **kwargs)
+    except Exception:
+        if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
+            kwargs["caption"] = _strip_tg_emoji(kwargs["caption"])
+            return await _original_bot_send_photo(self, *args, **kwargs)
+        raise
 
 
 async def _bot_send_video_with_custom_emoji(self, *args, **kwargs):
     parse_mode = kwargs.get("parse_mode")
     if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
         kwargs["caption"] = normalize_html_outgoing_text(kwargs["caption"])
-    return await _original_bot_send_video(self, *args, **kwargs)
+    try:
+        return await _original_bot_send_video(self, *args, **kwargs)
+    except Exception:
+        if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
+            kwargs["caption"] = _strip_tg_emoji(kwargs["caption"])
+            return await _original_bot_send_video(self, *args, **kwargs)
+        raise
 
 
 async def _bot_send_animation_with_custom_emoji(self, *args, **kwargs):
     parse_mode = kwargs.get("parse_mode")
     if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
         kwargs["caption"] = normalize_html_outgoing_text(kwargs["caption"])
-    return await _original_bot_send_animation(self, *args, **kwargs)
+    try:
+        return await _original_bot_send_animation(self, *args, **kwargs)
+    except Exception:
+        if _is_html_parse_mode(parse_mode) and isinstance(kwargs.get("caption"), str):
+            kwargs["caption"] = _strip_tg_emoji(kwargs["caption"])
+            return await _original_bot_send_animation(self, *args, **kwargs)
+        raise
 
 
 Bot.send_message = _bot_send_message_with_custom_emoji
@@ -1492,9 +1538,9 @@ def try_consume_image_generation_limit(user_id: int) -> tuple:
         monthly_count = 0
 
     if daily_count >= IMAGE_DAILY_LIMIT_PRO:
-        return False, f"✖️ Достигнут дневной лимит генераций ({IMAGE_DAILY_LIMIT_PRO}). Попробуйте завтра."
+        return False, f"Дневной лимит генераций ({IMAGE_DAILY_LIMIT_PRO}) исчерпан. Приходи завтра!"
     if monthly_count >= IMAGE_MONTHLY_LIMIT_PRO:
-        return False, f"✖️ Достигнут месячный лимит генераций ({IMAGE_MONTHLY_LIMIT_PRO})."
+        return False, f"Месячный лимит генераций ({IMAGE_MONTHLY_LIMIT_PRO}) исчерпан. Лимит обновится в начале месяца."
 
     user_data["image_daily_date"] = daily_date
     user_data["image_daily_count"] = daily_count + 1
@@ -2010,28 +2056,27 @@ def get_subscription_keyboard(user_id: int):
     buttons = []
 
     if has_sub:
-        # Если подписка активна - показываем кнопки продления
         buttons.append([make_inline_button(
-            f"Продлить звездами ({price_stars})",
+            f"Продлить за {price_stars} Stars",
             callback_data="extend_stars",
             button_key="extend_stars",
             style="success"
         )])
         buttons.append([make_inline_button(
-            f"Продлить через CryptoBot ({price_usd} USD)",
+            f"Продлить за {price_usd} USD (CryptoBot)",
             callback_data="extend_crypto",
             button_key="extend_crypto",
             style="primary"
         )])
     else:
         buttons.append([make_inline_button(
-            f"Купить звездами ({price_stars})",
+            f"Оформить за {price_stars} Stars",
             callback_data="buy_stars",
             button_key="buy_stars",
             style="success"
         )])
         buttons.append([make_inline_button(
-            f"Купить через CryptoBot ({price_usd} USD)",
+            f"Оформить за {price_usd} USD (CryptoBot)",
             callback_data="buy_crypto",
             button_key="buy_crypto",
             style="primary"
@@ -2218,7 +2263,7 @@ async def handle_business_text_message(message: Message):
         if is_photo_edit_request(message.text or ""):
             await bot.send_message(
                 message.chat.id,
-                "✖️ Для редактирования пришлите фото с подписью, что нужно изменить.",
+                "Для редактирования отправь фото с подписью — что именно нужно изменить.",
                 business_connection_id=business_connection_id
             )
             return
@@ -2229,7 +2274,7 @@ async def handle_business_text_message(message: Message):
             if not image_model:
                 await bot.send_message(
                     message.chat.id,
-                    "✖️ Сейчас нет доступной модели для генерации изображений.",
+                    "Генерация изображений временно недоступна. Попробуй позже.",
                     business_connection_id=business_connection_id
                 )
                 return
@@ -2353,7 +2398,7 @@ async def handle_business_photo(message: Message):
             if not image_model:
                 await bot.send_message(
                     message.chat.id,
-                    "✖️ Сейчас нет доступной модели для генерации изображений.",
+                    "Генерация изображений временно недоступна. Попробуй позже.",
                     business_connection_id=business_connection_id
                 )
                 return
@@ -2385,7 +2430,7 @@ async def handle_business_photo(message: Message):
                 context_prompt,
                 photo_base64
             )
-            if isinstance(source_context, str) and source_context.startswith("✖️"):
+            if isinstance(source_context, str) and ("временно недоступен" in source_context or "Попробуй позже" in source_context):
                 source_context = ""
 
             edit_prompt = build_photo_edit_prompt(user_text, source_context or "")
@@ -2479,7 +2524,7 @@ async def handle_business_voice(message: Message):
         if not transcribed_text:
             await bot.send_message(
                 message.chat.id,
-                "✖️ Не удалось распознать",
+                "Не удалось распознать голосовое. Попробуй ещё раз.",
                 business_connection_id=business_connection_id
             )
             return
@@ -2715,7 +2760,7 @@ async def callback_check_channels(callback: CallbackQuery):
         await send_start_message(callback.message.chat.id, user_id, rotate_example=False)
         await callback.answer()
     else:
-        await callback.answer("✖️ Вы не подписались на все каналы!", show_alert=True)
+        await callback.answer("Сначала подпишись на все каналы выше!", show_alert=True)
 
 
 @dp.message(Command("clear"))
@@ -2724,12 +2769,12 @@ async def cmd_clear(message: Message):
     await send_system_message(
         chat_id=message.chat.id,
         text=(
-            "🗑️ <b>Очистить историю чата?</b>\n\n"
-            "Все сообщения будут удалены безвозвратно."
+            "<b>Очистить историю чата?</b>\n\n"
+            "Бот забудет весь контекст переписки.\nЭто действие нельзя отменить."
         ),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [make_inline_button(text="✔️ Да, очистить", callback_data="confirm_clear", button_key="confirm_clear", style="danger")],
-            [make_inline_button(text="✖️ Отмена", callback_data="cancel_clear", button_key="cancel", style="primary")]
+            [make_inline_button(text="Да, очистить", callback_data="confirm_clear", button_key="confirm_clear", style="danger")],
+            [make_inline_button(text="Отмена", callback_data="cancel_clear", button_key="cancel", style="primary")]
         ]),
         parse_mode="HTML"
     )
@@ -2739,7 +2784,7 @@ async def cmd_clear(message: Message):
 async def callback_confirm_clear(callback: CallbackQuery):
     """Подтверждение очистки истории"""
     clear_chat_history(callback.from_user.id)
-    await safe_edit_or_send(callback, "✔️ История чата очищена!")
+    await safe_edit_or_send(callback, "История чата очищена. Начинаем с чистого листа!")
     await callback.answer()
 
 
@@ -2794,7 +2839,7 @@ async def callback_models(callback: CallbackQuery):
 
     if user_id not in ADMIN_IDS and get_required_channels():
         if not await check_channel_subscription(user_id):
-            await callback.answer("✖️ Подпишитесь на каналы!", show_alert=True)
+            await callback.answer("Сначала подпишись на каналы!", show_alert=True)
             return
 
     try:
@@ -2803,23 +2848,17 @@ async def callback_models(callback: CallbackQuery):
 
         user_data = load_user_data(user_id)
         current_model = user_data.get("model", DEFAULT_MODEL)
-        model_type = (
-            f"{text_emoji('image')} Генерация изображений"
-            if current_model in IMAGE_MODELS
-            else f"{text_emoji('chat')} Текстовый чат"
-        )
+        model_mode = "картинки" if current_model in IMAGE_MODELS else "текст"
 
         text = (
-            f"{text_emoji('models')} <b>Модели AI</b>\n\n"
-            f"<b>Текущая:</b> <code>{current_model}</code>\n"
-            f"<b>Режим:</b> {model_type}\n\n"
+            "🤖 <b>Модели AI</b>\n\n"
+            f"<b>Текущая:</b> <code>{current_model}</code> ({model_mode})\n\n"
             "Выбери модель для ответов.\n"
-            "Бот автоматически определяет: текст или картинка."
+            "Бот сам определяет: текст или картинка."
         )
 
         keyboard = get_models_keyboard(page, user_id)
 
-        # Удаляем предыдущее сообщение и отправляем новое напрямую (без GIF)
         try:
             await callback.message.delete()
         except Exception:
@@ -2836,7 +2875,7 @@ async def callback_models(callback: CallbackQuery):
         try:
             await bot.send_message(
                 chat_id=chat_id,
-                text="⚠️ Ошибка загрузки моделей. Попробуйте позже.",
+                text="Не удалось загрузить список моделей. Попробуй ещё раз.",
                 parse_mode="HTML"
             )
         except Exception:
@@ -2852,28 +2891,25 @@ async def callback_set_model(callback: CallbackQuery):
     user_id = callback.from_user.id
 
     if not has_active_subscription(user_id):
-        await callback.answer("✖️ Для смены модели требуется подписка!", show_alert=True)
+        await callback.answer("Для смены модели нужна подписка PRO", show_alert=True)
         return
 
     user_data = load_user_data(user_id)
     user_data["model"] = model
     save_user_data(user_id, user_data)
 
-    model_type = (
-        f"{text_emoji('image')} Генерация изображений"
-        if model in IMAGE_MODELS
-        else f"{text_emoji('chat')} Текстовый чат"
-    )
+    model_mode = "картинки" if model in IMAGE_MODELS else "текст"
 
-    await callback.answer(f"✔️ Модель изменена на {model}!")
+    await callback.answer(f"Модель: {model}")
 
     await safe_edit_or_send(
         callback,
-        f"{text_emoji('check')} <b>Модель изменена!</b>\n\n"
-        f"{text_emoji('robot')} <b>Новая модель:</b> <code>{model}</code>\n"
-        f"<b>Тип:</b> {model_type}",
+        f"<b>Модель изменена</b>\n\n"
+        f"<b>Новая модель:</b> <code>{model}</code>\n"
+        f"<b>Режим:</b> {model_mode}\n\n"
+        "Просто напиши запрос — и я отвечу.",
         InlineKeyboardMarkup(inline_keyboard=[
-            [make_inline_button("Модели", callback_data="models_0", button_key="models", style="primary")],
+            [make_inline_button("Назад к моделям", callback_data="models_0", button_key="models", style="primary")],
             [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
         ])
     )
@@ -3006,11 +3042,11 @@ async def callback_buy_stars(callback: CallbackQuery):
 
     await bot.send_invoice(
         chat_id=user_id,
-        title="Подписка на AI Chat Bot",
-        description="Подписка на 30 дней. Доступ ко всем моделям AI.",
+        title="Подписка PRO — 30 дней",
+        description="Безлимитные запросы, все модели AI, генерация картинок, настройка стиля.",
         payload=f"subscription_{user_id}",
         currency="XTR",
-        prices=[LabeledPrice(label="Подписка (30 дней)", amount=price)]
+        prices=[LabeledPrice(label="PRO подписка (30 дней)", amount=price)]
     )
     await callback.answer()
 
@@ -3022,21 +3058,20 @@ async def callback_buy_crypto(callback: CallbackQuery):
     increment_stat("subscription_clicked")
     price_usd = get_subscription_price_usd()
 
-    await safe_edit_or_send(callback, "💎 <b>Создание инвойса...</b>", parse_mode="HTML")
+    await safe_edit_or_send(callback, "<b>Создаю ссылку для оплаты...</b>", parse_mode="HTML")
 
     invoice_data = await create_crypto_invoice(user_id, price_usd)
 
     if invoice_data:
-        # Сохраняем инвойс для отслеживания
         add_pending_invoice(invoice_data["invoice_id"], user_id)
 
         await safe_edit_or_send(
             callback,
             (
-                "💎 <b>Оплата через CryptoBot</b>\n\n"
-                f"💰 Сумма: {price_usd} USD\n"
-                "⏰ Ссылка действительна 1 час\n\n"
-                "Нажмите кнопку ниже для оплаты:"
+                "<b>Оплата через CryptoBot</b>\n\n"
+                f"Сумма: <b>{price_usd} USD</b>\n"
+                "Ссылка действительна 1 час.\n\n"
+                "Нажми кнопку ниже — после оплаты подписка активируется автоматически."
             ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
@@ -3047,8 +3082,8 @@ async def callback_buy_crypto(callback: CallbackQuery):
     else:
         await safe_edit_or_send(
             callback,
-            "✖️ Ошибка создания инвойса. Попробуйте позже.",
-            reply_markup=get_main_keyboard()
+            "Не удалось создать ссылку для оплаты. Попробуй позже или выбери оплату звёздами.",
+            reply_markup=get_main_keyboard(user_id)
         )
 
     await callback.answer()
@@ -3062,11 +3097,11 @@ async def callback_extend_stars(callback: CallbackQuery):
 
     await bot.send_invoice(
         chat_id=user_id,
-        title="Продление подписки AI Chat Bot",
-        description="Продление подписки на 30 дней.",
+        title="Продление PRO — 30 дней",
+        description="Продление подписки: безлимитные запросы, все модели, генерация картинок.",
         payload=f"extend_{user_id}",
         currency="XTR",
-        prices=[LabeledPrice(label="Продление (30 дней)", amount=price)]
+        prices=[LabeledPrice(label="Продление PRO (30 дней)", amount=price)]
     )
     await callback.answer()
 
@@ -3077,21 +3112,20 @@ async def callback_extend_crypto(callback: CallbackQuery):
     user_id = callback.from_user.id
     price_usd = get_subscription_price_usd()
 
-    await safe_edit_or_send(callback, "💎 <b>Создание инвойса...</b>", parse_mode="HTML")
+    await safe_edit_or_send(callback, "<b>Создаю ссылку для оплаты...</b>", parse_mode="HTML")
 
     invoice_data = await create_crypto_invoice(user_id, price_usd)
 
     if invoice_data:
-        # Сохраняем инвойс для отслеживания
         add_pending_invoice(invoice_data["invoice_id"], user_id)
 
         await safe_edit_or_send(
             callback,
             (
-                "💎 <b>Продление через CryptoBot</b>\n\n"
-                f"💰 Сумма: {price_usd} USD\n"
-                "⏰ Ссылка действительна 1 час\n\n"
-                "Нажмите кнопку ниже для оплаты:"
+                "<b>Продление через CryptoBot</b>\n\n"
+                f"Сумма: <b>{price_usd} USD</b>\n"
+                "Ссылка действительна 1 час.\n\n"
+                "Нажми кнопку ниже — подписка продлится автоматически."
             ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [make_inline_button("Оплатить", url=invoice_data["bot_invoice_url"], button_key="pay_crypto", style="success")],
@@ -3102,8 +3136,8 @@ async def callback_extend_crypto(callback: CallbackQuery):
     else:
         await safe_edit_or_send(
             callback,
-            "✖️ Ошибка создания инвойса. Попробуйте позже.",
-            reply_markup=get_main_keyboard()
+            "Не удалось создать ссылку для оплаты. Попробуй позже или выбери оплату звёздами.",
+            reply_markup=get_main_keyboard(user_id)
         )
 
     await callback.answer()
@@ -4405,7 +4439,7 @@ async def callback_thinking_menu(callback: CallbackQuery):
 
     if user_id not in ADMIN_IDS and get_required_channels():
         if not await check_channel_subscription(user_id):
-            await callback.answer("✖️ Подпишитесь на каналы!", show_alert=True)
+            await callback.answer("Сначала подпишись на каналы!", show_alert=True)
             return
 
     current_pref = get_thinking_preference(user_id)
@@ -4503,9 +4537,9 @@ async def callback_thinking_menu(callback: CallbackQuery):
             [make_inline_button("Главная", callback_data="main_menu", button_key="home", style="primary")]
         ]
         text = (
-            f"{text_emoji('style')} <b>Мышление</b>\n\n"
+            f"{text_emoji('style')} <b>Стиль ответа</b>\n\n"
             f"{preset_block}\n"
-            "Для настройки мышления необходима подписка."
+            "Настройка стиля доступна с подпиской PRO."
         )
 
     try:
@@ -4536,7 +4570,7 @@ async def callback_style_preset(callback: CallbackQuery):
     preset = callback.data.replace("stylepreset_", "").strip()
 
     if not has_active_subscription(user_id):
-        await callback.answer("⭐ Для смены стиля ответа нужна подписка PRO", show_alert=True)
+        await callback.answer("Для смены стиля нужна подписка PRO", show_alert=True)
         return
 
     if preset not in STYLE_PRESET_PROMPTS:
@@ -4553,7 +4587,7 @@ async def callback_thinking_edit(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
 
     if not has_active_subscription(user_id):
-        await callback.answer("⭐ Необходима подписка!", show_alert=True)
+        await callback.answer("Для настройки мышления нужна подписка PRO", show_alert=True)
         return
 
     await safe_edit_or_send(
@@ -4945,7 +4979,7 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
                     logging.warning(f"onlysq vision API status={response.status}, fallback to DeepSeek")
 
         if not _get_deepseek_key():
-            return "✖️ Не настроен DEEPSEEK_API_KEY. Текстовые ответы работают только через DeepSeek."
+            return "Текстовый AI временно недоступен. Попробуй позже."
 
         # Чат через DeepSeek API (без фото или fallback)
         ds_messages = _messages_to_deepseek_format(messages)
@@ -4961,12 +4995,12 @@ async def get_ai_response(user_id: int, user_message: str, photo_base64: str = N
                     ai_reply = data['choices'][0]['message']['content']
                     return _save_and_return(ai_reply)
                 else:
-                    return "✖️ Ошибка API"
+                    return "Сервис временно недоступен. Попробуй через пару минут."
     except asyncio.TimeoutError:
-        return "✖️ Превышено время ожидания ответа"
+        return "Ответ слишком долго формируется. Попробуй отправить запрос ещё раз."
     except Exception as e:
         logging.error(f"Ошибка AI: {e}")
-        return "✖️ Ошибка соединения"
+        return "Ошибка соединения с сервисом. Попробуй через минуту."
 
 
 async def get_business_ai_response(bot_owner_id: int, business_connection_id: str, client_chat_id: int,
@@ -5087,7 +5121,7 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
             logging.warning(f"onlysq vision API error: {e}")
 
     if not _get_deepseek_key():
-        return "✖️ Не настроен DEEPSEEK_API_KEY. Текстовые ответы работают только через DeepSeek."
+        return "Текстовый AI временно недоступен. Попробуй позже."
 
     ds_messages = _messages_to_deepseek_format(messages)
     ds_model = _deepseek_model(user_model)
@@ -5112,12 +5146,12 @@ async def get_business_ai_response(bot_owner_id: int, business_connection_id: st
 
                     return ai_reply
                 else:
-                    return "✖️ Ошибка API"
+                    return "Сервис временно недоступен. Попробуй через пару минут."
     except asyncio.TimeoutError:
-        return "✖️ Превышено время ожидания ответа"
+        return "Ответ слишком долго формируется. Попробуй отправить запрос ещё раз."
     except Exception as e:
         logging.error(f"Ошибка AI: {e}")
-        return "✖️ Ошибка соединения"
+        return "Ошибка соединения с сервисом. Попробуй через минуту."
 
 async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
     """Сгенерировать изображение"""
@@ -5125,7 +5159,7 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
         clean_prompt = build_image_prompt(prompt)
         clean_prompt = sanitize_user_input(clean_prompt, max_length=800)
         if not clean_prompt:
-            return False, "✖️ Пустой промпт для генерации."
+            return False, "Не удалось распознать описание для картинки. Попробуй описать подробнее."
         try:
             encoded_prompt = quote(clean_prompt, safe="")
             urls = [
@@ -5173,22 +5207,22 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
 
             if last_status:
                 if last_status in retry_statuses or last_status == 0:
-                    return False, "✖️ Бесплатный API временно перегружен. Попробуйте через 10-30 секунд."
-                return False, f"✖️ Ошибка бесплатного API ({last_status})"
-            return False, "✖️ Бесплатный API не вернул изображение."
+                    return False, "Сервер генерации сейчас перегружен. Попробуй через 10–30 секунд 🔄"
+                return False, "Не удалось сгенерировать картинку. Попробуй ещё раз или смени модель."
+            return False, "Сервер не вернул изображение. Попробуй ещё раз."
         except asyncio.TimeoutError:
-            return False, "✖️ Бесплатный API: превышено время ожидания (90 сек)"
+            return False, "Генерация заняла слишком много времени. Попробуй ещё раз или упрости описание."
         except Exception as e:
             logging.error(f"Ошибка бесплатной генерации: {e}")
-            return False, "✖️ Ошибка бесплатной генерации изображения"
+            return False, "Произошла ошибка при генерации. Попробуй ещё раз."
 
     if not API_BEARER_TOKEN:
-        return False, "✖️ Не настроен API_BEARER_TOKEN для генерации изображений."
+        return False, "Генерация изображений временно недоступна. Попробуй позже."
 
     prompt_clean = build_image_prompt(prompt)
     prompt_clean = sanitize_user_input(prompt_clean, max_length=1500)
     if not prompt_clean:
-        return False, "✖️ Пустой промпт для генерации."
+        return False, "Не удалось распознать описание для картинки. Попробуй описать подробнее."
 
     headers = {"Authorization": f"Bearer {API_BEARER_TOKEN}", "Content-Type": "application/json"}
 
@@ -5215,7 +5249,7 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
                                 increment_stat("total_messages")
                                 return True, image_bytes
                             except Exception:
-                                return False, "✖️ Ошибка декодирования изображения"
+                                return False, "Не удалось обработать изображение. Попробуй ещё раз."
                         last_status = 200
                         continue
 
@@ -5228,19 +5262,19 @@ async def generate_image(user_id: int, prompt: str, model: str) -> tuple:
                     if response.status == 429 and idx < len(model_attempts) - 1:
                         continue
                     if response.status == 401:
-                        return False, "✖️ Ошибка API (401): проверьте API_BEARER_TOKEN в Railway Variables."
+                        return False, "Ошибка авторизации API. Обратись к администратору."
 
         # Если onlysq не справился (например, 429 на всех моделях) — пробуем бесплатный fallback.
         if last_status in {429, 500, 502, 503, 504, 520, 522, 524, 530}:
             return await generate_image(user_id, prompt_clean, "pollinations-flux-free")
         if last_status:
-            return False, f"✖️ Ошибка API ({last_status})"
-        return False, f"✖️ API не вернул изображение"
+            return False, "Не удалось сгенерировать картинку. Попробуй ещё раз или смени модель."
+        return False, "Сервер не вернул изображение. Попробуй ещё раз."
     except asyncio.TimeoutError:
-        return False, "✖️ Превышено время ожидания (90 сек)"
+        return False, "Генерация заняла слишком много времени. Попробуй ещё раз или упрости описание."
     except Exception as e:
         logging.error(f"Ошибка генерации: {e} | last_status={last_status} body={last_body}")
-        return False, f"✖️ Ошибка: {str(e)}"
+        return False, "Произошла ошибка при генерации. Попробуй ещё раз."
 
 
 async def transcribe_voice(voice_file_path: str) -> str:
@@ -5416,7 +5450,7 @@ async def handle_photo(message: Message, state: FSMContext):
         if is_photo_edit_request(user_text):
             image_model = pick_image_model_for_prompt(user_id, user_text)
             if not image_model:
-                await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
+                await message.answer("Генерация изображений временно недоступна. Попробуй позже.")
                 return
 
             ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
@@ -5432,7 +5466,7 @@ async def handle_photo(message: Message, state: FSMContext):
                 "Формат: 1 строка до 220 символов."
             )
             source_context = await get_ai_response(user_id, context_prompt, photo_base64)
-            if isinstance(source_context, str) and source_context.startswith("✖️"):
+            if isinstance(source_context, str) and ("временно недоступен" in source_context or "Попробуй позже" in source_context):
                 source_context = ""
 
             edit_prompt = build_photo_edit_prompt(user_text, source_context or "")
@@ -5467,7 +5501,7 @@ async def handle_photo(message: Message, state: FSMContext):
             await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
     except Exception as e:
         logging.error(f"Ошибка фото: {e}")
-        await message.answer("✖️ Ошибка при обработке фото")
+        await message.answer("Не удалось обработать фото. Попробуй отправить другое или уменьши размер.")
 
 
 @dp.message(F.voice)
@@ -5513,13 +5547,13 @@ async def handle_voice(message: Message, state: FSMContext):
         transcribed_text = await transcribe_voice(voice_path)
 
         if not transcribed_text:
-            await message.answer("✖️ Не удалось распознать голосовое сообщение. Попробуйте еще раз.")
+            await message.answer("Не удалось распознать голосовое сообщение. Попробуй записать ещё раз — чётче и без фонового шума.")
             return
 
         if is_image_generation_request(transcribed_text):
             image_model = pick_image_model_for_prompt(user_id, transcribed_text)
             if not image_model:
-                await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
+                await message.answer("Генерация изображений временно недоступна. Попробуй позже.")
                 return
             ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
             if not ok_limit:
@@ -5556,7 +5590,7 @@ async def handle_voice(message: Message, state: FSMContext):
 
     except Exception as e:
         logging.error(f"Ошибка голоса: {e}")
-        await message.answer("✖️ Ошибка при обработке голосового сообщения")
+        await message.answer("Не удалось обработать голосовое сообщение. Попробуй ещё раз.")
 
 
 @dp.message(F.text)
@@ -5591,13 +5625,13 @@ async def handle_message(message: Message, state: FSMContext):
         return
 
     if is_photo_edit_request(message.text):
-        await message.answer("✖️ Для редактирования пришлите фото с подписью, что нужно изменить.")
+        await message.answer("Для редактирования отправь фото с подписью — что именно нужно изменить.")
         return
 
     if is_image_generation_request(message.text):
         image_model = pick_image_model_for_prompt(user_id, message.text)
         if not image_model:
-            await message.answer("✖️ Сейчас нет доступной модели для генерации изображений.")
+            await message.answer("Генерация изображений временно недоступна. Попробуй позже.")
             return
 
         ok_limit, limit_msg = try_consume_image_generation_limit(user_id)
@@ -5641,7 +5675,7 @@ async def handle_message(message: Message, state: FSMContext):
                     consume_free_trial(user_id, is_image=True)
                     await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
             except Exception as e:
-                await message.answer(f"✖️ Ошибка отправки: {str(e)}")
+                await message.answer("Не удалось отправить изображение. Попробуй ещё раз.")
         else:
             await message.answer(result)
         return
@@ -5749,9 +5783,8 @@ async def check_subscription_reminders():
                             await send_system_message(
                                 chat_id=user_id,
                                 text=(
-                                    "⏰ <b>Напоминание!</b>\n\n"
-                                    "Ваша подписка истекает через 24 часа.\n"
-                                    "Не забудьте продлить её!"
+                                    "<b>Подписка истекает через 24 часа</b>\n\n"
+                                    "Продли сейчас — и не потеряй доступ к безлимитным запросам и генерации картинок."
                                 ),
                                 reply_markup=get_subscription_keyboard(user_id),
                                 parse_mode="HTML"
@@ -5767,9 +5800,8 @@ async def check_subscription_reminders():
                             await send_system_message(
                                 chat_id=user_id,
                                 text=(
-                                    "⚠️ <b>Внимание!</b>\n\n"
-                                    "Ваша подписка истекает через 2 часа!\n"
-                                    "Продлите подписку, чтобы не потерять доступ."
+                                    "<b>Подписка заканчивается через 2 часа!</b>\n\n"
+                                    "После истечения запросы будут ограничены.\nПродли PRO одним нажатием."
                                 ),
                                 reply_markup=get_subscription_keyboard(user_id),
                                 parse_mode="HTML"
