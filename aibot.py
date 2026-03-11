@@ -260,6 +260,7 @@ BUSINESS_CONNECTIONS_FILE = os.path.join(DATA_DIR, "business_connections.json")
 
 PAYMENTS_LOG_FILE = os.path.join(DATA_DIR, "payments.log")
 REQUESTS_LOG_FILE = os.path.join(DATA_DIR, "requests.log")
+FEEDBACK_LOG_FILE = os.path.join(DATA_DIR, "feedback.log")
 
 # Создаем директории
 os.makedirs(USERS_DIR, exist_ok=True)
@@ -401,6 +402,116 @@ def _append_request_log(user_id: int, request_type: str, user_input: str, ai_res
             _rotate_request_log()
     except Exception as e:
         logging.error(f"Ошибка записи request log: {e}")
+
+
+# In-memory dict для связи message_id → данные запроса (для фидбэка)
+_pending_feedback = {}
+
+
+def _append_feedback_log(user_id: int, message_id: int, feedback: str, query: str = "", response: str = ""):
+    """Дописать фидбэк в append-only лог."""
+    try:
+        line = json.dumps({
+            "ts": datetime.now().isoformat(),
+            "user_id": user_id,
+            "message_id": message_id,
+            "feedback": feedback,
+            "query": query[:500],
+            "response": response[:500],
+        }, ensure_ascii=False)
+        with open(FEEDBACK_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(line + "\n")
+            f.flush()
+    except Exception as e:
+        logging.error(f"Ошибка записи feedback log: {e}")
+
+
+def get_feedback_stats() -> dict:
+    """Получить статистику фидбэка."""
+    stats = {"total": 0, "positive": 0, "negative": 0}
+    try:
+        if not os.path.exists(FEEDBACK_LOG_FILE):
+            return stats
+        with open(FEEDBACK_LOG_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                    stats["total"] += 1
+                    if entry.get("feedback") == "up":
+                        stats["positive"] += 1
+                    elif entry.get("feedback") == "down":
+                        stats["negative"] += 1
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return stats
+
+
+def get_user_request_count(user_id: int, since_date: str = None) -> int:
+    """Подсчитать количество запросов пользователя из requests.log."""
+    count = 0
+    try:
+        if not os.path.exists(REQUESTS_LOG_FILE):
+            return 0
+        with open(REQUESTS_LOG_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                    if entry.get("user_id") == user_id:
+                        if since_date and entry.get("ts", "") < since_date:
+                            continue
+                        count += 1
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return count
+
+
+def extract_url(text: str) -> str:
+    """Извлечь первый URL из текста."""
+    if not text:
+        return ""
+    match = re.search(r'https?://[^\s<>"\']+', text)
+    return match.group(0) if match else ""
+
+
+async def fetch_and_summarize_url(url: str, user_id: int) -> str:
+    """Загрузить страницу по URL и вернуть AI-саммари."""
+    try:
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, allow_redirects=True) as resp:
+                if resp.status != 200:
+                    return f"Не удалось загрузить страницу (код {resp.status})."
+                content_type = resp.headers.get("Content-Type", "")
+                if "text/html" not in content_type:
+                    return "Эта ссылка ведёт не на веб-страницу. Я могу анализировать только HTML-страницы."
+                raw = await resp.read()
+                if len(raw) > 100_000:
+                    raw = raw[:100_000]
+                html_text = raw.decode('utf-8', errors='replace')
+        # Очистка HTML — извлекаем текст
+        clean = re.sub(r'<script[^>]*>[\s\S]*?</script>', '', html_text, flags=re.IGNORECASE)
+        clean = re.sub(r'<style[^>]*>[\s\S]*?</style>', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'<[^>]+>', ' ', clean)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        clean = clean[:3000]
+        if len(clean) < 50:
+            return "Не удалось извлечь текст со страницы."
+        summary_prompt = (
+            "Суммируй содержание этой веб-страницы по-русски. "
+            "Выдели 3-5 ключевых мыслей, кратко и по делу:\n\n"
+            f"{clean}"
+        )
+        ai_response = await get_ai_response(user_id, summary_prompt)
+        return f"📎 <b>Краткое содержание ссылки:</b>\n\n{ai_response}"
+    except asyncio.TimeoutError:
+        return "Страница загружается слишком долго (>15 сек). Попробуй другую ссылку."
+    except Exception as e:
+        logging.error(f"Ошибка fetch_and_summarize_url: {e}")
+        return "Не получилось загрузить страницу. Проверь ссылку и попробуй ещё раз."
 
 
 # ==================== ПРОВЕРКА ЗАВИСИМОСТЕЙ ДЛЯ ГОЛОСА ====================
@@ -1381,6 +1492,34 @@ DEFAULT_MESSAGES = {
         "Люди каждый день экономят часы с помощником:\n"
         "меню, письма, подарки, советы — всё за секунды.\n\n"
         "Напиши что-нибудь — у тебя <b>1 бесплатный запрос</b> сегодня."
+    ),
+    "pro_welcome": (
+        "🎉 <b>Добро пожаловать в PRO, {name}!</b>\n\n"
+        "Подписка активна до <b>{end_date}</b>\n\n"
+        "Теперь тебе доступно всё без ограничений:\n"
+        "✅ Любые вопросы — сколько угодно\n"
+        "✅ Картинки, фото, голосовые\n"
+        "✅ Лучшие модели AI\n\n"
+        "<b>Попробуй прямо сейчас:</b>"
+    ),
+    "expired_1h": (
+        "<b>Подписка PRO истекла</b>\n\n"
+        "Продли сейчас — и продолжай пользоваться без ограничений.\n\n"
+        "<i>Без PRO — только 1 запрос в день.</i>"
+    ),
+    "expired_24h": (
+        "<b>Без PRO уже сутки</b>\n\n"
+        "За время подписки ты сделал <b>{request_count} запросов</b>.\n"
+        "Без PRO — только 1 в день.\n\n"
+        "Верни себе безлимит — <b>{price} ⭐ за месяц</b>."
+    ),
+    "expired_3d": (
+        "Привет! Уже 3 дня без PRO.\n\n"
+        "Другие пользователи каждый день спрашивают:\n"
+        "• «Составь план на неделю»\n"
+        "• «Напиши текст для поста»\n"
+        "• «Нарисуй открытку»\n\n"
+        "Вернись — <b>{price} ⭐ за месяц</b>. Это 3₽ в день."
     ),
 }
 
@@ -3870,6 +4009,32 @@ async def callback_extend_crypto(callback: CallbackQuery):
     await callback.answer()
 
 
+async def send_pro_welcome(chat_id: int, user_id: int):
+    """Отправить wow-сообщение после оплаты PRO."""
+    try:
+        sub_end = get_subscription_end(user_id)
+        end_date = sub_end.strftime('%d.%m.%Y') if sub_end else "—"
+        user_data = load_user_data(user_id)
+        name = user_data.get("first_name") or "друг"
+
+        text = get_message("pro_welcome", name=name, end_date=end_date)
+
+        buttons = [
+            [InlineKeyboardButton(text="🍽 Составь меню на неделю", callback_data="pro_demo_menu")],
+            [InlineKeyboardButton(text="💌 Напиши поздравление", callback_data="pro_demo_letter")],
+            [InlineKeyboardButton(text="🎨 Нарисуй открытку", callback_data="pro_demo_image")],
+            [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")],
+        ]
+        await send_system_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logging.warning(f"Ошибка send_pro_welcome для {user_id}: {e}")
+
+
 @dp.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
     """Обработка предварительного запроса оплаты"""
@@ -3900,24 +4065,146 @@ async def process_successful_payment(message: Message):
     increment_stat("total_revenue", price)
     _append_payment_log(user_id, price, "XTR", "telegram_stars")
 
-    sub_end = get_subscription_end(user_id)
+    await send_pro_welcome(message.chat.id, user_id)
 
-    await send_system_message(
-        chat_id=message.chat.id,
-        text=(
-            f"🎉 <b>PRO подключён на {plan_label}!</b>\n\n"
-            f"Действует до <b>{sub_end.strftime('%d.%m.%Y')}</b>\n\n"
-            "Теперь тебе доступно всё:\n"
-            "✅ Вопросы без ограничений\n"
-            f"✅ До {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
-            "✅ GPT-5, Claude, Gemini и другие\n"
-            "✅ Фото, голос, любой стиль ответа\n\n"
-            "<b>Попробуй прямо сейчас:</b>\n"
-            "<i>«Составь план питания на неделю для семьи»</i>"
-        ),
-        reply_markup=get_main_keyboard(user_id),
-        parse_mode="HTML"
+
+# ==================== PRO DEMO CALLBACKS ====================
+PRO_DEMO_PROMPTS = {
+    "pro_demo_menu": "Составь разнообразное меню на неделю для семьи из 3 человек. Завтрак, обед, ужин. Простые продукты.",
+    "pro_demo_letter": "Напиши красивое и душевное поздравление с днём рождения для близкого человека. Тёплое, искреннее, не банальное.",
+    "pro_demo_image": "Нарисуй красивую поздравительную открытку с цветами и добрыми пожеланиями",
+}
+
+
+@dp.callback_query(F.data.in_(["pro_demo_menu", "pro_demo_letter", "pro_demo_image"]))
+async def callback_pro_demo(callback: CallbackQuery):
+    """Обработка демо-кнопок после оплаты PRO."""
+    user_id = callback.from_user.id
+    demo_key = callback.data
+    prompt = PRO_DEMO_PROMPTS.get(demo_key, "")
+    if not prompt:
+        await callback.answer()
+        return
+
+    await callback.answer("Готовлю ответ...")
+
+    if demo_key == "pro_demo_image":
+        image_model = pick_image_model_for_prompt(user_id, prompt)
+        if image_model:
+            await bot.send_chat_action(callback.message.chat.id, "upload_photo")
+            success, result = await generate_image_with_guard(user_id, prompt, image_model)
+            if success:
+                photo = (
+                    BufferedInputFile(result, filename="demo_image.jpg")
+                    if isinstance(result, (bytes, bytearray))
+                    else result
+                )
+                await bot.send_photo(
+                    chat_id=callback.message.chat.id,
+                    photo=photo,
+                    caption=f"🎨 <b>{image_model}</b>\nВот твоя открытка!",
+                    parse_mode="HTML"
+                )
+                return
+            else:
+                await bot.send_message(callback.message.chat.id, result)
+                return
+
+    await bot.send_chat_action(callback.message.chat.id, "typing")
+    ai_response = await get_ai_response(user_id, prompt)
+    _append_request_log(user_id, "text", prompt, ai_response, load_user_data(user_id).get("model", DEFAULT_MODEL))
+    await send_long_message(callback.message, ai_response, feedback_query=prompt)
+
+
+# ==================== FEEDBACK CALLBACKS ====================
+@dp.callback_query(F.data.startswith("fb_up_"))
+async def callback_feedback_up(callback: CallbackQuery):
+    """Обработка положительного фидбэка."""
+    msg_id = callback.data.replace("fb_up_", "")
+    user_id = callback.from_user.id
+
+    fb_data = _pending_feedback.pop(msg_id, {})
+    _append_feedback_log(user_id, int(msg_id) if msg_id.isdigit() else 0, "up", fb_data.get("query", ""), fb_data.get("response", ""))
+
+    # Формируем кнопку "Поделиться"
+    ref_link = get_referral_link(user_id)
+    response_preview = fb_data.get("response", "")[:200]
+    share_text = f"{response_preview}\n\nОтвет от AI-помощника 👉 {ref_link}"
+    share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={quote(response_preview[:100])}"
+
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📤 Поделиться ответом", url=share_url)]
+            ])
+        )
+    except Exception:
+        pass
+    await callback.answer("Спасибо! 🙏")
+
+
+@dp.callback_query(F.data.startswith("fb_down_"))
+async def callback_feedback_down(callback: CallbackQuery):
+    """Обработка негативного фидбэка."""
+    msg_id = callback.data.replace("fb_down_", "")
+    user_id = callback.from_user.id
+
+    fb_data = _pending_feedback.pop(msg_id, {})
+    _append_feedback_log(user_id, int(msg_id) if msg_id.isdigit() else 0, "down", fb_data.get("query", ""), fb_data.get("response", ""))
+
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer("Учту. Попробуй переформулировать запрос 💡")
+
+
+# ==================== MY STATS CALLBACK ====================
+@dp.callback_query(F.data == "my_stats")
+async def callback_my_stats(callback: CallbackQuery):
+    """Личная статистика пользователя."""
+    user_id = callback.from_user.id
+    user_data = load_user_data(user_id)
+
+    total_requests = user_data.get("total_requests", 0)
+    total_images = user_data.get("total_images", 0)
+    days_active = len(user_data.get("days_active_set", []))
+    categories = user_data.get("categories", {})
+
+    # Топ-3 категории
+    cat_names = {
+        "food": "🍽 Еда/рецепты", "writing": "✍️ Тексты",
+        "advice": "💡 Советы", "kids": "👶 Дети/школа",
+        "image": "🎨 Картинки", "work": "💼 Работа",
+        "health": "🏥 Здоровье", "other": "💬 Прочее",
+    }
+    sorted_cats = sorted(categories.items(), key=lambda x: -x[1])[:3]
+    cat_text = ""
+    if sorted_cats:
+        cat_text = "\n<b>Топ категории:</b>\n"
+        for cat, cnt in sorted_cats:
+            label = cat_names.get(cat, cat)
+            cat_text += f"  {label}: {cnt}\n"
+
+    # Примерное время экономии (1 запрос ≈ 3 минуты)
+    saved_minutes = total_requests * 3
+
+    text = (
+        "📊 <b>Твоя статистика</b>\n\n"
+        f"💬 Запросов: <b>{total_requests}</b>\n"
+        f"🎨 Картинок: <b>{total_images}</b>\n"
+        f"📅 Дней активности: <b>{days_active}</b>\n"
+        f"⏱ Сэкономлено: <b>~{saved_minutes} мин</b>"
+        f"{cat_text}"
     )
+
+    await safe_edit_or_send(
+        callback, text,
+        InlineKeyboardMarkup(inline_keyboard=[
+            [make_inline_button("Назад", callback_data="settings", button_key="nav_back")]
+        ])
+    )
+    await callback.answer()
 
 
 # ==================== ADMIN HANDLERS ====================
@@ -4002,6 +4289,20 @@ async def callback_admin_stats(callback: CallbackQuery):
                 for cat, cnt in sorted_cats[:8]:
                     label = cat_names.get(cat, cat)
                     text += f"  {label}: {cnt}\n"
+    except Exception:
+        pass
+
+    # Фидбэк-статистика
+    try:
+        fb_stats = get_feedback_stats()
+        if fb_stats["total"] > 0:
+            pct = (fb_stats["positive"] / fb_stats["total"] * 100) if fb_stats["total"] > 0 else 0
+            text += (
+                f"\n\n<b>👍 Фидбэк:</b>\n"
+                f"  Всего: {fb_stats['total']}\n"
+                f"  👍 {fb_stats['positive']} / 👎 {fb_stats['negative']}\n"
+                f"  Позитивных: {pct:.0f}%"
+            )
     except Exception:
         pass
 
@@ -4940,6 +5241,7 @@ async def callback_info(callback: CallbackQuery):
         [make_inline_button(text="Выбрать модель", callback_data="models_0", button_key="models", style="primary")],
         [make_inline_button(text="Стиль ответа", callback_data="thinking_menu", button_key="thinking", style="primary")],
         [make_inline_button(text="Начать чат заново", callback_data="confirm_clear", button_key="confirm_clear")],
+        [make_inline_button(text="📊 Моя статистика", callback_data="my_stats", button_key="info")],
     ]
     if not has_sub:
         buttons.append([make_inline_button(text="Подписка PRO", callback_data="subscription", button_key="subscription", style="success")])
@@ -6232,19 +6534,51 @@ def markdown_to_html(text: str) -> str:
     )
     return escaped
 
-async def send_long_message(message: Message, text: str):
-    """Отправить длинное сообщение"""
+async def send_long_message(message: Message, text: str, feedback_query: str = ""):
+    """Отправить длинное сообщение с опциональными кнопками фидбэка."""
+    raw_text = text  # сохраняем для фидбэка
     text = markdown_to_html(text)
 
     parts = split_message(text)
+    last_idx = len(parts) - 1
 
+    sent_msg = None
     for i, part in enumerate(parts):
         if i > 0:
             await asyncio.sleep(0.5)
+        is_last = (i == last_idx)
+        reply_markup = None
+        if is_last and feedback_query:
+            # Placeholder msg_id — обновим после отправки
+            reply_markup = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="👍", callback_data="fb_up_0"),
+                    InlineKeyboardButton(text="👎", callback_data="fb_down_0"),
+                ]
+            ])
         try:
-            await message.answer(part, parse_mode="HTML")
+            sent_msg = await message.answer(part, parse_mode="HTML", reply_markup=reply_markup)
         except:
-            await message.answer(part)
+            sent_msg = await message.answer(part, reply_markup=reply_markup)
+
+    # Обновляем callback_data с реальным message_id
+    if feedback_query and sent_msg:
+        msg_id = str(sent_msg.message_id)
+        _pending_feedback[msg_id] = {
+            "query": feedback_query,
+            "response": raw_text[:500],
+        }
+        try:
+            await sent_msg.edit_reply_markup(
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="👍", callback_data=f"fb_up_{msg_id}"),
+                        InlineKeyboardButton(text="👎", callback_data=f"fb_down_{msg_id}"),
+                    ]
+                ])
+            )
+        except Exception:
+            pass
 
 
 @dp.message(F.photo)
@@ -6334,7 +6668,7 @@ async def handle_photo(message: Message, state: FSMContext):
 
         ai_response = await get_ai_response(user_id, user_text, photo_base64)
         _append_request_log(user_id, "photo", user_text, ai_response)
-        await send_long_message(message, ai_response)
+        await send_long_message(message, ai_response, feedback_query=user_text)
         if not has_active_subscription(user_id):
             consume_free_trial(user_id)
             await maybe_send_soft_paywall(message.chat.id, user_id)
@@ -6424,7 +6758,7 @@ async def handle_voice(message: Message, state: FSMContext):
 
         ai_response = await get_ai_response(user_id, transcribed_text)
         _append_request_log(user_id, "voice", transcribed_text, ai_response)
-        await send_long_message(message, ai_response)
+        await send_long_message(message, ai_response, feedback_query=transcribed_text)
         if not has_active_subscription(user_id):
             consume_free_trial(user_id)
             await maybe_send_soft_paywall(message.chat.id, user_id)
@@ -6447,10 +6781,26 @@ async def handle_message(message: Message, state: FSMContext):
 
     user_id = message.from_user.id
 
-    # Трекинг активности
+    # Трекинг активности + статистика
     try:
         ud = load_user_data(user_id)
         ud["last_active"] = datetime.now().isoformat()
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        days_set = ud.get("days_active_set", [])
+        if today_str not in days_set:
+            days_set.append(today_str)
+            # Храним только последние 365 дней
+            if len(days_set) > 365:
+                days_set = days_set[-365:]
+            ud["days_active_set"] = days_set
+        ud["total_requests"] = ud.get("total_requests", 0) + 1
+        category = _categorize_request(message.text)
+        cats = ud.get("categories", {})
+        cats[category] = cats.get(category, 0) + 1
+        ud["categories"] = cats
+        # Сохраним имя для pro_welcome
+        if message.from_user.first_name:
+            ud["first_name"] = message.from_user.first_name
         save_user_data(user_id, ud)
     except Exception:
         pass
@@ -6472,6 +6822,35 @@ async def handle_message(message: Message, state: FSMContext):
             text=get_free_trial_paywall_text(user_id),
             reply_markup=get_subscription_keyboard(user_id)
         )
+        return
+
+    # URL-саммари (Feature 6): если сообщение содержит URL — суммируем страницу
+    detected_url = extract_url(message.text)
+    if detected_url and len(message.text.strip()) < len(detected_url) + 50:
+        # Сообщение в основном является ссылкой
+        if not has_active_subscription(user_id) and user_id not in ADMIN_IDS:
+            if not can_make_request(user_id, is_image=False):
+                increment_stat("paywall_shown")
+                await send_system_message(
+                    chat_id=message.chat.id,
+                    text=get_free_trial_paywall_text(user_id),
+                    reply_markup=get_subscription_keyboard(user_id)
+                )
+                return
+
+        progress_msg = await message.answer("📎 Читаю страницу...")
+        await bot.send_chat_action(message.chat.id, "typing")
+        summary = await fetch_and_summarize_url(detected_url, user_id)
+        try:
+            await progress_msg.delete()
+        except Exception:
+            pass
+        _append_request_log(user_id, "text", message.text, summary, "url_summary")
+        await send_long_message(message, summary, feedback_query=message.text)
+        if not has_active_subscription(user_id):
+            consume_free_trial(user_id)
+            await maybe_send_soft_paywall(message.chat.id, user_id, response_len=len(summary), user_query=message.text)
+            await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
         return
 
     if is_photo_edit_request(message.text):
@@ -6506,6 +6885,13 @@ async def handle_message(message: Message, state: FSMContext):
             pass
 
         if success:
+            # Трекинг total_images
+            try:
+                ud = load_user_data(user_id)
+                ud["total_images"] = ud.get("total_images", 0) + 1
+                save_user_data(user_id, ud)
+            except Exception:
+                pass
             try:
                 photo = (
                     BufferedInputFile(result, filename="generated_image.jpg")
@@ -6545,7 +6931,7 @@ async def handle_message(message: Message, state: FSMContext):
     await bot.send_chat_action(message.chat.id, "typing")
     ai_response = await get_ai_response(user_id, message.text)
     _append_request_log(user_id, "text", message.text, ai_response, load_user_data(user_id).get("model", DEFAULT_MODEL))
-    await send_long_message(message, ai_response)
+    await send_long_message(message, ai_response, feedback_query=message.text)
     if not has_active_subscription(user_id):
         consume_free_trial(user_id)
         await maybe_send_soft_paywall(message.chat.id, user_id, response_len=len(ai_response), user_query=message.text)
@@ -6764,6 +7150,56 @@ async def check_subscription_reminders():
                         except Exception as e:
                             logging.warning(f"Не удалось отправить напоминание 2ч для {user_id}: {e}")
 
+                # === Win-back: напоминания ПОСЛЕ истечения подписки ===
+                # 1 час после истечения
+                elif -1.5 < hours_left < -0.5:
+                    if should_send_reminder(user_id, "expired_1h"):
+                        try:
+                            eff_stars, _ = get_effective_price(user_id)
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=get_message("expired_1h"),
+                                reply_markup=get_subscription_keyboard(user_id),
+                                parse_mode="HTML"
+                            )
+                            set_last_reminder(user_id, "expired_1h")
+                        except Exception as e:
+                            logging.warning(f"Не удалось отправить expired_1h для {user_id}: {e}")
+
+                # 24 часа после истечения
+                elif -25 < hours_left < -23:
+                    if should_send_reminder(user_id, "expired_24h"):
+                        try:
+                            eff_stars, _ = get_effective_price(user_id)
+                            req_count = get_user_request_count(user_id, sub_end.isoformat() if sub_end else None)
+                            # Если не нашли за период подписки, берём общее число
+                            if req_count == 0:
+                                req_count = get_user_request_count(user_id)
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=get_message("expired_24h", request_count=req_count, price=eff_stars),
+                                reply_markup=get_subscription_keyboard(user_id),
+                                parse_mode="HTML"
+                            )
+                            set_last_reminder(user_id, "expired_24h")
+                        except Exception as e:
+                            logging.warning(f"Не удалось отправить expired_24h для {user_id}: {e}")
+
+                # 3 дня после истечения
+                elif -73 < hours_left < -71:
+                    if should_send_reminder(user_id, "expired_3d"):
+                        try:
+                            eff_stars, _ = get_effective_price(user_id)
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=get_message("expired_3d", price=eff_stars),
+                                reply_markup=get_subscription_keyboard(user_id),
+                                parse_mode="HTML"
+                            )
+                            set_last_reminder(user_id, "expired_3d")
+                        except Exception as e:
+                            logging.warning(f"Не удалось отправить expired_3d для {user_id}: {e}")
+
         except Exception as e:
             logging.error(f"Ошибка проверки напоминаний: {e}")
 
@@ -6867,24 +7303,9 @@ async def check_pending_invoices():
                         increment_stat("total_revenue_usd", price_usd)
                         _append_payment_log(user_id, price_usd, "USD", "crypto_bot")
 
-                        # Уведомляем пользователя
+                        # Уведомляем пользователя (wow-момент)
                         try:
-                            sub_end = get_subscription_end(user_id)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=(
-                                    "<b>Оплата получена!</b>\n\n"
-                                    "Подписка PRO активирована через CryptoBot\n"
-                                    f"Действует до: <b>{sub_end.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-                                    "<b>Доступно:</b>\n"
-                                    "  Безлимитные запросы к ИИ\n"
-                                    f"  Генерация до {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
-                                    "  Все модели AI\n\n"
-                                    "Напиши что угодно — и я помогу!"
-                                ),
-                                reply_markup=get_main_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                            await send_pro_welcome(user_id, user_id)
                         except Exception as e:
                             logging.warning(f"Не удалось уведомить пользователя {user_id}: {e}")
 
