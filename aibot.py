@@ -2089,11 +2089,28 @@ def revoke_subscription(user_id: int):
 
 
 # ==================== РЕФЕРАЛЬНАЯ СИСТЕМА ====================
+# Кеш username бота (заполняется при первом вызове get_referral_link_async)
+_cached_bot_username = os.getenv("BOT_USERNAME", "")
+
+
 def get_referral_link(user_id: int) -> str:
-    """Получить реферальную ссылку пользователя"""
-    bot_info_username = os.getenv("BOT_USERNAME", "")
-    if bot_info_username:
-        return f"https://t.me/{bot_info_username}?start=ref_{user_id}"
+    """Получить реферальную ссылку пользователя (синхронная версия)."""
+    if _cached_bot_username:
+        return f"https://t.me/{_cached_bot_username}?start=ref_{user_id}"
+    return f"ref_{user_id}"
+
+
+async def get_referral_link_async(user_id: int) -> str:
+    """Получить реферальную ссылку — с автоопределением username бота."""
+    global _cached_bot_username
+    if not _cached_bot_username:
+        try:
+            bot_me = await bot.get_me()
+            _cached_bot_username = bot_me.username or ""
+        except Exception:
+            pass
+    if _cached_bot_username:
+        return f"https://t.me/{_cached_bot_username}?start=ref_{user_id}"
     return f"ref_{user_id}"
 
 
@@ -3791,9 +3808,7 @@ async def callback_referral_info(callback: CallbackQuery):
     """Информация о реферальной программе"""
     user_id = callback.from_user.id
 
-    # Получаем username бота для ссылки
-    bot_me = await bot.get_me()
-    ref_link = f"https://t.me/{bot_me.username}?start=ref_{user_id}"
+    ref_link = await get_referral_link_async(user_id)
 
     user_data = load_user_data(user_id)
     ref_count = user_data.get("referral_count", 0)
@@ -4171,10 +4186,14 @@ async def callback_feedback_up(callback: CallbackQuery):
     _append_feedback_log(user_id, int(msg_id) if msg_id.isdigit() else 0, "up", fb_data.get("query", ""), fb_data.get("response", ""))
 
     # Формируем кнопку "Поделиться"
-    ref_link = get_referral_link(user_id)
-    response_preview = fb_data.get("response", "")[:200]
-    share_text = f"{response_preview}\n\nОтвет от AI-помощника 👉 {ref_link}"
-    share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={quote(response_preview[:100])}"
+    ref_link = await get_referral_link_async(user_id)
+    response_preview = fb_data.get("response", "")[:150]
+    # Текст для шаринга: превью ответа + ссылка на бота
+    share_text = response_preview
+    if share_text:
+        share_text += "\n\n"
+    share_text += f"Попробуй этого AI-помощника 👉 {ref_link}"
+    share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={quote(share_text)}"
 
     try:
         await callback.message.edit_reply_markup(
@@ -7401,10 +7420,18 @@ async def check_pending_invoices():
 
 # ==================== MAIN ====================
 async def main():
-    global business_connections
+    global business_connections, _cached_bot_username
     business_connections = load_business_connections()
 
     logging.info("🚀 AI Chat Bot запущен!")
+
+    # Кешируем username бота для реферальных ссылок
+    try:
+        bot_me = await bot.get_me()
+        _cached_bot_username = bot_me.username or _cached_bot_username
+        logging.info(f"🤖 Bot username: @{_cached_bot_username}")
+    except Exception as e:
+        logging.warning(f"Не удалось получить username бота: {e}")
 
     # Устанавливаем команды
     await set_bot_commands()
