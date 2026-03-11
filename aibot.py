@@ -2548,7 +2548,8 @@ def get_admin_keyboard():
         [make_inline_button("База пользователей", callback_data="admin_users_0", button_key="admin_users")],
         [make_inline_button("Каналы обяз. подписки", callback_data="admin_channels", button_key="admin_channels")],
         [make_inline_button("Blacklist", callback_data="admin_blacklist", button_key="admin_blacklist")],
-        [make_inline_button("Медиа-оформление", callback_data="admin_media", button_key="admin_media")]
+        [make_inline_button("Медиа-оформление", callback_data="admin_media", button_key="admin_media")],
+        [make_inline_button("Лог запросов", callback_data="admin_reqlog_0", button_key="admin_reqlog")]
     ])
 
 
@@ -3856,6 +3857,94 @@ async def callback_admin_stats(callback: CallbackQuery):
             [make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")]
         ])
     )
+    await callback.answer()
+
+
+# ==================== ADMIN REQUEST LOG ====================
+@dp.callback_query(F.data.startswith("admin_reqlog_"))
+async def callback_admin_reqlog(callback: CallbackQuery):
+    """Просмотр лога запросов"""
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("✖️ Доступ запрещен", show_alert=True)
+        return
+
+    page = int(callback.data.split("_")[-1])
+    per_page = 10
+
+    try:
+        if not os.path.exists(REQUESTS_LOG_FILE):
+            await safe_edit_or_send(
+                callback, "📋 <b>Лог запросов пуст</b>\n\nПока нет записей.",
+                InlineKeyboardMarkup(inline_keyboard=[
+                    [make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")]
+                ])
+            )
+            await callback.answer()
+            return
+
+        with open(REQUESTS_LOG_FILE, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        total = len(lines)
+        if total == 0:
+            await safe_edit_or_send(
+                callback, "📋 <b>Лог запросов пуст</b>\n\nПока нет записей.",
+                InlineKeyboardMarkup(inline_keyboard=[
+                    [make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")]
+                ])
+            )
+            await callback.answer()
+            return
+
+        # Показываем от новых к старым
+        start_idx = total - 1 - page * per_page
+        end_idx = max(start_idx - per_page, -1)
+        entries = []
+        for i in range(start_idx, end_idx, -1):
+            try:
+                entry = json.loads(lines[i].strip())
+                ts = entry.get("ts", "?")[:16].replace("T", " ")
+                uid = entry.get("user_id", "?")
+                req_type = entry.get("type", "?")
+                inp = entry.get("input", "")[:80]
+                resp = entry.get("response", "")[:100]
+                model = entry.get("model", "")
+                model_str = f" [{model}]" if model else ""
+                entries.append(
+                    f"<b>{ts}</b> | uid:{uid} | {req_type}{model_str}\n"
+                    f"❓ {html.escape(inp)}\n"
+                    f"💬 {html.escape(resp)}"
+                )
+            except Exception:
+                continue
+
+        total_pages = (total + per_page - 1) // per_page
+        text = f"📋 <b>Лог запросов</b> (стр. {page + 1}/{total_pages}, всего: {total})\n\n"
+        text += "\n\n".join(entries)
+
+        nav_buttons = []
+        if page > 0:
+            nav_buttons.append(make_inline_button("◀️ Новее", callback_data=f"admin_reqlog_{page - 1}", button_key="nav_prev"))
+        if end_idx > 0:
+            nav_buttons.append(make_inline_button("Старее ▶️", callback_data=f"admin_reqlog_{page + 1}", button_key="nav_next"))
+
+        keyboard_rows = []
+        if nav_buttons:
+            keyboard_rows.append(nav_buttons)
+        keyboard_rows.append([make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")])
+
+        await safe_edit_or_send(
+            callback, text,
+            InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+        )
+    except Exception as e:
+        logging.exception(f"admin_reqlog error: {e}")
+        await safe_edit_or_send(
+            callback, f"❌ Ошибка чтения лога: {e}",
+            InlineKeyboardMarkup(inline_keyboard=[
+                [make_inline_button("Назад", callback_data="admin_menu", button_key="nav_back")]
+            ])
+        )
     await callback.answer()
 
 
