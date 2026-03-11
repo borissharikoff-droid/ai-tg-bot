@@ -3050,48 +3050,62 @@ async def cmd_start(message: Message):
         asyncio.create_task(_send_onboarding_demo(message.chat.id, user_id))
 
 
+ONBOARDING_DEMOS = [
+    {
+        "q": "Что приготовить из курицы и картошки?",
+        "a": (
+            "<b>Картошка с курицей в духовке</b> — 40 минут, минимум возни.\n\n"
+            "Курицу нарезать, картошку дольками, добавить лук, чеснок, "
+            "соль, перец, ложку масла. Всё в форму, накрыть фольгой — "
+            "200°C на 30 мин, потом без фольги ещё 10.\n\n"
+            "<i>Хочешь, подберу гарнир или соус?</i>"
+        ),
+    },
+    {
+        "q": "Посоветуй сериал на вечер",
+        "a": (
+            "<b>«Медведь» (The Bear)</b> — если хочешь залипнуть.\n\n"
+            "Шеф-повар возвращается в Чикаго и пытается спасти семейную забегаловку. "
+            "Драма, юмор, еда — цепляет с первой серии.\n\n"
+            "<i>Хочешь ещё варианты — комедию или триллер?</i>"
+        ),
+    },
+    {
+        "q": "Что подарить жене на годовщину?",
+        "a": (
+            "<b>Топ-3 идеи, которые точно зайдут:</b>\n\n"
+            "- <b>Впечатление</b> — спа, мастер-класс или ужин вдвоём\n"
+            "- <b>Персональное</b> — украшение с гравировкой или фотокнига\n"
+            "- <b>Уют</b> — кашемировый плед + свечи + письмо от руки\n\n"
+            "<i>Скажи бюджет — подберу конкретный вариант.</i>"
+        ),
+    },
+]
+
+
 async def _send_onboarding_demo(chat_id: int, user_id: int):
-    """Отправить демо-ответ через 3 секунды после /start — показать качество AI бесплатно."""
+    """Отправить короткий демо-пример через 3 секунды после /start."""
     try:
         await asyncio.sleep(3)
         await bot.send_chat_action(chat_id, "typing")
-        await asyncio.sleep(1)
+        await asyncio.sleep(2)
 
-        demo_prompts = [
-            "Что приготовить из курицы и картошки? Быстро, на ужин для семьи.",
-            "Посоветуй фильм на вечер — чтобы не оторваться",
-            "Как быстро убрать квартиру перед гостями? Топ-5 советов",
-        ]
-        demo_prompt = random.choice(demo_prompts)
+        demo = random.choice(ONBOARDING_DEMOS)
 
-        demo_response = await get_ai_response(user_id, demo_prompt)
-
-        demo_text = (
-            f"💬 <b>Вот как я отвечаю:</b>\n"
-            f"<i>Ты: {demo_prompt}</i>\n\n"
-            f"{demo_response}"
+        text = (
+            f"<b>Пример — как я отвечаю:</b>\n\n"
+            f"<i>Вопрос: {demo['q']}</i>\n\n"
+            f"{demo['a']}"
         )
 
-        # Отправляем, не тратя триал
-        parts = split_message(markdown_to_html(demo_text))
-        for part in parts:
-            try:
-                await bot.send_message(chat_id=chat_id, text=part, parse_mode="HTML")
-            except Exception:
-                await bot.send_message(chat_id=chat_id, text=part)
-
-        # После демо — напоминаем про бесплатные запросы
         text_rem, img_rem = get_free_trial_remaining(user_id)
-        if text_rem > 0:
-            await send_system_message(
-                chat_id=chat_id,
-                text=(
-                    f"👆 Это бесплатный пример.\n\n"
-                    f"У тебя ещё <b>{text_rem} вопроса и {img_rem} картинки</b> — "
-                    f"напиши что-нибудь своё!"
-                ),
-                parse_mode="HTML"
-            )
+        text += (
+            f"\n\n——\n"
+            f"Это был пример. У тебя <b>{text_rem} вопроса</b> — напиши свой!"
+        )
+
+        await bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+
     except Exception as e:
         logging.warning(f"Ошибка онбординг-демо для {user_id}: {e}")
 
