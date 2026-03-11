@@ -333,13 +333,60 @@ def _append_payment_log(user_id: int, amount, currency: str, method: str):
     except Exception as e:
         logging.error(f"Ошибка записи payment log: {e}")
 
+def _rotate_request_log():
+    """Удалить записи старше 90 дней из лога."""
+    try:
+        if not os.path.exists(REQUESTS_LOG_FILE):
+            return
+        cutoff = (datetime.now() - timedelta(days=90)).isoformat()
+        kept = []
+        with open(REQUESTS_LOG_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                    if entry.get("ts", "") >= cutoff:
+                        kept.append(line)
+                except Exception:
+                    continue
+        with open(REQUESTS_LOG_FILE, 'w', encoding='utf-8') as f:
+            f.writelines(kept)
+    except Exception as e:
+        logging.error(f"Ошибка ротации request log: {e}")
+
+
+_LOG_ROTATION_COUNTER = 0
+
+
+def _categorize_request(text: str) -> str:
+    """Определить категорию запроса для аналитики."""
+    t = text.lower()
+    if any(w in t for w in ["рецепт", "приготов", "меню", "блюд", "ужин", "завтрак", "обед"]):
+        return "food"
+    if any(w in t for w in ["напиши", "текст", "письм", "поздравл", "пост", "стать"]):
+        return "writing"
+    if any(w in t for w in ["подар", "купить", "выбрать", "посоветуй"]):
+        return "advice"
+    if any(w in t for w in ["ребён", "детск", "школ", "урок", "объясни"]):
+        return "kids"
+    if any(w in t for w in ["картинк", "нарисуй", "рисунок", "открытк", "логотип"]):
+        return "image"
+    if any(w in t for w in ["работ", "резюме", "собеседован", "начальник"]):
+        return "work"
+    if any(w in t for w in ["здоровь", "болит", "врач", "лекарств"]):
+        return "health"
+    return "other"
+
+
 def _append_request_log(user_id: int, request_type: str, user_input: str, ai_response: str, model: str = ""):
     """Дописать запрос+ответ в append-only лог."""
+    global _LOG_ROTATION_COUNTER
     try:
+        category = _categorize_request(user_input) if request_type == "text" else request_type
         line = json.dumps({
             "ts": datetime.now().isoformat(),
             "user_id": user_id,
             "type": request_type,
+            "category": category,
             "input": user_input[:500],
             "response": ai_response[:1000],
             "model": model
@@ -347,6 +394,11 @@ def _append_request_log(user_id: int, request_type: str, user_input: str, ai_res
         with open(REQUESTS_LOG_FILE, 'a', encoding='utf-8') as f:
             f.write(line + "\n")
             f.flush()
+        # Ротация каждые 500 записей
+        _LOG_ROTATION_COUNTER += 1
+        if _LOG_ROTATION_COUNTER >= 500:
+            _LOG_ROTATION_COUNTER = 0
+            _rotate_request_log()
     except Exception as e:
         logging.error(f"Ошибка записи request log: {e}")
 
@@ -1315,6 +1367,20 @@ DEFAULT_MESSAGES = {
         "🔥 <b>Только для тебя — первый месяц со скидкой!</b>\n\n"
         "<b>{discount_price} ⭐</b> вместо <s>{full_price}</s> за 30 дней.\n\n"
         "<i>Предложение одноразовое.</i>"
+    ),
+    "inactive_7d": (
+        "Привет! Давно не виделись 👋\n\n"
+        "Пока тебя не было, я научился отвечать ещё лучше.\n\n"
+        "Попробуй спросить:\n"
+        "• «{example1}»\n"
+        "• «{example2}»\n\n"
+        "У тебя <b>1 бесплатный запрос</b> — проверь!"
+    ),
+    "inactive_14d": (
+        "Соскучился! 😊\n\n"
+        "Люди каждый день экономят часы с помощником:\n"
+        "меню, письма, подарки, советы — всё за секунды.\n\n"
+        "Напиши что-нибудь — у тебя <b>1 бесплатный запрос</b> сегодня."
     ),
 }
 
@@ -2356,7 +2422,12 @@ def get_main_keyboard(user_id: int = None):
     has_sub = has_active_subscription(user_id) if user_id else False
     buttons = [
         [
-            make_inline_button("Нарисовать картинку", callback_data="generate_image_prompt", button_key="image", style="primary")
+            make_inline_button("✍️ Написать текст", callback_data="quick_write", button_key="quick_write", style="primary"),
+            make_inline_button("📋 Составить план", callback_data="quick_plan", button_key="quick_plan", style="primary"),
+        ],
+        [
+            make_inline_button("💡 Подсказка/совет", callback_data="quick_advice", button_key="quick_advice", style="primary"),
+            make_inline_button("🎨 Картинка", callback_data="generate_image_prompt", button_key="image", style="primary"),
         ],
         [
             make_inline_button("Настройки", callback_data="settings", button_key="info", style="primary")
@@ -3566,6 +3637,61 @@ async def callback_referral_info(callback: CallbackQuery):
     await callback.answer()
 
 
+@dp.callback_query(F.data.startswith("quick_"))
+async def callback_quick_action(callback: CallbackQuery):
+    """Быстрые действия — подсказки что написать боту."""
+    user_id = callback.from_user.id
+    if is_blacklisted(user_id):
+        await callback.answer()
+        return
+
+    action = callback.data.replace("quick_", "")
+    prompts = {
+        "write": {
+            "title": "✍️ <b>Написать текст</b>",
+            "desc": "Поздравления, письма, посты, объявления — напиши что нужно.\n\n<b>Примеры:</b>",
+            "examples": [
+                "«Напиши поздравление маме с юбилеем»",
+                "«Составь пост для соцсетей про открытие кафе»",
+                "«Напиши деловое письмо начальнику с просьбой об отпуске»",
+                "«Текст для объявления о продаже машины»",
+            ]
+        },
+        "plan": {
+            "title": "📋 <b>Составить план</b>",
+            "desc": "Меню, списки, планы на день/неделю, чеклисты.\n\n<b>Примеры:</b>",
+            "examples": [
+                "«Составь меню на неделю для семьи из 4 человек»",
+                "«План ремонта в ванной — пошагово»",
+                "«Список дел на отпуск с ребёнком»",
+                "«Чеклист для переезда в новую квартиру»",
+            ]
+        },
+        "advice": {
+            "title": "💡 <b>Совет / подсказка</b>",
+            "desc": "Спроси что угодно — работа, дом, дети, здоровье.\n\n<b>Примеры:</b>",
+            "examples": [
+                "«Что подарить мужу на годовщину?»",
+                "«Как убрать пятно от кофе с белой рубашки?»",
+                "«Ребёнок не хочет делать уроки — что делать?»",
+                "«Посоветуй сериал на вечер, чтобы не грустный»",
+            ]
+        },
+    }
+
+    data = prompts.get(action, prompts["write"])
+    example = random.choice(data["examples"])
+
+    text = f"{data['title']}\n\n{data['desc']}\n<blockquote>{example}</blockquote>\n\n<i>Просто напиши свой запрос в чат:</i>"
+
+    buttons = [
+        [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
+    ]
+
+    await safe_edit_or_send(callback, text, InlineKeyboardMarkup(inline_keyboard=buttons))
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "generate_image_prompt")
 async def callback_generate_image_prompt(callback: CallbackQuery):
     """Подсказка по генерации картинок"""
@@ -3850,6 +3976,34 @@ async def callback_admin_stats(callback: CallbackQuery):
         f"🏷️ <b>Текущая цена:</b> {price} ⭐ / {get_subscription_price_usd()} USD\n"
         f"🔥 <b>Скидка первый месяц:</b> {FIRST_BUY_DISCOUNT_STARS} ⭐ / {FIRST_BUY_DISCOUNT_USD} USD"
     )
+
+    # Категории запросов из лога
+    try:
+        if os.path.exists(REQUESTS_LOG_FILE):
+            cats = {}
+            with open(REQUESTS_LOG_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line.strip())
+                        cat = entry.get("category", "other")
+                        cats[cat] = cats.get(cat, 0) + 1
+                    except Exception:
+                        continue
+            if cats:
+                cat_names = {
+                    "food": "🍽 Еда/рецепты", "writing": "✍️ Тексты/письма",
+                    "advice": "💡 Советы", "kids": "👶 Дети/школа",
+                    "image": "🎨 Картинки", "work": "💼 Работа",
+                    "health": "🏥 Здоровье", "other": "💬 Прочее",
+                    "photo": "📷 Фото", "voice": "🎤 Голос",
+                }
+                sorted_cats = sorted(cats.items(), key=lambda x: -x[1])
+                text += "\n\n<b>📂 Категории запросов:</b>\n"
+                for cat, cnt in sorted_cats[:8]:
+                    label = cat_names.get(cat, cat)
+                    text += f"  {label}: {cnt}\n"
+    except Exception:
+        pass
 
     await safe_edit_or_send(
         callback, text,
@@ -6293,6 +6447,14 @@ async def handle_message(message: Message, state: FSMContext):
 
     user_id = message.from_user.id
 
+    # Трекинг активности
+    try:
+        ud = load_user_data(user_id)
+        ud["last_active"] = datetime.now().isoformat()
+        save_user_data(user_id, ud)
+    except Exception:
+        pass
+
     # Проверка черного списка
     if is_blacklisted(user_id):
         return
@@ -6386,11 +6548,11 @@ async def handle_message(message: Message, state: FSMContext):
     await send_long_message(message, ai_response)
     if not has_active_subscription(user_id):
         consume_free_trial(user_id)
-        await maybe_send_soft_paywall(message.chat.id, user_id, response_len=len(ai_response))
+        await maybe_send_soft_paywall(message.chat.id, user_id, response_len=len(ai_response), user_query=message.text)
         await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
 
 
-async def maybe_send_soft_paywall(chat_id: int, user_id: int, response_len: int = 0):
+async def maybe_send_soft_paywall(chat_id: int, user_id: int, response_len: int = 0, user_query: str = ""):
     """Мягкий пейвол — показать оставшиеся запросы и кнопку PRO после бесплатного ответа."""
     if user_id in ADMIN_IDS or has_active_subscription(user_id):
         return
@@ -6401,15 +6563,24 @@ async def maybe_send_soft_paywall(chat_id: int, user_id: int, response_len: int 
     eff_stars, _ = get_effective_price(user_id)
     first = is_first_purchase(user_id)
 
-    # Варианты текста в зависимости от качества ответа
+    # Контекстные апселлы в зависимости от типа запроса
+    query_lower = user_query.lower() if user_query else ""
+
     if response_len > 800:
-        # Длинный качественный ответ — "wow" уpsell
         wow_texts = [
             "Полезно? С PRO — так каждый день, без ограничений.",
             "Представь, что такие ответы — без лимита.",
             "Это только начало. С PRO — спрашивай сколько хочешь.",
         ]
         text = f"<i>{random.choice(wow_texts)}</i>\n"
+    elif any(w in query_lower for w in ["меню", "рецепт", "приготов", "блюд"]):
+        text = "<i>С PRO — новое меню каждую неделю за секунды.</i>\n"
+    elif any(w in query_lower for w in ["письм", "напиши", "текст", "поздравл", "пост"]):
+        text = "<i>С PRO — любые тексты без ограничений.</i>\n"
+    elif any(w in query_lower for w in ["подар", "совет", "посоветуй", "помоги"]):
+        text = "<i>С PRO — советы по любому вопросу 24/7.</i>\n"
+    elif any(w in query_lower for w in ["ребён", "детск", "школ", "урок"]):
+        text = "<i>С PRO — помощник для всей семьи каждый день.</i>\n"
     else:
         text = ""
 
@@ -6600,6 +6771,78 @@ async def check_subscription_reminders():
         await asyncio.sleep(1800)
 
 
+# ==================== INACTIVITY REMINDERS ====================
+INACTIVE_EXAMPLES = [
+    ("Составь меню на неделю", "Что подарить коллеге на ДР?"),
+    ("Напиши поздравление свекрови", "Посоветуй фильм на вечер"),
+    ("Объясни ребёнку, почему идёт дождь", "Напиши отзыв на товар"),
+    ("Составь список покупок на неделю", "Помоги написать резюме"),
+    ("Что приготовить из того, что в холодильнике?", "Напиши пост для соцсети"),
+]
+
+
+async def check_inactivity_reminders():
+    """Напоминания неактивным пользователям: 7 дней и 14 дней."""
+    while True:
+        try:
+            users = get_all_users()
+            now = datetime.now()
+
+            for user in users:
+                user_id = user["user_id"]
+
+                if user_id in ADMIN_IDS or is_blacklisted(user_id):
+                    continue
+                if has_active_subscription(user_id):
+                    continue
+
+                last_active = user.get("last_active") or user.get("first_use_time")
+                if not last_active:
+                    continue
+
+                try:
+                    last_dt = datetime.fromisoformat(last_active)
+                except (ValueError, TypeError):
+                    continue
+
+                days_inactive = (now - last_dt).total_seconds() / 86400
+
+                # 7 дней неактивности
+                if 6.5 < days_inactive < 8:
+                    if should_send_reminder(user_id, "inactive_7d"):
+                        try:
+                            ex1, ex2 = random.choice(INACTIVE_EXAMPLES)
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=get_message("inactive_7d", example1=ex1, example2=ex2),
+                                reply_markup=get_main_keyboard(user_id),
+                                parse_mode="HTML"
+                            )
+                            set_last_reminder(user_id, "inactive_7d")
+                        except Exception as e:
+                            logging.warning(f"Не удалось отправить inactive_7d для {user_id}: {e}")
+
+                # 14 дней неактивности
+                elif 13.5 < days_inactive < 15:
+                    if should_send_reminder(user_id, "inactive_14d"):
+                        try:
+                            eff_stars, _ = get_effective_price(user_id)
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=get_message("inactive_14d"),
+                                reply_markup=get_main_keyboard(user_id),
+                                parse_mode="HTML"
+                            )
+                            set_last_reminder(user_id, "inactive_14d")
+                        except Exception as e:
+                            logging.warning(f"Не удалось отправить inactive_14d для {user_id}: {e}")
+
+        except Exception as e:
+            logging.error(f"Ошибка проверки inactivity-напоминаний: {e}")
+
+        await asyncio.sleep(3600)  # Каждый час
+
+
 async def check_pending_invoices():
     """Проверка ожидающих инвойсов CryptoBot"""
     while True:
@@ -6677,7 +6920,10 @@ async def main():
     asyncio.create_task(check_trial_reminders())
 
     # Запускаем проверку CryptoBot инвойсов
-    asyncio.create_task(check_pending_invoices())  # НОВОЕ
+    asyncio.create_task(check_pending_invoices())
+
+    # Напоминания неактивным пользователям
+    asyncio.create_task(check_inactivity_reminders())
 
     await dp.start_polling(bot)
 
