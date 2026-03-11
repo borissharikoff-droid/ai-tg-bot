@@ -259,6 +259,7 @@ PENDING_INVOICES_FILE = os.path.join(DATA_DIR, "pending_invoices.json")
 BUSINESS_CONNECTIONS_FILE = os.path.join(DATA_DIR, "business_connections.json")
 
 PAYMENTS_LOG_FILE = os.path.join(DATA_DIR, "payments.log")
+REQUESTS_LOG_FILE = os.path.join(DATA_DIR, "requests.log")
 
 # Создаем директории
 os.makedirs(USERS_DIR, exist_ok=True)
@@ -331,6 +332,24 @@ def _append_payment_log(user_id: int, amount, currency: str, method: str):
             f.flush()
     except Exception as e:
         logging.error(f"Ошибка записи payment log: {e}")
+
+def _append_request_log(user_id: int, request_type: str, user_input: str, ai_response: str, model: str = ""):
+    """Дописать запрос+ответ в append-only лог."""
+    try:
+        line = json.dumps({
+            "ts": datetime.now().isoformat(),
+            "user_id": user_id,
+            "type": request_type,
+            "input": user_input[:500],
+            "response": ai_response[:1000],
+            "model": model
+        }, ensure_ascii=False)
+        with open(REQUESTS_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(line + "\n")
+            f.flush()
+    except Exception as e:
+        logging.error(f"Ошибка записи request log: {e}")
+
 
 # ==================== ПРОВЕРКА ЗАВИСИМОСТЕЙ ДЛЯ ГОЛОСА ====================
 logging.basicConfig(level=logging.INFO)
@@ -6071,6 +6090,7 @@ async def handle_photo(message: Message, state: FSMContext):
             return
 
         ai_response = await get_ai_response(user_id, user_text, photo_base64)
+        _append_request_log(user_id, "photo", user_text, ai_response)
         await send_long_message(message, ai_response)
         if not has_active_subscription(user_id):
             consume_free_trial(user_id)
@@ -6160,6 +6180,7 @@ async def handle_voice(message: Message, state: FSMContext):
             return
 
         ai_response = await get_ai_response(user_id, transcribed_text)
+        _append_request_log(user_id, "voice", transcribed_text, ai_response)
         await send_long_message(message, ai_response)
         if not has_active_subscription(user_id):
             consume_free_trial(user_id)
@@ -6225,6 +6246,7 @@ async def handle_message(message: Message, state: FSMContext):
         await bot.send_chat_action(message.chat.id, "upload_photo")
 
         success, result = await generate_image_with_guard(user_id, message.text, image_model)
+        _append_request_log(user_id, "image", message.text, "success" if success else str(result)[:200], image_model)
 
         # Удаляем прогресс-сообщение
         try:
@@ -6271,6 +6293,7 @@ async def handle_message(message: Message, state: FSMContext):
 
     await bot.send_chat_action(message.chat.id, "typing")
     ai_response = await get_ai_response(user_id, message.text)
+    _append_request_log(user_id, "text", message.text, ai_response, load_user_data(user_id).get("model", DEFAULT_MODEL))
     await send_long_message(message, ai_response)
     if not has_active_subscription(user_id):
         consume_free_trial(user_id)
