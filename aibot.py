@@ -48,8 +48,15 @@ API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN", "")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 IMAGE_DAILY_LIMIT_PRO = int(os.getenv("IMAGE_DAILY_LIMIT_PRO", "20"))
 IMAGE_MONTHLY_LIMIT_PRO = int(os.getenv("IMAGE_MONTHLY_LIMIT_PRO", "300"))
-FREE_TRIAL_LIMIT = int(os.getenv("FREE_TRIAL_LIMIT", "10"))
-FREE_IMAGE_TRIAL_LIMIT = int(os.getenv("FREE_IMAGE_TRIAL_LIMIT", "5"))
+FREE_TRIAL_LIMIT = int(os.getenv("FREE_TRIAL_LIMIT", "3"))
+FREE_IMAGE_TRIAL_LIMIT = int(os.getenv("FREE_IMAGE_TRIAL_LIMIT", "2"))
+REFERRAL_BONUS_REQUESTS = int(os.getenv("REFERRAL_BONUS_REQUESTS", "3"))
+DAILY_FREE_REQUESTS = int(os.getenv("DAILY_FREE_REQUESTS", "1"))
+FIRST_BUY_DISCOUNT_STARS = int(os.getenv("FIRST_BUY_DISCOUNT_STARS", "49"))
+FIRST_BUY_DISCOUNT_USD = float(os.getenv("FIRST_BUY_DISCOUNT_USD", "0.5"))
+WEEKLY_PRICE_STARS = int(os.getenv("WEEKLY_PRICE_STARS", "29"))
+WEEKLY_PRICE_USD = float(os.getenv("WEEKLY_PRICE_USD", "0.3"))
+WEEKLY_DAYS = 7
 DEFAULT_MODEL = "deepseek-chat"
 MAX_MESSAGE_LENGTH = 4000
 SYSTEM_GIF_URL = os.getenv("SYSTEM_GIF_URL", "").strip()
@@ -165,41 +172,45 @@ STYLE_PRESET_LABELS = {
 
 # Короткие описания пресетов для юзера (чем отличаются)
 STYLE_PRESET_DESCRIPTIONS = {
-    "serious": "Чётко и по делу. Для рабочих задач, писем и серьёзных вопросов.",
-    "neutral": "Спокойно и понятно. Подходит для любых вопросов на каждый день.",
-    "funny": "С юмором и легко. Когда хочется отвлечься и поднять настроение.",
-    "friend": "Как будто пишет хороший знакомый — тепло и по-человечески."
+    "serious": "Для работы и деловых вопросов. Чётко, без лишнего.",
+    "neutral": "На каждый день. Понятно, спокойно, по делу.",
+    "funny": "С юмором. Когда хочется поднять настроение.",
+    "friend": "Как друг. Тепло, просто, по-человечески."
 }
 
 START_EXAMPLES = [
-    "«Составь меню на неделю для всей семьи»",
-    "«Напиши поздравление коллеге с днём рождения»",
-    "«Что подарить жене на годовщину? Бюджет 5000₽»",
-    "«Объясни ребёнку дроби — просто и с примерами»",
-    "«Напиши вежливый ответ на письмо от начальника»",
-    "«Спланируй поездку в Сочи на 5 дней с детьми»",
-    "«Посоветуй фильм на вечер — что-то лёгкое»",
-    "«Помоги составить резюме для смены работы»",
-    "«Какие документы нужны для налогового вычета?»",
-    "«Составь программу тренировок для дома, 30 минут»",
-    "«Нарисуй открытку к 8 марта для мамы»",
-    "«Придумай идею для семейного фото на природе»",
+    "«Что приготовить из курицы, риса и овощей?»",
+    "«Напиши поздравление маме — тёплое, не банальное»",
+    "«Что подарить мужу на ДР? Бюджет 3000₽»",
+    "«Объясни ребёнку 7 лет, почему идёт дождь»",
+    "«Напиши ответ начальнику — вежливо, но твёрдо»",
+    "«Куда поехать на выходные из Москвы с детьми?»",
+    "«Посоветуй сериал — чтобы не оторваться»",
+    "«Помоги написать резюме — я менеджер, хочу в IT»",
+    "«Как оформить налоговый вычет за квартиру?»",
+    "«Тренировка дома на 20 минут — без инвентаря»",
+    "«Нарисуй открытку с днём рождения для бабушки»",
+    "«Напиши отзыв на товар — коротко и по делу»",
+    "«Что значит эта ошибка в стиральной машине?»",
+    "«Составь список покупок на неделю для семьи из 4»",
+    "«Как успокоить ребёнка, когда капризничает?»",
 ]
 
 RESPONSE_STYLE_SYSTEM_PROMPT = (
-    "Ты — надёжный и полезный помощник для взрослого занятого человека. "
-    "Отвечай по делу, без воды, без лишних вступлений. Уважай время собеседника. "
-    "Давай конкретные, практичные советы, которые можно сразу применить. "
-    "Всегда используй аккуратный Telegram-формат: короткие абзацы, списки, уместные выделения. "
-    "Базовая структура: 1 короткий вывод, затем 2-6 пунктов по сути. "
-    "Если запрос простой — ответь в 1-3 предложениях без списка. "
-    "Разрешенная разметка: **жирный**, *курсив*, `код`, цитаты >, списки через '-'. "
-    "Не используй таблицы и markdown-ссылки вида [текст](url). "
-    "Если просят источники/видео/ссылки — давай прямые URL (https://...). "
-    "Если уместно, добавляй 1 короткую цитату-акцент в формате '> ...'. "
-    "В конце ответа можно добавить 1 короткий доп-вопрос с предложением следующего шага "
-    "(например: программа, видео, шаблон, чек-лист), но только если это действительно полезно теме. "
-    "Не выдумывай факты; если данных не хватает, коротко уточни."
+    "Ты — умный помощник для занятого человека в Telegram. "
+    "Главное правило: ответ должен быть ПОЛЕЗНЫМ и сразу применимым. "
+    "Человек должен подумать «вау, как удобно» — и захотеть спросить ещё.\n\n"
+    "Формат ответа:\n"
+    "- Начни с главного — 1 предложение с сутью.\n"
+    "- Потом 2-5 пунктов по делу. Конкретика > общие слова.\n"
+    "- Если вопрос простой — 1-3 предложения, без списков.\n"
+    "- Если уместно — предложи следующий шаг: «Хочешь, составлю список?», «Сделать подробнее?»\n\n"
+    "Стиль: тёплый, но без панибратства. Как умный знакомый, который всегда знает ответ. "
+    "Не используй канцелярит, штампы и воду. Пиши живым языком.\n\n"
+    "Разметка Telegram: **жирный**, *курсив*, `код`, цитаты >, списки через '- '. "
+    "Не используй таблицы и markdown-ссылки [текст](url). "
+    "Ссылки — только прямые URL. "
+    "Не выдумывай факты; если не знаешь — честно скажи."
 )
 
 RESPONSE_STYLE_HARD_GUARD_PROMPT = (
@@ -1192,60 +1203,97 @@ DEFAULT_MESSAGES = {
     "paywall": (
         "{proof}"
         "<b>Бесплатные запросы закончились</b>\n\n"
-        "С PRO ты получишь личного помощника 24/7:\n"
-        "• Любые вопросы — работа, дом, здоровье, дети\n"
-        "• Картинки — открытки, идеи, оформление\n"
-        "• Без ожидания и без ограничений\n\n"
-        "<b>Всего {price_stars} звёзд / {price_usd} USD за 30 дней</b>\n"
-        "<i>Это дешевле одной чашки кофе</i>"
+        "Тебе понравилось? С PRO будет ещё лучше:\n\n"
+        "✅ Вопросы без ограничений — хоть 100 в день\n"
+        "✅ Картинки, фото, голосовые — всё включено\n"
+        "✅ Лучшие модели AI — GPT-5, Claude, Gemini\n\n"
+        "<b>{price_stars} ⭐ за месяц</b> — это 3₽ в день.\n"
+        "<i>Дешевле, чем один запрос к фрилансеру.</i>"
     ),
-    "paywall_proof": "{active_subs} человек уже пользуются каждый день\n\n",
+    "paywall_proof": "Уже {active_subs} чел. пользуются каждый день\n\n",
     "welcome_intro": (
-        "{greeting} Просто напиши, что тебе нужно — бот сделает за тебя."
+        "{greeting} Напиши вопрос — получишь ответ за секунды."
     ),
-    "welcome_free_requests": "<b>Бесплатных запросов:</b> {remaining}",
-    "welcome_example_intro": "<b>Попробуй написать:</b>",
-    "welcome_subscribe_cta": "<b>Чтобы пользоваться без ограничений — подключи PRO.</b>",
+    "welcome_free_requests": "<b>Бесплатно:</b> {remaining}",
+    "welcome_example_intro": "<b>Попробуй:</b>",
+    "welcome_subscribe_cta": "<b>Без ограничений — PRO.</b>",
     "channel_subscribe": (
-        "<b>Подпишись на канал, чтобы начать</b>\n\n"
-        "Там полезные советы, новости бота и примеры запросов.\n\n"
+        "<b>Подпишись на канал — и бот заработает</b>\n\n"
+        "Там советы, лайфхаки и примеры запросов.\n\n"
         "{proof}"
-        "Нажми на канал ниже и подпишись:"
+        "👇 Нажми и подпишись:"
     ),
-    "channel_proof": "В боте уже {subs_count} человек.\n\n",
-    "subscription_outcome": "Личный помощник, который экономит часы каждую неделю.",
-    "subscription_proof": "{active_subs} человек уже пользуются каждый день\n\n",
+    "channel_proof": "Нас уже {subs_count}.\n\n",
+    "subscription_outcome": "Помощник, который экономит тебе часы каждую неделю.",
+    "subscription_proof": "{active_subs} чел. уже пользуются каждый день\n\n",
     "subscription_benefits": (
-        "• <b>Спрашивай без ограничений</b> — работа, дети, здоровье, готовка, путешествия\n"
-        "• <b>Картинки по описанию</b> — открытки, оформление, идеи подарков\n"
-        "• <b>Экономия времени</b> — письма, планы, поздравления за секунды\n"
-        "• <b>Фото и голос</b> — отправь фото или голосовое, бот разберётся\n"
-        "• <b>Работает 24/7</b> — всегда под рукой, в любое время"
+        "✅ <b>Любые вопросы</b> — работа, дом, дети, здоровье, деньги\n"
+        "✅ <b>Картинки</b> — открытки, аватарки, идеи, логотипы\n"
+        "✅ <b>Экономия времени</b> — письма, планы, тексты за секунды\n"
+        "✅ <b>Фото + голос</b> — отправь что угодно, бот разберётся\n"
+        "✅ <b>24/7</b> — всегда на связи, без очередей"
     ),
-    "subscription_price_anchor": "<s>5 USD</s>  <b>{price_stars} звёзд</b> или <b>{price_usd} USD</b> за 30 дней",
+    "subscription_price_anchor": "<s>5 USD</s>  <b>{price_stars} ⭐</b> или <b>{price_usd} USD</b> за 30 дней",
     "trial_reminder_1_left": (
-        "<b>Бесплатные запросы почти закончились!</b>\n\n"
-        "Попробуй напоследок что-нибудь полезное:\n"
+        "<b>Остался последний бесплатный запрос!</b>\n\n"
+        "Используй его — и реши что-то важное:\n"
         "• <i>«Составь меню на неделю»</i>\n"
-        "• <i>«Напиши ответ на деловое письмо»</i>\n\n"
-        "Чтобы пользоваться дальше — подключи PRO.\n"
-        "<i>Дешевле чашки кофе — {price} звёзд за месяц.</i>"
+        "• <i>«Напиши деловое письмо»</i>\n\n"
+        "Дальше — PRO. <b>Всего {price} ⭐ за месяц.</b>"
     ),
     "trial_reminder_24h": (
-        "<b>Привет! Как тебе помощник?</b>\n\n"
-        "Вот что люди спрашивают каждый день:\n"
-        "• Меню, рецепты, списки покупок\n"
-        "• Письма, поздравления, резюме\n"
-        "• Советы по здоровью, детям, путешествиям\n\n"
-        "С PRO — всё это без ограничений, 24/7.\n"
-        "<b>Всего {price} звёзд за месяц.</b>"
+        "Ты вчера попробовал помощника — понравилось?\n\n"
+        "Вот что спрашивают другие:\n"
+        "• «Составь список покупок на неделю»\n"
+        "• «Напиши поздравление свекрови»\n"
+        "• «Объясни ребёнку, почему небо голубое»\n\n"
+        "С PRO — спрашивай сколько хочешь.\n"
+        "<b>{price} ⭐ за месяц. Это 3₽ в день.</b>"
     ),
     "image_generation_progress": (
-        "Рисую картинку...\n"
-        "Обычно это 10-30 секунд."
+        "🎨 Рисую...\n"
+        "<i>10–30 секунд</i>"
     ),
     "image_success_free_cta": (
-        "\n\n<i>С PRO — до {img_daily} картинок в день + вопросы без ограничений</i>"
+        "\n\n<i>С PRO — до {img_daily} картинок в день, без ограничений</i>"
+    ),
+    "soft_paywall": (
+        "<b>Осталось бесплатно: {remaining}</b>\n"
+        "PRO — без ограничений."
+    ),
+    "referral_invite": (
+        "<b>Получи +{bonus} бесплатных запроса!</b>\n\n"
+        "Отправь эту ссылку другу:\n<code>{link}</code>\n\n"
+        "Друг запустит бота — тебе сразу начислится {bonus} запроса."
+    ),
+    "referral_bonus_received": (
+        "🎉 Друг зашёл! Тебе <b>+{bonus} бесплатных запроса</b>."
+    ),
+    "daily_free_available": (
+        "У тебя <b>1 бесплатный запрос сегодня</b>.\n\n"
+        "<i>С PRO — без ограничений каждый день.</i>"
+    ),
+    "trial_reminder_1h": (
+        "Ну как тебе?\n\n"
+        "Это только начало — с PRO ты сможешь:\n"
+        "• Спрашивать без ограничений\n"
+        "• Рисовать картинки и открытки\n"
+        "• Отправлять фото и голосовые\n\n"
+        "🔥 <b>Для тебя — первый месяц {discount_price} ⭐ вместо {full_price}</b>"
+    ),
+    "trial_reminder_3d": (
+        "Привет! Ты давно не заходил.\n\n"
+        "А люди каждый день спрашивают:\n"
+        "• «Что приготовить из курицы и риса?»\n"
+        "• «Напиши отзыв на товар»\n"
+        "• «Посоветуй сериал на вечер»\n\n"
+        "У тебя <b>1 бесплатный запрос</b> — попробуй.\n\n"
+        "<i>PRO — {price} ⭐/мес. Это 3₽ в день.</i>"
+    ),
+    "first_buy_discount": (
+        "🔥 <b>Только для тебя — первый месяц со скидкой!</b>\n\n"
+        "<b>{discount_price} ⭐</b> вместо <s>{full_price}</s> за 30 дней.\n\n"
+        "<i>Предложение одноразовое.</i>"
     ),
 }
 
@@ -1390,6 +1438,7 @@ def _default_stats():
         "total_revenue_usd": 0.0,
         "paywall_shown": 0,
         "subscription_clicked": 0,
+        "total_referrals": 0,
     }
 
 
@@ -1615,64 +1664,109 @@ def get_free_image_trial_used(user_id: int) -> int:
 
 
 def get_free_trial_remaining(user_id: int) -> tuple:
-    """Вернуть (текст_осталось, картинок_осталось)"""
+    """Вернуть (текст_осталось, картинок_осталось) — триал + бонусы"""
     text_rem = max(0, FREE_TRIAL_LIMIT - get_free_trial_used(user_id))
     img_rem = max(0, FREE_IMAGE_TRIAL_LIMIT - get_free_image_trial_used(user_id))
     return text_rem, img_rem
 
 
+def get_total_free_remaining(user_id: int) -> int:
+    """Всего бесплатных запросов (триал + реф.бонус + ежедневный)"""
+    text_rem, img_rem = get_free_trial_remaining(user_id)
+    ref_bonus = get_referral_bonus_remaining(user_id)
+    daily_free = get_daily_free_remaining(user_id)
+    return text_rem + img_rem + ref_bonus + daily_free
+
+
 def consume_free_trial(user_id: int, is_image: bool = False):
-    """Списать 1 бесплатный запрос. Сохраняет first_use_time при первом использовании."""
+    """Списать 1 бесплатный запрос. Приоритет: триал → реф.бонус → ежедневный."""
     user_data = load_user_data(user_id)
     used = get_free_trial_used(user_id)
     if used == 0 and not user_data.get("first_use_time"):
         user_data["first_use_time"] = datetime.now().isoformat()
     if is_image:
-        user_data["image_trial_used"] = user_data.get("image_trial_used", 0) + 1
+        if get_free_image_trial_used(user_id) < FREE_IMAGE_TRIAL_LIMIT:
+            user_data["image_trial_used"] = user_data.get("image_trial_used", 0) + 1
+            save_user_data(user_id, user_data)
+            return
     else:
-        user_data["free_trial_used"] = used + 1
+        if used < FREE_TRIAL_LIMIT:
+            user_data["free_trial_used"] = used + 1
+            save_user_data(user_id, user_data)
+            return
     save_user_data(user_id, user_data)
+    # Триал закончился — списываем из реферальных бонусов
+    if get_referral_bonus_remaining(user_id) > 0:
+        consume_referral_bonus(user_id)
+        return
+    # Списываем из ежедневного бесплатного
+    if get_daily_free_remaining(user_id) > 0:
+        consume_daily_free(user_id)
+        return
 
 
 def can_make_request(user_id: int, is_image: bool = False) -> bool:
-    """Может ли пользователь сделать запрос (подписка или бесплатный триал)"""
+    """Может ли пользователь сделать запрос (подписка, триал, реф.бонус или ежедневный)"""
     if user_id in ADMIN_IDS:
         return True
     if has_active_subscription(user_id):
         return True
     if is_image:
-        return get_free_image_trial_used(user_id) < FREE_IMAGE_TRIAL_LIMIT
-    # Для текста проверяем текстовый лимит
-    return get_free_trial_used(user_id) < FREE_TRIAL_LIMIT
+        if get_free_image_trial_used(user_id) < FREE_IMAGE_TRIAL_LIMIT:
+            return True
+    else:
+        if get_free_trial_used(user_id) < FREE_TRIAL_LIMIT:
+            return True
+    # Реферальные бонусы
+    if get_referral_bonus_remaining(user_id) > 0:
+        return True
+    # Ежедневный бесплатный запрос
+    if get_daily_free_remaining(user_id) > 0:
+        return True
+    return False
 
 
 def can_make_any_request(user_id: int) -> bool:
-    """Есть ли хоть какие-то бесплатные запросы (текст или картинки)"""
+    """Есть ли хоть какие-то бесплатные запросы (текст, картинки, реф.бонус, ежедневный)"""
     if user_id in ADMIN_IDS:
         return True
     if has_active_subscription(user_id):
         return True
     text_rem, img_rem = get_free_trial_remaining(user_id)
-    return text_rem > 0 or img_rem > 0
+    if text_rem > 0 or img_rem > 0:
+        return True
+    if get_referral_bonus_remaining(user_id) > 0:
+        return True
+    if get_daily_free_remaining(user_id) > 0:
+        return True
+    return False
 
 
 def get_free_trial_paywall_text(user_id: int = None) -> str:
     """Текст пейвола при исчерпании бесплатного триала."""
-    price_stars = get_subscription_price()
-    price_usd = get_subscription_price_usd()
     active_subs = len(get_users_with_active_subscription())
     proof = get_message("paywall_proof", active_subs=active_subs) if active_subs > 0 else ""
 
-    # Если остались запросы другого типа — подсказываем
     if user_id:
+        eff_stars, eff_usd = get_effective_price(user_id)
+        first = is_first_purchase(user_id)
         text_rem, img_rem = get_free_trial_remaining(user_id)
+
+        # Скидочная строка
+        if first:
+            full_price = get_subscription_price()
+            discount_line = f"\n🔥 <b>Первый месяц — {eff_stars} звёзд вместо <s>{full_price}</s>!</b>"
+        else:
+            discount_line = ""
+
         if text_rem > 0 and img_rem == 0:
             return (
                 f"{proof}"
                 f"<b>Бесплатные картинки закончились</b>\n\n"
                 f"У тебя ещё {text_rem} текстовых запросов.\n"
                 f"Для безлимитных картинок — оформи PRO.\n\n"
-                f"<b>Всего {price_stars} Stars / {price_usd} USD за 30 дней</b>"
+                f"<b>Всего {eff_stars} Stars / {eff_usd} USD за 30 дней</b>"
+                f"{discount_line}"
             )
         if img_rem > 0 and text_rem == 0:
             return (
@@ -1680,16 +1774,25 @@ def get_free_trial_paywall_text(user_id: int = None) -> str:
                 f"<b>Бесплатные текстовые запросы закончились</b>\n\n"
                 f"У тебя ещё {img_rem} картинок.\n"
                 f"Для безлимита — оформи PRO.\n\n"
-                f"<b>Всего {price_stars} Stars / {price_usd} USD за 30 дней</b>"
+                f"<b>Всего {eff_stars} Stars / {eff_usd} USD за 30 дней</b>"
+                f"{discount_line}"
             )
+    else:
+        eff_stars = get_subscription_price()
+        eff_usd = get_subscription_price_usd()
+        discount_line = ""
 
-    return get_message(
+    paywall_text = get_message(
         "paywall",
         proof=proof,
-        price_stars=price_stars,
-        price_usd=price_usd,
+        price_stars=eff_stars,
+        price_usd=eff_usd,
         img_daily=IMAGE_DAILY_LIMIT_PRO
     )
+    if user_id and is_first_purchase(user_id):
+        full_price = get_subscription_price()
+        paywall_text += f"\n\n🔥 <b>Первый месяц — {eff_stars} звёзд вместо <s>{full_price}</s>!</b>"
+    return paywall_text
 
 
 def try_consume_image_generation_limit(user_id: int) -> tuple:
@@ -1756,6 +1859,93 @@ def revoke_subscription(user_id: int):
     """Отобрать подписку у пользователя"""
     user_data = load_user_data(user_id)
     user_data["subscription_end"] = None
+    save_user_data(user_id, user_data)
+
+
+# ==================== РЕФЕРАЛЬНАЯ СИСТЕМА ====================
+def get_referral_link(user_id: int) -> str:
+    """Получить реферальную ссылку пользователя"""
+    bot_info_username = os.getenv("BOT_USERNAME", "")
+    if bot_info_username:
+        return f"https://t.me/{bot_info_username}?start=ref_{user_id}"
+    return f"ref_{user_id}"
+
+
+def process_referral(new_user_id: int, referrer_id: int):
+    """Обработать реферал — начислить бонусы приглашающему."""
+    if new_user_id == referrer_id:
+        return False
+    # Проверяем, что новый пользователь действительно новый
+    new_user_data = load_user_data(new_user_id)
+    if new_user_data.get("referred_by"):
+        return False  # уже был приглашён
+    # Сохраняем реферала у нового пользователя
+    new_user_data["referred_by"] = referrer_id
+    save_user_data(new_user_id, new_user_data)
+    # Начисляем бонус приглашающему
+    referrer_data = load_user_data(referrer_id)
+    referrer_data["referral_bonus"] = referrer_data.get("referral_bonus", 0) + REFERRAL_BONUS_REQUESTS
+    referrer_data["referral_count"] = referrer_data.get("referral_count", 0) + 1
+    save_user_data(referrer_id, referrer_data)
+    increment_stat("total_referrals")
+    return True
+
+
+def get_referral_bonus_remaining(user_id: int) -> int:
+    """Сколько реферальных бонусных запросов осталось"""
+    user_data = load_user_data(user_id)
+    bonus = user_data.get("referral_bonus", 0)
+    used = user_data.get("referral_bonus_used", 0)
+    return max(0, bonus - used)
+
+
+def consume_referral_bonus(user_id: int):
+    """Списать 1 реферальный бонусный запрос"""
+    user_data = load_user_data(user_id)
+    user_data["referral_bonus_used"] = user_data.get("referral_bonus_used", 0) + 1
+    save_user_data(user_id, user_data)
+
+
+# ==================== ЕЖЕДНЕВНЫЙ БЕСПЛАТНЫЙ ЗАПРОС ====================
+def get_daily_free_remaining(user_id: int) -> int:
+    """Сколько ежедневных бесплатных запросов осталось"""
+    user_data = load_user_data(user_id)
+    today_key = datetime.now().strftime("%Y-%m-%d")
+    daily_date = user_data.get("daily_free_date", "")
+    if daily_date != today_key:
+        return DAILY_FREE_REQUESTS
+    return max(0, DAILY_FREE_REQUESTS - user_data.get("daily_free_used", 0))
+
+
+def consume_daily_free(user_id: int):
+    """Списать 1 ежедневный бесплатный запрос"""
+    user_data = load_user_data(user_id)
+    today_key = datetime.now().strftime("%Y-%m-%d")
+    if user_data.get("daily_free_date") != today_key:
+        user_data["daily_free_date"] = today_key
+        user_data["daily_free_used"] = 0
+    user_data["daily_free_used"] = user_data.get("daily_free_used", 0) + 1
+    save_user_data(user_id, user_data)
+
+
+# ==================== СКИДКА НА ПЕРВУЮ ПОКУПКУ ====================
+def is_first_purchase(user_id: int) -> bool:
+    """Проверить, является ли это первой покупкой пользователя"""
+    user_data = load_user_data(user_id)
+    return not user_data.get("has_ever_paid", False)
+
+
+def get_effective_price(user_id: int) -> tuple:
+    """Получить актуальную цену для пользователя (звёзды, USD)"""
+    if is_first_purchase(user_id):
+        return FIRST_BUY_DISCOUNT_STARS, FIRST_BUY_DISCOUNT_USD
+    return get_subscription_price(), get_subscription_price_usd()
+
+
+def mark_as_paid(user_id: int):
+    """Пометить, что пользователь хотя бы раз оплатил"""
+    user_data = load_user_data(user_id)
+    user_data["has_ever_paid"] = True
     save_user_data(user_id, user_data)
 
 
@@ -2111,6 +2301,11 @@ def get_last_reminder(user_id: int) -> Optional[dict]:
 def set_last_reminder(user_id: int, reminder_type: str):
     """Установить время последнего напоминания"""
     user_data = load_user_data(user_id)
+    # Храним каждый тип напоминания отдельно
+    reminders_sent = user_data.get("reminders_sent", {})
+    reminders_sent[reminder_type] = datetime.now().isoformat()
+    user_data["reminders_sent"] = reminders_sent
+    # Обратная совместимость
     user_data["last_reminder"] = {
         "type": reminder_type,
         "time": datetime.now().isoformat()
@@ -2119,20 +2314,16 @@ def set_last_reminder(user_id: int, reminder_type: str):
 
 
 def should_send_reminder(user_id: int, reminder_type: str) -> bool:
-    """Проверить, нужно ли отправлять напоминание"""
-    last_reminder = get_last_reminder(user_id)
+    """Проверить, нужно ли отправлять напоминание (каждый тип — один раз)"""
+    user_data = load_user_data(user_id)
+    reminders_sent = user_data.get("reminders_sent", {})
 
-    if not last_reminder:
-        return True
+    if reminder_type in reminders_sent:
+        return False  # Уже отправлялось
 
-    if last_reminder.get("type") != reminder_type:
-        return True
-
-    last_time = datetime.fromisoformat(last_reminder["time"])
-    time_diff = datetime.now() - last_time
-
-    # Не отправлять чаще чем раз в 12 часов для одного типа напоминания
-    if time_diff.total_seconds() < 12 * 3600:
+    # Обратная совместимость со старым форматом
+    last_reminder = user_data.get("last_reminder")
+    if last_reminder and last_reminder.get("type") == reminder_type:
         return False
 
     return True
@@ -2151,8 +2342,16 @@ def get_main_keyboard(user_id: int = None):
         ],
     ]
     if not has_sub:
+        if user_id and is_first_purchase(user_id):
+            buttons.append([
+                make_inline_button(f"🔥 PRO за {FIRST_BUY_DISCOUNT_STARS} ⭐ (скидка!)", callback_data="subscription", button_key="subscription", style="success")
+            ])
+        else:
+            buttons.append([
+                make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success")
+            ])
         buttons.append([
-            make_inline_button("Подписка PRO", callback_data="subscription", button_key="subscription", style="success")
+            make_inline_button("Пригласи друга → +3 запроса", callback_data="referral_info", button_key="info", style="primary")
         ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -2253,12 +2452,12 @@ def get_models_keyboard(page: int, user_id: int):
 def get_subscription_keyboard(user_id: int):
     """Клавиатура подписки"""
     has_sub = has_active_subscription(user_id)
-    price_stars = get_subscription_price()
-    price_usd = get_subscription_price_usd()
 
     buttons = []
 
     if has_sub:
+        price_stars = get_subscription_price()
+        price_usd = get_subscription_price_usd()
         buttons.append([make_inline_button(
             f"Продлить за {price_stars} звёзд",
             callback_data="extend_stars",
@@ -2272,16 +2471,36 @@ def get_subscription_keyboard(user_id: int):
             style="primary"
         )])
     else:
+        eff_stars, eff_usd = get_effective_price(user_id)
+        first = is_first_purchase(user_id)
+        # Недельная подписка — низкий порог входа
         buttons.append([make_inline_button(
-            f"Оплатить {price_stars} звёзд",
+            f"Попробовать 7 дней — {WEEKLY_PRICE_STARS} ⭐",
+            callback_data="buy_weekly_stars",
+            button_key="buy_stars",
+            style="success"
+        )])
+        # Месячная подписка
+        stars_label = f"🔥 30 дней — {eff_stars} ⭐ (скидка!)" if first else f"30 дней — {eff_stars} ⭐"
+        buttons.append([make_inline_button(
+            stars_label,
             callback_data="buy_stars",
             button_key="buy_stars",
             style="success"
         )])
         buttons.append([make_inline_button(
-            f"Оплатить {price_usd} USD (крипто)",
+            f"Оплатить {eff_usd} USD (крипто)",
             callback_data="buy_crypto",
             button_key="buy_crypto",
+            style="primary"
+        )])
+
+    # Кнопка реферальной программы для бесплатных пользователей
+    if not has_sub:
+        buttons.append([make_inline_button(
+            "Пригласи друга → +3 запроса",
+            callback_data="referral_info",
+            button_key="info",
             style="primary"
         )])
 
@@ -2785,6 +3004,7 @@ async def cmd_start(message: Message):
         return
 
     user_data = load_user_data(user_id)
+    is_new_user = not os.path.exists(get_user_history_path(user_id))
 
     # Обновляем данные пользователя
     user_data["username"] = message.from_user.username
@@ -2794,8 +3014,27 @@ async def cmd_start(message: Message):
     # Статистика: каждый /start
     increment_stat("total_starts")
     # Новый пользователь (первый раз)
-    if not os.path.exists(get_user_history_path(user_id)):
+    if is_new_user:
         increment_stat("total_users")
+
+    # Обработка реферальной ссылки (ref_XXXXXX)
+    if message.text and len(message.text.split()) > 1:
+        param = message.text.split()[1]
+        if param.startswith("ref_") and is_new_user:
+            try:
+                referrer_id = int(param.replace("ref_", ""))
+                if process_referral(user_id, referrer_id):
+                    # Уведомляем пригласившего
+                    try:
+                        await send_system_message(
+                            chat_id=referrer_id,
+                            text=get_message("referral_bonus_received", bonus=REFERRAL_BONUS_REQUESTS),
+                            parse_mode="HTML"
+                        )
+                    except Exception:
+                        pass
+            except (ValueError, TypeError):
+                pass
 
     # Проверяем подписку на каналы (админы не проверяются)
     if user_id not in ADMIN_IDS:
@@ -2805,6 +3044,56 @@ async def cmd_start(message: Message):
             return
 
     await send_start_message(message.chat.id, user_id, rotate_example=True)
+
+    # Онбординг-демо: для новых пользователей автоматически показываем пример ответа
+    if is_new_user:
+        asyncio.create_task(_send_onboarding_demo(message.chat.id, user_id))
+
+
+async def _send_onboarding_demo(chat_id: int, user_id: int):
+    """Отправить демо-ответ через 3 секунды после /start — показать качество AI бесплатно."""
+    try:
+        await asyncio.sleep(3)
+        await bot.send_chat_action(chat_id, "typing")
+        await asyncio.sleep(1)
+
+        demo_prompts = [
+            "Что приготовить из курицы и картошки? Быстро, на ужин для семьи.",
+            "Посоветуй фильм на вечер — чтобы не оторваться",
+            "Как быстро убрать квартиру перед гостями? Топ-5 советов",
+        ]
+        demo_prompt = random.choice(demo_prompts)
+
+        demo_response = await get_ai_response(user_id, demo_prompt)
+
+        demo_text = (
+            f"💬 <b>Вот как я отвечаю:</b>\n"
+            f"<i>Ты: {demo_prompt}</i>\n\n"
+            f"{demo_response}"
+        )
+
+        # Отправляем, не тратя триал
+        parts = split_message(markdown_to_html(demo_text))
+        for part in parts:
+            try:
+                await bot.send_message(chat_id=chat_id, text=part, parse_mode="HTML")
+            except Exception:
+                await bot.send_message(chat_id=chat_id, text=part)
+
+        # После демо — напоминаем про бесплатные запросы
+        text_rem, img_rem = get_free_trial_remaining(user_id)
+        if text_rem > 0:
+            await send_system_message(
+                chat_id=chat_id,
+                text=(
+                    f"👆 Это бесплатный пример.\n\n"
+                    f"У тебя ещё <b>{text_rem} вопроса и {img_rem} картинки</b> — "
+                    f"напиши что-нибудь своё!"
+                ),
+                parse_mode="HTML"
+            )
+    except Exception as e:
+        logging.warning(f"Ошибка онбординг-демо для {user_id}: {e}")
 
 
 async def send_channel_subscription_message(chat_id: int, user_id: int):
@@ -2895,35 +3184,42 @@ async def send_start_message(chat_id: int, user_id: int, rotate_example: bool = 
     has_sub = has_active_subscription(user_id)
     start_example = get_start_example(user_id, rotate=rotate_example)
 
-    start_title_emoji = (
-        text_emoji("wave")
-        or text_emoji("star")
-        or button_emoji_tag("subscription")
-        or button_emoji_tag("info")
-        or "👋"
-    )
-    text = f"{start_title_emoji} <b>Привет! Я — твой личный помощник.</b>\n\n"
+    header_emoji = text_emoji("wave") or "👋"
+    text = f"{header_emoji} <b>Напиши вопрос — получи ответ за секунды.</b>\n\n"
     text += (
-        "Экономь время — просто напиши, что нужно:\n\n"
-        "✏️ <b>Любой вопрос</b> — от рецепта до юридической консультации\n"
-        "🎨 <b>Картинка по описанию</b> — открытка, логотип, идея подарка\n"
-        "📷 <b>Разбор фото</b> — отправь фото, я объясню или переведу\n"
-        "🎤 <b>Голосовое</b> — отправь голосовое, получи текстовый ответ\n"
+        "Меню на неделю, письмо начальнику, подарок жене, "
+        "объяснение ребёнку — спроси что угодно.\n\n"
+        "А ещё умею:\n"
+        "🎨 рисовать картинки и открытки\n"
+        "📷 разбирать фото\n"
+        "🎤 понимать голосовые\n"
     )
 
     if not has_sub:
         text_rem, img_rem = get_free_trial_remaining(user_id)
+        ref_bonus = get_referral_bonus_remaining(user_id)
+        daily_free = get_daily_free_remaining(user_id)
         if text_rem > 0 or img_rem > 0:
             text += (
-                f"\n<b>Бесплатно:</b> {text_rem} вопросов + {img_rem} картинок\n"
+                f"\n👉 <b>У тебя {text_rem} бесплатных вопроса и {img_rem} картинки — попробуй:</b>\n"
             )
+        elif ref_bonus > 0:
+            text += f"\n👉 <b>Бонусных запросов: {ref_bonus} — попробуй:</b>\n"
+        elif daily_free > 0:
+            text += f"\n👉 <b>1 бесплатный запрос сегодня — попробуй:</b>\n"
         else:
-            text += "\nБесплатные запросы закончились. Подключи PRO!\n"
+            text += "\n<b>Бесплатные запросы закончились.</b> Подключи PRO — от 49 ⭐\n"
 
-    text += (
-        "\n<b>Попробуй прямо сейчас — напиши:</b>\n"
-        f"<blockquote>{start_example}</blockquote>\n"
-    )
+        if is_first_purchase(user_id) and (text_rem > 0 or img_rem > 0 or ref_bonus > 0 or daily_free > 0):
+            text += f"<blockquote>{start_example}</blockquote>\n"
+            text += f"\n🔥 <i>Первый месяц PRO — {FIRST_BUY_DISCOUNT_STARS} ⭐ вместо 99</i>\n"
+        elif text_rem > 0 or img_rem > 0 or ref_bonus > 0 or daily_free > 0:
+            text += f"<blockquote>{start_example}</blockquote>\n"
+    else:
+        text += (
+            f"\n<b>Просто напиши:</b>\n"
+            f"<blockquote>{start_example}</blockquote>\n"
+        )
 
     if await send_section_media_message(
         chat_id=chat_id,
@@ -3107,7 +3403,7 @@ async def callback_set_model(callback: CallbackQuery):
     user_id = callback.from_user.id
 
     if not has_active_subscription(user_id):
-        await callback.answer("Чтобы менять модели — подключи PRO", show_alert=True)
+        await callback.answer("Эта модель доступна в PRO — от 49 ⭐/мес", show_alert=True)
         return
 
     user_data = load_user_data(user_id)
@@ -3157,21 +3453,21 @@ async def callback_subscription(callback: CallbackQuery):
         text = f"{text_emoji('star')} <b>Подписка</b>\n\n"
         text += "Вы администратор бота и имеете неограниченный доступ."
     elif has_sub:
-        text = f"{text_emoji('star')} <b>PRO подключён</b>\n\n"
-        text += f"<b>Действует до:</b> {sub_end.strftime('%d.%m.%Y %H:%M')}\n"
+        text = f"{text_emoji('star')} <b>PRO активен</b>\n\n"
+        text += f"<b>До:</b> {sub_end.strftime('%d.%m.%Y')}\n"
         time_left = sub_end - datetime.now()
         days = time_left.days
         hours = time_left.seconds // 3600
         text += f"<b>Осталось:</b> {days}д {hours}ч\n\n"
         text += (
-            "<b>Тебе доступно:</b>\n"
-            f"  Вопросы без ограничений\n"
-            f"  До {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
-            f"  Любой стиль ответа\n"
+            "✅ Вопросы — без ограничений\n"
+            f"✅ Картинки — до {IMAGE_DAILY_LIMIT_PRO}/день\n"
+            "✅ Все модели AI — GPT-5, Claude, Gemini\n"
+            "✅ Фото, голос, любой стиль\n"
         )
     else:
-        price_stars = get_subscription_price()
-        price_usd = get_subscription_price_usd()
+        eff_stars, eff_usd = get_effective_price(user_id)
+        full_stars = get_subscription_price()
         active_subs = len(get_users_with_active_subscription())
         proof = get_message("subscription_proof", active_subs=active_subs) if active_subs > 0 else ""
         user_data = load_user_data(user_id)
@@ -3180,7 +3476,11 @@ async def callback_subscription(callback: CallbackQuery):
         text += f"<b>{get_message('subscription_outcome')}</b>\n\n"
         text += proof
         text += f"<blockquote>{get_message('subscription_benefits')}</blockquote>\n\n"
-        text += get_message("subscription_price_anchor", price_stars=price_stars, price_usd=price_usd)
+        text += f"<b>{WEEKLY_PRICE_STARS} ⭐ за 7 дней</b> — попробуй без риска\n"
+        if is_first_purchase(user_id):
+            text += f"🔥 <b>{eff_stars} ⭐ за 30 дней</b> (вместо <s>{full_stars}</s>) — скидка для новых!\n"
+        else:
+            text += f"<b>{eff_stars} ⭐ за 30 дней</b> — выгоднее в 2 раза\n"
         if text_rem > 0 or img_rem > 0:
             text += f"\n\n<i>Осталось бесплатно: {text_rem} вопросов, {img_rem} картинок</i>"
 
@@ -3204,6 +3504,32 @@ async def callback_subscription(callback: CallbackQuery):
     await callback.answer()
 
 
+@dp.callback_query(F.data == "referral_info")
+async def callback_referral_info(callback: CallbackQuery):
+    """Информация о реферальной программе"""
+    user_id = callback.from_user.id
+
+    # Получаем username бота для ссылки
+    bot_me = await bot.get_me()
+    ref_link = f"https://t.me/{bot_me.username}?start=ref_{user_id}"
+
+    user_data = load_user_data(user_id)
+    ref_count = user_data.get("referral_count", 0)
+    ref_bonus = get_referral_bonus_remaining(user_id)
+
+    text = get_message("referral_invite", bonus=REFERRAL_BONUS_REQUESTS, link=ref_link)
+    text += f"\n\n<b>Твоя статистика:</b>\n"
+    text += f"Приглашено друзей: {ref_count}\n"
+    text += f"Бонусных запросов: {ref_bonus}"
+
+    buttons = [
+        [make_inline_button("На главную", callback_data="main_menu", button_key="home", style="primary")]
+    ]
+
+    await safe_edit_or_send(callback, text, InlineKeyboardMarkup(inline_keyboard=buttons))
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "generate_image_prompt")
 async def callback_generate_image_prompt(callback: CallbackQuery):
     """Подсказка по генерации картинок"""
@@ -3214,21 +3540,20 @@ async def callback_generate_image_prompt(callback: CallbackQuery):
         return
 
     examples = [
-        "«Нарисуй красивую открытку к 8 марта»",
-        "«Сделай логотип для магазина цветов»",
-        "«Нарисуй уютную кухню в скандинавском стиле»",
-        "«Нарисуй семейный портрет в мультяшном стиле»",
-        "«Сделай красивую картинку заката у моря»",
+        "«Открытка с днём рождения — цветы и торт»",
+        "«Логотип для кофейни — минималистичный»",
+        "«Уютная кухня в скандинавском стиле»",
+        "«Семейный портрет в мультяшном стиле»",
+        "«Аватарка для соцсетей — стильная и яркая»",
+        "«Котик в костюме космонавта»",
     ]
     example = random.choice(examples)
 
     text = (
-        f"{text_emoji('image')} <b>Рисую картинки по описанию</b>\n\n"
-        "Опиши словами, что хочешь увидеть — и я нарисую.\n\n"
-        "<b>Например:</b>\n"
-        f"<blockquote>{example}</blockquote>\n\n"
-        "Можно: открытки, аватарки, логотипы, идеи интерьера — что угодно.\n\n"
-        "<i>Просто напиши в чат, что нарисовать:</i>"
+        f"{text_emoji('image')} <b>Опиши — я нарисую</b>\n\n"
+        "Открытки, логотипы, аватарки, идеи интерьера — что угодно.\n\n"
+        "<b>Попробуй написать:</b>\n"
+        f"<blockquote>{example}</blockquote>"
     )
 
     buttons = [
@@ -3249,20 +3574,44 @@ async def callback_generate_image_prompt(callback: CallbackQuery):
     await callback.answer()
 
 
+@dp.callback_query(F.data == "buy_weekly_stars")
+async def callback_buy_weekly_stars(callback: CallbackQuery):
+    """Покупка недельной подписки за звезды"""
+    user_id = callback.from_user.id
+    increment_stat("subscription_clicked")
+
+    await bot.send_invoice(
+        chat_id=user_id,
+        title="PRO на 7 дней — попробуй!",
+        description="Безлимитные вопросы, картинки, фото, голос. Все модели AI.",
+        payload=f"weekly_{user_id}",
+        currency="XTR",
+        prices=[LabeledPrice(label="PRO (7 дней)", amount=WEEKLY_PRICE_STARS)]
+    )
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "buy_stars")
 async def callback_buy_stars(callback: CallbackQuery):
     """Покупка подписки за звезды"""
     user_id = callback.from_user.id
     increment_stat("subscription_clicked")
-    price = get_subscription_price()
+    eff_stars, _ = get_effective_price(user_id)
+
+    first = is_first_purchase(user_id)
+    title = "🔥 PRO — первый месяц со скидкой!" if first else "PRO подписка — 30 дней"
+    desc = (
+        "Безлимитные вопросы, картинки, фото, голос. "
+        "GPT-5, Claude, Gemini — все модели включены."
+    )
 
     await bot.send_invoice(
         chat_id=user_id,
-        title="Подписка PRO — 30 дней",
-        description="Безлимитные запросы, все модели AI, генерация картинок, настройка стиля.",
+        title=title,
+        description=desc,
         payload=f"subscription_{user_id}",
         currency="XTR",
-        prices=[LabeledPrice(label="PRO подписка (30 дней)", amount=price)]
+        prices=[LabeledPrice(label="PRO (30 дней)", amount=eff_stars)]
     )
     await callback.answer()
 
@@ -3272,7 +3621,7 @@ async def callback_buy_crypto(callback: CallbackQuery):
     """Покупка подписки через CryptoBot"""
     user_id = callback.from_user.id
     increment_stat("subscription_clicked")
-    price_usd = get_subscription_price_usd()
+    _, price_usd = get_effective_price(user_id)
 
     await safe_edit_or_send(callback, "<b>Создаю ссылку для оплаты...</b>", parse_mode="HTML")
 
@@ -3369,12 +3718,22 @@ async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
 async def process_successful_payment(message: Message):
     """Обработка успешной оплаты"""
     user_id = message.from_user.id
+    payload = message.successful_payment.invoice_payload or ""
+
+    # Определяем срок подписки по payload
+    if payload.startswith("weekly_"):
+        days = WEEKLY_DAYS
+        plan_label = "7 дней"
+    else:
+        days = 30
+        plan_label = "30 дней"
 
     # Выдаем подписку
-    grant_subscription(user_id, days=30)
+    grant_subscription(user_id, days=days)
+    mark_as_paid(user_id)
 
     # Обновляем статистику
-    price = get_subscription_price()
+    price = message.successful_payment.total_amount
     increment_stat("total_payments")
     increment_stat("total_revenue", price)
     _append_payment_log(user_id, price, "XTR", "telegram_stars")
@@ -3384,15 +3743,15 @@ async def process_successful_payment(message: Message):
     await send_system_message(
         chat_id=message.chat.id,
         text=(
-            "<b>Готово! PRO подключён.</b>\n\n"
-            f"Действует до: <b>{sub_end.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
-            "<b>Теперь тебе доступно:</b>\n"
-            "  Любые вопросы без ограничений\n"
-            f"  До {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
-            "  Лучшие технологии для ответов\n"
-            "  Настройка стиля общения\n\n"
-            "Попробуй прямо сейчас:\n"
-            "<i>«Составь план питания на неделю»</i>"
+            f"🎉 <b>PRO подключён на {plan_label}!</b>\n\n"
+            f"Действует до <b>{sub_end.strftime('%d.%m.%Y')}</b>\n\n"
+            "Теперь тебе доступно всё:\n"
+            "✅ Вопросы без ограничений\n"
+            f"✅ До {IMAGE_DAILY_LIMIT_PRO} картинок в день\n"
+            "✅ GPT-5, Claude, Gemini и другие\n"
+            "✅ Фото, голос, любой стиль ответа\n\n"
+            "<b>Попробуй прямо сейчас:</b>\n"
+            "<i>«Составь план питания на неделю для семьи»</i>"
         ),
         reply_markup=get_main_keyboard(user_id),
         parse_mode="HTML"
@@ -3451,7 +3810,9 @@ async def callback_admin_stats(callback: CallbackQuery):
         f"  CR (users→paid): {conv_rate:.1f}%\n\n"
         f"💰 <b>Доход (звёзды):</b> {stats.get('total_revenue', 0)} ⭐\n"
         f"💎 <b>Доход (CryptoBot):</b> {revenue_usd:.2f} USD\n\n"
-        f"🏷️ <b>Текущая цена:</b> {price} ⭐ / {get_subscription_price_usd()} USD"
+        f"👥 <b>Рефералов:</b> {stats.get('total_referrals', 0)}\n"
+        f"🏷️ <b>Текущая цена:</b> {price} ⭐ / {get_subscription_price_usd()} USD\n"
+        f"🔥 <b>Скидка первый месяц:</b> {FIRST_BUY_DISCOUNT_STARS} ⭐ / {FIRST_BUY_DISCOUNT_USD} USD"
     )
 
     await safe_edit_or_send(
@@ -4289,10 +4650,9 @@ async def callback_info(callback: CallbackQuery):
 
     text = (
         f"{text_emoji('info')} <b>Настройки</b>\n\n"
-        f"<b>Помощник:</b> {current_model}\n"
-        f"<b>Стиль:</b> {style_label}\n\n"
-        "<i>Бот сам подбирает лучший вариант под задачу.\n"
-        "Но ты можешь выбрать вручную.</i>"
+        f"Модель: <b>{current_model}</b>\n"
+        f"Стиль: <b>{style_label}</b>\n\n"
+        "<i>Бот подбирает модель автоматически, но ты можешь выбрать сам.</i>"
     )
 
     admin_username = ADMIN_USERNAME.lstrip('@')
@@ -5698,6 +6058,7 @@ async def handle_photo(message: Message, state: FSMContext):
         await send_long_message(message, ai_response)
         if not has_active_subscription(user_id):
             consume_free_trial(user_id)
+            await maybe_send_soft_paywall(message.chat.id, user_id)
             await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
     except Exception as e:
         logging.error(f"Ошибка фото: {e}")
@@ -5786,6 +6147,7 @@ async def handle_voice(message: Message, state: FSMContext):
         await send_long_message(message, ai_response)
         if not has_active_subscription(user_id):
             consume_free_trial(user_id)
+            await maybe_send_soft_paywall(message.chat.id, user_id)
             await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
 
     except Exception as e:
@@ -5896,7 +6258,52 @@ async def handle_message(message: Message, state: FSMContext):
     await send_long_message(message, ai_response)
     if not has_active_subscription(user_id):
         consume_free_trial(user_id)
+        await maybe_send_soft_paywall(message.chat.id, user_id, response_len=len(ai_response))
         await maybe_send_trial_reminder_1_left(message.chat.id, user_id)
+
+
+async def maybe_send_soft_paywall(chat_id: int, user_id: int, response_len: int = 0):
+    """Мягкий пейвол — показать оставшиеся запросы и кнопку PRO после бесплатного ответа."""
+    if user_id in ADMIN_IDS or has_active_subscription(user_id):
+        return
+    total_rem = get_total_free_remaining(user_id)
+    if total_rem <= 0:
+        return
+
+    eff_stars, _ = get_effective_price(user_id)
+    first = is_first_purchase(user_id)
+
+    # Варианты текста в зависимости от качества ответа
+    if response_len > 800:
+        # Длинный качественный ответ — "wow" уpsell
+        wow_texts = [
+            "Полезно? С PRO — так каждый день, без ограничений.",
+            "Представь, что такие ответы — без лимита.",
+            "Это только начало. С PRO — спрашивай сколько хочешь.",
+        ]
+        text = f"<i>{random.choice(wow_texts)}</i>\n"
+    else:
+        text = ""
+
+    text += f"<i>Осталось бесплатно: {total_rem}</i>"
+    if first:
+        text += f"  |  <b>PRO — {eff_stars} ⭐</b>"
+
+    buttons = [[make_inline_button(
+        f"🔥 PRO за {eff_stars} ⭐" if first else "Подключить PRO",
+        callback_data="subscription",
+        button_key="subscription",
+        style="success"
+    )]]
+    try:
+        await send_system_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
 
 
 # ==================== TRIAL REMINDERS ====================
@@ -5923,7 +6330,7 @@ async def maybe_send_trial_reminder_1_left(chat_id: int, user_id: int):
 
 
 async def check_trial_reminders():
-    """Напоминания для trial-пользователей: 24ч после первого использования."""
+    """Напоминания для trial-пользователей: 1ч, 24ч, 3 дня после первого использования."""
     while True:
         try:
             users = get_all_users()
@@ -5947,18 +6354,54 @@ async def check_trial_reminders():
                     continue
 
                 hours_since = (now - first_dt).total_seconds() / 3600
-                if 23 < hours_since < 25:
-                    if should_send_reminder(user_id, "trial_24h"):
+
+                # Напоминание через 1 час
+                if 0.9 < hours_since < 1.5:
+                    if should_send_reminder(user_id, "trial_1h"):
                         try:
+                            eff_stars, _ = get_effective_price(user_id)
+                            full_price = get_subscription_price()
                             await send_system_message(
                                 chat_id=user_id,
-                                text=get_message("trial_reminder_24h", price=get_subscription_price()),
+                                text=get_message("trial_reminder_1h",
+                                    discount_price=eff_stars,
+                                    full_price=full_price),
+                                reply_markup=get_subscription_keyboard(user_id),
+                                parse_mode="HTML"
+                            )
+                            set_last_reminder(user_id, "trial_1h")
+                        except Exception as e:
+                            logging.warning(f"Не удалось отправить напоминание trial_1h для {user_id}: {e}")
+
+                # Напоминание через 24 часа
+                elif 23 < hours_since < 25:
+                    if should_send_reminder(user_id, "trial_24h"):
+                        try:
+                            eff_stars, _ = get_effective_price(user_id)
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=get_message("trial_reminder_24h", price=eff_stars),
                                 reply_markup=get_subscription_keyboard(user_id),
                                 parse_mode="HTML"
                             )
                             set_last_reminder(user_id, "trial_24h")
                         except Exception as e:
                             logging.warning(f"Не удалось отправить напоминание trial_24h для {user_id}: {e}")
+
+                # Напоминание через 3 дня
+                elif 71 < hours_since < 73:
+                    if should_send_reminder(user_id, "trial_3d"):
+                        try:
+                            eff_stars, _ = get_effective_price(user_id)
+                            await send_system_message(
+                                chat_id=user_id,
+                                text=get_message("trial_reminder_3d", price=eff_stars),
+                                reply_markup=get_subscription_keyboard(user_id),
+                                parse_mode="HTML"
+                            )
+                            set_last_reminder(user_id, "trial_3d")
+                        except Exception as e:
+                            logging.warning(f"Не удалось отправить напоминание trial_3d для {user_id}: {e}")
 
         except Exception as e:
             logging.error(f"Ошибка проверки trial-напоминаний: {e}")
@@ -6045,6 +6488,7 @@ async def check_pending_invoices():
                     if invoice_status["status"] == "paid":
                         # Активируем подписку
                         grant_subscription(user_id, days=30)
+                        mark_as_paid(user_id)
 
                         # Обновляем статистику
                         price_usd = get_subscription_price_usd()
