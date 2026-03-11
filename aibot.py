@@ -2540,7 +2540,8 @@ def set_last_reminder(user_id: int, reminder_type: str):
 
 
 def should_send_reminder(user_id: int, reminder_type: str) -> bool:
-    """Проверить, нужно ли отправлять напоминание (каждый тип — один раз)"""
+    """Проверить, нужно ли отправлять напоминание.
+    Каждый тип — один раз. Плюс глобальный cooldown 6 часов между любыми напоминаниями."""
     user_data = load_user_data(user_id)
     reminders_sent = user_data.get("reminders_sent", {})
 
@@ -2552,7 +2553,42 @@ def should_send_reminder(user_id: int, reminder_type: str) -> bool:
     if last_reminder and last_reminder.get("type") == reminder_type:
         return False
 
+    # Глобальный cooldown: не отправлять любые напоминания чаще чем раз в 6 часов
+    if reminders_sent:
+        try:
+            latest = max(reminders_sent.values())
+            latest_dt = datetime.fromisoformat(latest)
+            if (datetime.now() - latest_dt).total_seconds() < 6 * 3600:
+                return False
+        except (ValueError, TypeError):
+            pass
+
+    # Проверяем, не заблокировал ли юзер бота (флаг ставится при ошибке отправки)
+    if user_data.get("bot_blocked"):
+        return False
+
     return True
+
+
+def mark_bot_blocked(user_id: int):
+    """Пометить что юзер заблокировал бота (чтобы не спамить ему)."""
+    try:
+        user_data = load_user_data(user_id)
+        user_data["bot_blocked"] = True
+        save_user_data(user_id, user_data)
+    except Exception:
+        pass
+
+
+def mark_bot_unblocked(user_id: int):
+    """Снять флаг блокировки (если юзер снова написал)."""
+    try:
+        user_data = load_user_data(user_id)
+        if user_data.get("bot_blocked"):
+            user_data.pop("bot_blocked", None)
+            save_user_data(user_id, user_data)
+    except Exception:
+        pass
 
 
 # ==================== КЛАВИАТУРЫ ====================
@@ -3785,6 +3821,8 @@ async def callback_quick_action(callback: CallbackQuery):
         return
 
     action = callback.data.replace("quick_", "")
+    # Трекинг кликов по quick actions
+    increment_stat(f"quick_{action}_clicked")
     prompts = {
         "write": {
             "title": "✍️ <b>Написать текст</b>",
@@ -3840,6 +3878,9 @@ async def callback_generate_image_prompt(callback: CallbackQuery):
         await callback.answer()
         return
 
+    # Трекинг кликов
+    increment_stat("quick_image_clicked")
+
     examples = [
         "«Открытка с днём рождения — цветы и торт»",
         "«Логотип для кофейни — минималистичный»",
@@ -3880,6 +3921,7 @@ async def callback_buy_weekly_stars(callback: CallbackQuery):
     """Покупка недельной подписки за звезды"""
     user_id = callback.from_user.id
     increment_stat("subscription_clicked")
+    increment_stat("buy_initiated")
 
     await bot.send_invoice(
         chat_id=user_id,
@@ -3897,6 +3939,7 @@ async def callback_buy_stars(callback: CallbackQuery):
     """Покупка подписки за звезды"""
     user_id = callback.from_user.id
     increment_stat("subscription_clicked")
+    increment_stat("buy_initiated")
     eff_stars, _ = get_effective_price(user_id)
 
     first = is_first_purchase(user_id)
@@ -3922,6 +3965,7 @@ async def callback_buy_crypto(callback: CallbackQuery):
     """Покупка подписки через CryptoBot"""
     user_id = callback.from_user.id
     increment_stat("subscription_clicked")
+    increment_stat("buy_initiated")
     _, price_usd = get_effective_price(user_id)
 
     await safe_edit_or_send(callback, "<b>Создаю ссылку для оплаты...</b>", parse_mode="HTML")
@@ -4252,9 +4296,12 @@ async def callback_admin_stats(callback: CallbackQuery):
         f"💳 <b>Оплат подписки:</b> {total_payments}\n"
         f"💬 <b>Всего сообщений:</b> {stats.get('total_messages', 0)}\n\n"
         "<b>📈 Воронка конверсии:</b>\n"
-        f"  start → trial_used: {trial_users}\n"
+        f"  start: {stats.get('total_starts', 0)}\n"
+        f"  first_request: {stats.get('first_request_sent', 0)}\n"
+        f"  trial_used: {trial_users}\n"
         f"  paywall_shown: {paywall_shown}\n"
-        f"  subscription_clicked: {sub_clicked}\n"
+        f"  sub_page_viewed: {sub_clicked}\n"
+        f"  buy_initiated: {stats.get('buy_initiated', 0)}\n"
         f"  payment: {total_payments}\n"
         f"  CR (users→paid): {conv_rate:.1f}%\n\n"
         f"💰 <b>Доход (звёзды):</b> {stats.get('total_revenue', 0)} ⭐\n"
@@ -4302,6 +4349,25 @@ async def callback_admin_stats(callback: CallbackQuery):
                 f"  Всего: {fb_stats['total']}\n"
                 f"  👍 {fb_stats['positive']} / 👎 {fb_stats['negative']}\n"
                 f"  Позитивных: {pct:.0f}%"
+            )
+    except Exception:
+        pass
+
+    # Quick action статистика
+    try:
+        qa_write = stats.get("quick_write_clicked", 0)
+        qa_plan = stats.get("quick_plan_clicked", 0)
+        qa_advice = stats.get("quick_advice_clicked", 0)
+        qa_image = stats.get("quick_image_clicked", 0)
+        qa_total = qa_write + qa_plan + qa_advice + qa_image
+        if qa_total > 0:
+            text += (
+                f"\n\n<b>🔘 Quick actions:</b>\n"
+                f"  ✍️ Текст: {qa_write}\n"
+                f"  📋 План: {qa_plan}\n"
+                f"  💡 Совет: {qa_advice}\n"
+                f"  🎨 Картинка: {qa_image}\n"
+                f"  Всего: {qa_total}"
             )
     except Exception:
         pass
@@ -6781,10 +6847,17 @@ async def handle_message(message: Message, state: FSMContext):
 
     user_id = message.from_user.id
 
+    # Снимаем флаг блокировки — юзер активен
+    mark_bot_unblocked(user_id)
+
     # Трекинг активности + статистика
     try:
         ud = load_user_data(user_id)
         ud["last_active"] = datetime.now().isoformat()
+        # Трекинг воронки: первый запрос
+        if not ud.get("first_request_sent"):
+            ud["first_request_sent"] = True
+            increment_stat("first_request_sent")
         today_str = datetime.now().strftime("%Y-%m-%d")
         days_set = ud.get("days_active_set", [])
         if today_str not in days_set:
@@ -6939,12 +7012,24 @@ async def handle_message(message: Message, state: FSMContext):
 
 
 async def maybe_send_soft_paywall(chat_id: int, user_id: int, response_len: int = 0, user_query: str = ""):
-    """Мягкий пейвол — показать оставшиеся запросы и кнопку PRO после бесплатного ответа."""
+    """Мягкий пейвол — показать оставшиеся запросы и кнопку PRO после бесплатного ответа.
+    Антиспам: показываем не каждый раз, а через раз (чтобы не раздражать)."""
     if user_id in ADMIN_IDS or has_active_subscription(user_id):
         return
     total_rem = get_total_free_remaining(user_id)
     if total_rem <= 0:
         return
+
+    # Антиспам: показываем soft paywall через раз (на 1-й, 3-й, 5-й... ответ)
+    try:
+        ud = load_user_data(user_id)
+        sp_count = ud.get("soft_paywall_counter", 0) + 1
+        ud["soft_paywall_counter"] = sp_count
+        save_user_data(user_id, ud)
+        if sp_count % 2 == 0:
+            return  # пропускаем каждый чётный
+    except Exception:
+        pass
 
     eff_stars, _ = get_effective_price(user_id)
     first = is_first_purchase(user_id)
@@ -6991,6 +7076,21 @@ async def maybe_send_soft_paywall(chat_id: int, user_id: int, response_len: int 
         pass
 
 
+async def _safe_send_reminder(user_id: int, **kwargs):
+    """Отправить напоминание с автоматической пометкой заблокированных ботов."""
+    try:
+        await send_system_message(chat_id=user_id, **kwargs)
+        return True
+    except Exception as e:
+        err = str(e).lower()
+        if "forbidden" in err or "blocked" in err or "deactivated" in err or "chat not found" in err:
+            mark_bot_blocked(user_id)
+            logging.info(f"🚫 Юзер {user_id} заблокировал бота, помечен")
+        else:
+            logging.warning(f"Не удалось отправить напоминание для {user_id}: {e}")
+        return False
+
+
 # ==================== TRIAL REMINDERS ====================
 async def maybe_send_trial_reminder_1_left(chat_id: int, user_id: int):
     """Отправить напоминание, когда бесплатные запросы почти закончились."""
@@ -7002,16 +7102,14 @@ async def maybe_send_trial_reminder_1_left(chat_id: int, user_id: int):
         return
     if not should_send_reminder(user_id, "trial_1_left"):
         return
-    try:
-        await send_system_message(
-            chat_id=chat_id,
-            text=get_message("trial_reminder_1_left", price=get_subscription_price()),
-            reply_markup=get_subscription_keyboard(user_id),
-            parse_mode="HTML"
-        )
+    ok = await _safe_send_reminder(
+        user_id,
+        text=get_message("trial_reminder_1_left", price=get_subscription_price()),
+        reply_markup=get_subscription_keyboard(user_id),
+        parse_mode="HTML"
+    )
+    if ok:
         set_last_reminder(user_id, "trial_1_left")
-    except Exception as e:
-        logging.warning(f"Не удалось отправить напоминание trial_1_left для {user_id}: {e}")
 
 
 async def check_trial_reminders():
@@ -7043,50 +7141,42 @@ async def check_trial_reminders():
                 # Напоминание через 1 час
                 if 0.9 < hours_since < 1.5:
                     if should_send_reminder(user_id, "trial_1h"):
-                        try:
-                            eff_stars, _ = get_effective_price(user_id)
-                            full_price = get_subscription_price()
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=get_message("trial_reminder_1h",
-                                    discount_price=eff_stars,
-                                    full_price=full_price),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        eff_stars, _ = get_effective_price(user_id)
+                        full_price = get_subscription_price()
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=get_message("trial_reminder_1h", discount_price=eff_stars, full_price=full_price),
+                            reply_markup=get_subscription_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "trial_1h")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить напоминание trial_1h для {user_id}: {e}")
 
                 # Напоминание через 24 часа
                 elif 23 < hours_since < 25:
                     if should_send_reminder(user_id, "trial_24h"):
-                        try:
-                            eff_stars, _ = get_effective_price(user_id)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=get_message("trial_reminder_24h", price=eff_stars),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        eff_stars, _ = get_effective_price(user_id)
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=get_message("trial_reminder_24h", price=eff_stars),
+                            reply_markup=get_subscription_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "trial_24h")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить напоминание trial_24h для {user_id}: {e}")
 
                 # Напоминание через 3 дня
                 elif 71 < hours_since < 73:
                     if should_send_reminder(user_id, "trial_3d"):
-                        try:
-                            eff_stars, _ = get_effective_price(user_id)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=get_message("trial_reminder_3d", price=eff_stars),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        eff_stars, _ = get_effective_price(user_id)
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=get_message("trial_reminder_3d", price=eff_stars),
+                            reply_markup=get_subscription_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "trial_3d")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить напоминание trial_3d для {user_id}: {e}")
 
         except Exception as e:
             logging.error(f"Ошибка проверки trial-напоминаний: {e}")
@@ -7119,86 +7209,74 @@ async def check_subscription_reminders():
                 # Напоминание за 24 часа
                 if 23 < hours_left < 25:
                     if should_send_reminder(user_id, "24h"):
-                        try:
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=(
-                                    "<b>Подписка истекает через 24 часа</b>\n\n"
-                                    "Продли сейчас — и не потеряй доступ к безлимитным запросам и генерации картинок."
-                                ),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=(
+                                "<b>Подписка истекает через 24 часа</b>\n\n"
+                                "Продли сейчас — и не потеряй доступ к безлимитным запросам и генерации картинок."
+                            ),
+                            reply_markup=get_subscription_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "24h")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить напоминание 24ч для {user_id}: {e}")
 
                 # Напоминание за 2 часа
                 elif 1.5 < hours_left < 2.5:
                     if should_send_reminder(user_id, "2h"):
-                        try:
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=(
-                                    "<b>Подписка заканчивается через 2 часа!</b>\n\n"
-                                    "После истечения запросы будут ограничены.\nПродли PRO одним нажатием."
-                                ),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=(
+                                "<b>Подписка заканчивается через 2 часа!</b>\n\n"
+                                "После истечения запросы будут ограничены.\nПродли PRO одним нажатием."
+                            ),
+                            reply_markup=get_subscription_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "2h")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить напоминание 2ч для {user_id}: {e}")
 
                 # === Win-back: напоминания ПОСЛЕ истечения подписки ===
                 # 1 час после истечения
                 elif -1.5 < hours_left < -0.5:
                     if should_send_reminder(user_id, "expired_1h"):
-                        try:
-                            eff_stars, _ = get_effective_price(user_id)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=get_message("expired_1h"),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=get_message("expired_1h"),
+                            reply_markup=get_subscription_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "expired_1h")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить expired_1h для {user_id}: {e}")
 
                 # 24 часа после истечения
                 elif -25 < hours_left < -23:
                     if should_send_reminder(user_id, "expired_24h"):
-                        try:
-                            eff_stars, _ = get_effective_price(user_id)
-                            req_count = get_user_request_count(user_id, sub_end.isoformat() if sub_end else None)
-                            # Если не нашли за период подписки, берём общее число
-                            if req_count == 0:
-                                req_count = get_user_request_count(user_id)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=get_message("expired_24h", request_count=req_count, price=eff_stars),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        eff_stars, _ = get_effective_price(user_id)
+                        req_count = get_user_request_count(user_id, sub_end.isoformat() if sub_end else None)
+                        if req_count == 0:
+                            req_count = get_user_request_count(user_id)
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=get_message("expired_24h", request_count=req_count, price=eff_stars),
+                            reply_markup=get_subscription_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "expired_24h")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить expired_24h для {user_id}: {e}")
 
                 # 3 дня после истечения
                 elif -73 < hours_left < -71:
                     if should_send_reminder(user_id, "expired_3d"):
-                        try:
-                            eff_stars, _ = get_effective_price(user_id)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=get_message("expired_3d", price=eff_stars),
-                                reply_markup=get_subscription_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        eff_stars, _ = get_effective_price(user_id)
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=get_message("expired_3d", price=eff_stars),
+                            reply_markup=get_subscription_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "expired_3d")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить expired_3d для {user_id}: {e}")
 
         except Exception as e:
             logging.error(f"Ошибка проверки напоминаний: {e}")
@@ -7246,32 +7324,27 @@ async def check_inactivity_reminders():
                 # 7 дней неактивности
                 if 6.5 < days_inactive < 8:
                     if should_send_reminder(user_id, "inactive_7d"):
-                        try:
-                            ex1, ex2 = random.choice(INACTIVE_EXAMPLES)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=get_message("inactive_7d", example1=ex1, example2=ex2),
-                                reply_markup=get_main_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        ex1, ex2 = random.choice(INACTIVE_EXAMPLES)
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=get_message("inactive_7d", example1=ex1, example2=ex2),
+                            reply_markup=get_main_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "inactive_7d")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить inactive_7d для {user_id}: {e}")
 
                 # 14 дней неактивности
                 elif 13.5 < days_inactive < 15:
                     if should_send_reminder(user_id, "inactive_14d"):
-                        try:
-                            eff_stars, _ = get_effective_price(user_id)
-                            await send_system_message(
-                                chat_id=user_id,
-                                text=get_message("inactive_14d"),
-                                reply_markup=get_main_keyboard(user_id),
-                                parse_mode="HTML"
-                            )
+                        ok = await _safe_send_reminder(
+                            user_id,
+                            text=get_message("inactive_14d"),
+                            reply_markup=get_main_keyboard(user_id),
+                            parse_mode="HTML"
+                        )
+                        if ok:
                             set_last_reminder(user_id, "inactive_14d")
-                        except Exception as e:
-                            logging.warning(f"Не удалось отправить inactive_14d для {user_id}: {e}")
 
         except Exception as e:
             logging.error(f"Ошибка проверки inactivity-напоминаний: {e}")
